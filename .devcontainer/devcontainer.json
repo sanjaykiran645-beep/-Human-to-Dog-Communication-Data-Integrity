@@ -1,0 +1,19 @@
+{
+  "name": "CanineSense AI Cloud Server",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    }
+  },
+  "forwardPorts": [8000],
+  "portsAttributes": {
+    "8000": {
+      "label": "CanineSense AI Live Server",
+      "onAutoForward": "openBrowser",
+      "visibility": "public"
+    }
+  },
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y ffmpeg libsndfile1 curl && pip install -r backend/requirements.txt && cd frontend && npm install && npm run build && cd .. && python -c 'import sys; sys.path.insert(0, \"backend\"); from app.db import init_db; init_db()'",
+  "postStartCommand": "uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8000"
+}

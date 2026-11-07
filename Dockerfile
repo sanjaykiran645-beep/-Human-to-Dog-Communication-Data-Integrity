@@ -58,8 +58,9 @@ RUN mkdir -p /app/data/storage /app/data/scratch
 EXPOSE 8000
 
 # Health check matching Render's standard health-check probe
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=5 \
     CMD curl -f http://127.0.0.1:${PORT:-8000}/api/health || exit 1
 
 # Initialize SQLite schema cleanly before spawning Uvicorn workers
-CMD ["sh", "-c", "python -c 'import sys; sys.path.insert(0, \"backend\"); from app.db import init_db; init_db()' && exec uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port ${PORT:-8000} --workers 2"]
+CMD ["sh", "-c", "python -c 'import sys; sys.path.insert(0, \"backend\"); from app.db import init_db; init_db()' && exec uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]
+

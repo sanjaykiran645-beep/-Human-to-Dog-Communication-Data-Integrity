@@ -1,0 +1,19 @@
+{
+  "name": "CanineSense AI — Bioacoustic Laboratory",
+  "short_name": "CanineSense AI",
+  "description": "Dual-engine canine vocalization analysis, STFT spectrogram inspection, and reference-driven dog audio generation.",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#EFE5DC",
+  "theme_color": "#762F3D",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

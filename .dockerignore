@@ -1,0 +1,32 @@
+# Security: Never bake credentials, secrets, or user databases into production images
+.env
+.env.*
+.secret
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+data/caninesense.sqlite3*
+data/storage/*
+!data/storage/.gitkeep
+
+# Sensitive and temporary directories
+scratch/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.coverage
+htmlcov/
+tests/
+
+# Development artifacts
+node_modules/
+frontend/node_modules/
+frontend/dist/
+mobile-android/
+.vscode/
+.idea/
+.git/
+.gitignore
+*.log

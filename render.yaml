@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: caninesense-ai
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: oregon
+    healthCheckPath: /api/health
+    envVars:
+      - key: CANINESENSE_ENV
+        value: production
+      - key: CANINESENSE_DATA_DIR
+        value: /app/data
+      - key: CANINESENSE_SECRET_KEY
+        generateValue: true
+      - key: CANINESENSE_ACCESS_TOKEN_MINUTES
+        value: "1440"

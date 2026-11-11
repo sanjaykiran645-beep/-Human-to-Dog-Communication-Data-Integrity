@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { api } from "../api";
+import { api, isDemoSession } from "../api";
 import type { Dog } from "../api";
 import AudioPlayer from "../components/AudioPlayer";
 import ResultView from "../components/ResultView";
@@ -568,6 +568,22 @@ export default function Communicate() {
             Generates high-fidelity canine vocalizations grounded in genuine dog audio recordings (Retrieval &amp;
             Controlled Variation), with side-by-side reference comparison, STFT spectrograms, and quality verification.
           </p>
+          {isDemoSession() && (
+            <div
+              className="badge warn"
+              role="status"
+              style={{
+                padding: "8px 14px",
+                marginTop: 10,
+                display: "inline-block",
+                background: "#FFF4E5",
+                color: "#663C00",
+                border: "1px solid #FFE2B3",
+              }}
+            >
+              ⚠️ Demo Mode: Synthetic WebAudio synthesizer active. Authentic 134-clip reference library streaming and neural synthesis require a connected FastAPI backend.
+            </div>
+          )}
         </div>
         <div className="row" style={{ gap: 8 }}>
           <button

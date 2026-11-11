@@ -131,7 +131,8 @@ export default function CookiePolicy() {
             <p>If you have any questions regarding our storage practices or Cookie Policy, contact us:</p>
             <p style={{ background: "var(--surface-soft)", padding: "16px 20px", borderRadius: "var(--radius-sm)" }}>
               <strong>CanineSense AI Privacy Office</strong><br />
-              Email: <a href="mailto:privacy@caninesense.ai">privacy@caninesense.ai</a>
+              Official Channel: <a href="https://github.com/sanjaykiran645-beep/-Human-to-Dog-Communication-Data-Integrity/issues" target="_blank" rel="noreferrer">GitHub Project Issue Tracker</a><br />
+              Email: privacy@caninesense.ai [Pending Owner Mailbox Setup]
             </p>
           </section>
         </article>

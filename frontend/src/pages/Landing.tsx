@@ -159,8 +159,8 @@ export default function Landing() {
             </div>
           </div>
           <div className="tiny" style={{ color: "var(--ink-2)", display: "flex", gap: 16, flexWrap: "wrap" }}>
-            <span>Email: <a href="mailto:support@caninesense.ai">support@caninesense.ai</a></span>
-            <span>Tel: <a href="tel:+18005550199">+1 (800) 555-0199</a></span>
+            <span>Support &amp; Inquiries: <a href="https://github.com/sanjaykiran645-beep/-Human-to-Dog-Communication-Data-Integrity/issues" target="_blank" rel="noreferrer">GitHub Project Inquiries</a></span>
+            <span style={{ color: "var(--muted)" }}>Direct telephone &amp; domain mailboxes: [Pending Owner Verification]</span>
           </div>
         </div>
 

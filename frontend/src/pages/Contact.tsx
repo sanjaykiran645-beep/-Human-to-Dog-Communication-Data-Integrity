@@ -63,18 +63,41 @@ export default function Contact() {
             <div
               style={{
                 padding: "20px",
+                border: "1px solid var(--forest)",
+                borderRadius: "var(--radius-sm)",
+                background: "rgba(61, 90, 76, 0.05)",
+              }}
+            >
+              <h3 style={{ margin: "0 0 6px", fontSize: "1rem", color: "var(--forest)" }}>Verified Support Channel</h3>
+              <p className="tiny" style={{ margin: "0 0 8px", color: "var(--ink-2)" }}>
+                Official open-source repository issue tracker and discussion forum.
+              </p>
+              <a
+                href="https://github.com/sanjaykiran645-beep/-Human-to-Dog-Communication-Data-Integrity/issues"
+                target="_blank"
+                rel="noreferrer"
+                style={{ fontWeight: 600, wordBreak: "break-all" }}
+              >
+                GitHub Project Issues &rarr;
+              </a>
+            </div>
+
+            <div
+              style={{
+                padding: "20px",
                 border: "1px solid var(--line)",
                 borderRadius: "var(--radius-sm)",
                 background: "var(--surface-soft)",
               }}
             >
-              <h3 style={{ margin: "0 0 6px", fontSize: "1rem" }}>Technical Support</h3>
+              <h3 style={{ margin: "0 0 6px", fontSize: "1rem" }}>Technical Inquiries</h3>
               <p className="tiny" style={{ margin: "0 0 8px", color: "var(--ink-2)" }}>
                 Questions regarding audio uploads, recording errors, or STFT spectrogram analysis.
               </p>
-              <a href="mailto:support@caninesense.ai" style={{ fontWeight: 600 }}>
-                support@caninesense.ai
-              </a>
+              <span style={{ fontWeight: 600 }}>support@caninesense.ai</span>
+              <div className="tiny" style={{ color: "var(--muted)", marginTop: 4 }}>
+                [Owner Mailbox Pending Verification]
+              </div>
             </div>
 
             <div
@@ -89,26 +112,10 @@ export default function Contact() {
               <p className="tiny" style={{ margin: "0 0 8px", color: "var(--ink-2)" }}>
                 GDPR/CCPA/DPDP data subject requests, data erasure, or compliance audits.
               </p>
-              <a href="mailto:privacy@caninesense.ai" style={{ fontWeight: 600 }}>
-                privacy@caninesense.ai
-              </a>
-            </div>
-
-            <div
-              style={{
-                padding: "20px",
-                border: "1px solid var(--line)",
-                borderRadius: "var(--radius-sm)",
-                background: "var(--surface-soft)",
-              }}
-            >
-              <h3 style={{ margin: "0 0 6px", fontSize: "1rem" }}>Security Disclosures</h3>
-              <p className="tiny" style={{ margin: "0 0 8px", color: "var(--ink-2)" }}>
-                Vulnerability reports and responsible coordinated disclosure.
-              </p>
-              <a href="mailto:security@caninesense.ai" style={{ fontWeight: 600 }}>
-                security@caninesense.ai
-              </a>
+              <span style={{ fontWeight: 600 }}>privacy@caninesense.ai</span>
+              <div className="tiny" style={{ color: "var(--muted)", marginTop: 4 }}>
+                [Owner Mailbox Pending Verification]
+              </div>
             </div>
 
             <div
@@ -121,11 +128,14 @@ export default function Contact() {
             >
               <h3 style={{ margin: "0 0 6px", fontSize: "1rem" }}>Telephone Inquiries</h3>
               <p className="tiny" style={{ margin: "0 0 8px", color: "var(--ink-2)" }}>
-                Direct research laboratory line (Monday – Friday, 9am – 5pm).
+                Direct research laboratory telephone line.
               </p>
-              <a href="tel:+18005550199" style={{ fontWeight: 600 }}>
-                +1 (800) 555-0199
-              </a>
+              <span style={{ fontWeight: 600, color: "var(--muted)" }}>
+                [Pending Owner Verification]
+              </span>
+              <div className="tiny" style={{ color: "var(--muted)", marginTop: 4 }}>
+                No phone published until verified by project owner
+              </div>
             </div>
           </div>
 

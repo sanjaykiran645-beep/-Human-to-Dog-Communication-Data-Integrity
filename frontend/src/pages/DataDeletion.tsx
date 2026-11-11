@@ -83,12 +83,15 @@ export default function DataDeletion() {
               }}
             >
               <p style={{ margin: "0 0 10px", lineHeight: 1.6 }}>
-                Send an email from your registered account address to:
+                Submit a deletion request via our official GitHub issue tracker or email:
               </p>
-              <p style={{ margin: "0 0 14px", fontSize: "1.1rem" }}>
-                <a href="mailto:privacy@caninesense.ai?subject=Data%20Deletion%20Request" style={{ fontWeight: 600 }}>
-                  privacy@caninesense.ai
+              <p style={{ margin: "0 0 14px", fontSize: "1.05rem" }}>
+                <a href="https://github.com/sanjaykiran645-beep/-Human-to-Dog-Communication-Data-Integrity/issues" target="_blank" rel="noreferrer" style={{ fontWeight: 600 }}>
+                  GitHub Issues &rarr;
                 </a>
+                <span className="tiny" style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>
+                  Direct Email: privacy@caninesense.ai [Pending Owner Mailbox Setup]
+                </span>
               </p>
               <p className="tiny" style={{ margin: 0, color: "var(--muted)", lineHeight: 1.5 }}>
                 Subject: <code>Data Deletion Request - [Your Registered Email]</code><br />

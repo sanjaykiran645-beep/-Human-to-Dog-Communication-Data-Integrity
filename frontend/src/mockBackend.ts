@@ -4,8 +4,8 @@
  * such as GitHub Pages (where no Python/FastAPI backend container is present).
  */
 
-import { getUser, setSession, clearSession } from "./api";
-import type { User, Dog } from "./api";
+import { getUser, clearSession } from "./api";
+import type { Dog } from "./api";
 
 // Helper to generate a realistic waveform PNG via HTML5 Canvas
 export function generateWaveformPng(): string {
@@ -157,27 +157,10 @@ export function generateSyntheticWavUrl(freq = 260, duration = 0.8): string {
   return URL.createObjectURL(blob);
 }
 
-// Client-side storage keys
-const KEY_USERS = "cs_registered_users";
+// Client-side storage keys for demo preview
 const KEY_DOGS = "cs_dogs_v1";
 const KEY_RECS = "cs_recs_v1";
 const KEY_COMM = "cs_comm_v1";
-
-function getStoredUsers(): any[] {
-  try {
-    return JSON.parse(localStorage.getItem(KEY_USERS) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-function saveUsers(users: any[]) {
-  try {
-    localStorage.setItem(KEY_USERS, JSON.stringify(users));
-  } catch {
-    /* ignore */
-  }
-}
 
 export function getMockMediaUrl(path: string): string {
   if (path.includes("waveform")) {
@@ -206,70 +189,14 @@ export async function handleMockApi<T>(path: string, init: RequestInit = {}): Pr
   // Current session user
   const currentUser = getUser();
 
-  // 1. AUTH: REGISTER
-  if (cleanPath === "/api/auth/register" && method === "POST") {
-    const email = (body.email || "").trim().toLowerCase();
-    const name = (body.name || "").trim() || email.split("@")[0] || "Researcher";
-    const password = body.password || "";
-
-    if (!email || !email.includes("@")) {
-      throw new Error("A valid email address is required.");
-    }
-    if (password.length < 8) {
-      throw new Error("Password must be at least 8 characters.");
-    }
-
-    const users = getStoredUsers();
-    let existing = users.find((u) => u.email === email);
-    if (!existing) {
-      existing = {
-        id: "usr_" + Math.random().toString(36).slice(2, 10),
-        email,
-        name,
-        password,
-        created_at: new Date().toISOString(),
-      };
-      users.push(existing);
-      saveUsers(users);
-    }
-
-    const token = "cs_token_" + btoa(email) + "_" + Date.now();
-    const userObj: User = { id: existing.id, email: existing.email, name: existing.name };
-    setSession(token, userObj);
-    return { access_token: token, user: userObj } as unknown as T;
+  // 1. AUTH: REGISTER & LOGIN (Simulated authentication is strictly disabled)
+  if ((cleanPath === "/api/auth/register" || cleanPath === "/api/auth/login") && method === "POST") {
+    throw new Error(
+      "Simulated authentication disabled: Real backend authentication is required for actual accounts. Use 'Offline Demo Tour' to preview the interface."
+    );
   }
 
-  // 2. AUTH: LOGIN
-  if (cleanPath === "/api/auth/login" && method === "POST") {
-    const email = (body.email || "").trim().toLowerCase();
-    const password = body.password || "";
-
-    if (!email) {
-      throw new Error("Email is required.");
-    }
-
-    const users = getStoredUsers();
-    let user = users.find((u) => u.email === email);
-    // Auto-create to guarantee user can sign in immediately
-    if (!user) {
-      user = {
-        id: "usr_" + Math.random().toString(36).slice(2, 10),
-        email,
-        name: email.split("@")[0],
-        password: password || "password123",
-        created_at: new Date().toISOString(),
-      };
-      users.push(user);
-      saveUsers(users);
-    }
-
-    const token = "cs_token_" + btoa(email) + "_" + Date.now();
-    const userObj: User = { id: user.id, email: user.email, name: user.name };
-    setSession(token, userObj);
-    return { access_token: token, user: userObj } as unknown as T;
-  }
-
-  // 3. AUTH: LOGOUT
+  // 2. AUTH: LOGOUT
   if (cleanPath === "/api/auth/logout" && method === "POST") {
     clearSession();
     return { status: "ok" } as unknown as T;

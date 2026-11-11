@@ -1,15 +1,29 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, clearSession, getUser } from "../api";
+import { api, clearSession, getBackendUrl, getUser, setBackendUrl } from "../api";
 
 export default function Settings() {
   const user = getUser();
   const nav = useNavigate();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
+  const [backendUrlInput, setBackendUrlInput] = useState(getBackendUrl());
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
+
+  function handleSaveBackendUrl() {
+    setBackendUrl(backendUrlInput);
+    setMsg("Backend service URL saved successfully.");
+    setTimeout(() => setMsg(""), 4000);
+  }
+
+  function handleClearBackendUrl() {
+    setBackendUrl("");
+    setBackendUrlInput("");
+    setMsg("Backend URL reset to default relative origin.");
+    setTimeout(() => setMsg(""), 4000);
+  }
 
   async function changePassword(e: FormEvent) {
     e.preventDefault();
@@ -109,6 +123,33 @@ export default function Settings() {
           <button className="btn">Update password</button>
         </form>
       </div>
+      <div className="card">
+        <h2>Backend API Service</h2>
+        <p className="tiny" style={{ color: "var(--muted)", lineHeight: 1.5 }}>
+          Connected FastAPI bioacoustic service URL. When hosting the frontend statically (e.g. GitHub Pages), enter your deployed backend server URL below to enable real database accounts, full PyTorch/scikit-learn ML inference, and 134-clip reference audio streaming. Leave blank for relative proxying.
+        </p>
+        <div className="field">
+          <label htmlFor="backend-url-input">FastAPI Backend Origin URL</label>
+          <input
+            id="backend-url-input"
+            type="url"
+            placeholder="e.g. https://caninesense-backend.onrender.com"
+            value={backendUrlInput}
+            onChange={(e) => setBackendUrlInput(e.target.value)}
+          />
+        </div>
+        <div className="row" style={{ gap: 10 }}>
+          <button className="btn" type="button" onClick={handleSaveBackendUrl}>
+            Save Backend URL
+          </button>
+          {backendUrlInput && (
+            <button className="btn ghost" type="button" onClick={handleClearBackendUrl}>
+              Reset to Default
+            </button>
+          )}
+        </div>
+      </div>
+
       <div className="card">
         <h2>Privacy</h2>
         <p className="tiny">

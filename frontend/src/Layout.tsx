@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import Logo from "./Logo";
-import { api, clearSession, getUser } from "./api";
+import { api, clearSession, getUser, isDemoSession } from "./api";
 
 const links = [
   { to: "/app", label: "Dashboard", icon: IconHome, end: true, group: "core" },
@@ -203,8 +203,12 @@ export default function Layout() {
               {initials}
             </div>
             <div className="side-user-meta">
-              <strong>{user?.name || "Researcher"}</strong>
-              {user?.email ? (
+              <strong>{isDemoSession() ? "Demo Preview Guest" : user?.name || "Researcher"}</strong>
+              {isDemoSession() ? (
+                <span className="badge warn" style={{ fontSize: "0.68rem", padding: "2px 6px" }}>
+                  Simulated Session
+                </span>
+              ) : user?.email ? (
                 <a href={`mailto:${user.email}`} style={{ color: "inherit", textDecoration: "none" }}>
                   {user.email}
                 </a>
@@ -218,17 +222,17 @@ export default function Layout() {
               Settings
             </Link>
             <button type="button" className="btn ghost" onClick={handleLogout}>
-              Sign out
+              {isDemoSession() ? "Exit Demo" : "Sign out"}
             </button>
           </div>
           <div className="side-legal-links" style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap", fontSize: "0.75rem", color: "var(--muted)" }}>
-            <Link to="/privacy-policy" target="_blank" style={{ color: "inherit" }}>Privacy</Link>
+            <Link to="/privacy-policy" onClick={() => setOpen(false)} style={{ color: "inherit" }}>Privacy</Link>
             <span>·</span>
-            <Link to="/terms-of-service" target="_blank" style={{ color: "inherit" }}>Terms</Link>
+            <Link to="/terms-of-service" onClick={() => setOpen(false)} style={{ color: "inherit" }}>Terms</Link>
             <span>·</span>
-            <Link to="/cookie-settings" style={{ color: "inherit" }}>Cookies</Link>
+            <Link to="/cookie-settings" onClick={() => setOpen(false)} style={{ color: "inherit" }}>Cookies</Link>
             <span>·</span>
-            <Link to="/contact" target="_blank" style={{ color: "inherit" }}>Contact</Link>
+            <Link to="/contact" onClick={() => setOpen(false)} style={{ color: "inherit" }}>Contact</Link>
           </div>
         </div>
       </aside>
@@ -290,6 +294,48 @@ export default function Layout() {
             </Link>
           </div>
         </header>
+
+        {isDemoSession() && (
+          <div
+            role="status"
+            style={{
+              background: "#FFF4E5",
+              color: "#663C00",
+              border: "1px solid #FFE2B3",
+              borderRadius: "var(--radius-sm)",
+              padding: "10px 16px",
+              marginBottom: 18,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 10,
+              fontSize: "0.85rem",
+              fontWeight: 500,
+            }}
+          >
+            <div>
+              <strong>OFFLINE DEMO PREVIEW MODE:</strong> You are exploring an in-browser interface preview with synthetic audio. Real bioacoustic ML classification, authentic reference streaming, and secure user accounts require a connected FastAPI backend.
+            </div>
+            <button
+              type="button"
+              className="btn ghost"
+              style={{
+                padding: "4px 12px",
+                fontSize: "0.78rem",
+                color: "#663C00",
+                borderColor: "#D4A373",
+                fontWeight: 600,
+              }}
+              onClick={() => {
+                clearSession();
+                nav("/login");
+              }}
+            >
+              Exit Demo
+            </button>
+          </div>
+        )}
 
         <Outlet />
       </main>

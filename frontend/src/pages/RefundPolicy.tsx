@@ -89,7 +89,8 @@ export default function RefundPolicy() {
             </p>
             <p style={{ background: "var(--surface-soft)", padding: "16px 20px", borderRadius: "var(--radius-sm)" }}>
               <strong>CanineSense AI Billing &amp; Support</strong><br />
-              Email: <a href="mailto:support@caninesense.ai">support@caninesense.ai</a><br />
+              Official Channel: <a href="https://github.com/sanjaykiran645-beep/-Human-to-Dog-Communication-Data-Integrity/issues" target="_blank" rel="noreferrer">GitHub Project Issue Tracker</a><br />
+              Email: support@caninesense.ai [Pending Owner Mailbox Setup]<br />
               Response Time: Within 24-48 business hours
             </p>
           </section>

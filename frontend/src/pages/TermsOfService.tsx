@@ -175,8 +175,8 @@ export default function TermsOfService() {
             <p>For legal inquiries, copyright notices, or questions regarding these Terms, contact:</p>
             <p style={{ background: "var(--surface-soft)", padding: "16px 20px", borderRadius: "var(--radius-sm)" }}>
               <strong>CanineSense AI Legal Affairs</strong><br />
-              Email: <a href="mailto:legal@caninesense.ai">legal@caninesense.ai</a><br />
-              General Support: <a href="mailto:support@caninesense.ai">support@caninesense.ai</a>
+              Official Channel: <a href="https://github.com/sanjaykiran645-beep/-Human-to-Dog-Communication-Data-Integrity/issues" target="_blank" rel="noreferrer">GitHub Project Issue Tracker</a><br />
+              Legal Email: legal@caninesense.ai [Pending Owner Mailbox Setup]
             </p>
           </section>
         </article>

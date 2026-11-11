@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import Logo from "../Logo";
-import { api, getToken, setSession } from "../api";
+import { api, getToken, setSession, startDemoSession } from "../api";
 import type { User } from "../api";
 
 export default function Login() {
@@ -305,6 +305,33 @@ export default function Login() {
               {mode === "login" ? "Create one" : "Sign in"}
             </button>
           </p>
+
+          <div
+            style={{
+              marginTop: 22,
+              paddingTop: 16,
+              borderTop: "1px dashed var(--line-strong)",
+              textAlign: "center",
+            }}
+          >
+            <div className="kicker" style={{ fontSize: "0.72rem", marginBottom: 6 }}>
+              Interface Demonstration (No Backend Required)
+            </div>
+            <p className="tiny" style={{ color: "var(--muted)", margin: "0 0 10px", lineHeight: 1.4 }}>
+              Preview the bioacoustic lab interface in isolated offline mode using browser simulation. Real accounts and ML inference require a live FastAPI server.
+            </p>
+            <button
+              className="btn ghost wide"
+              type="button"
+              style={{ fontSize: "0.85rem", borderColor: "var(--taupe)" }}
+              onClick={() => {
+                startDemoSession();
+                nav("/app");
+              }}
+            >
+              Explore Offline Demo Tour (Simulated Preview)
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api } from "../api";
+import { api, isDemoSession } from "../api";
 import type { Dog } from "../api";
 import AudioPlayer from "../components/AudioPlayer";
 import ResultView from "../components/ResultView";
@@ -286,13 +286,30 @@ export default function Analyze() {
           )}
           {result?.id && (
             <>
-              <div
-                className="badge ok"
-                role="status"
-                style={{ padding: "8px 14px", marginBottom: 14, display: "inline-block" }}
-              >
-                Acoustic analysis complete — STFT spectrogram &amp; pitch extracted
-              </div>
+              {isDemoSession() ? (
+                <div
+                  className="badge warn"
+                  role="status"
+                  style={{
+                    padding: "8px 14px",
+                    marginBottom: 14,
+                    display: "inline-block",
+                    background: "#FFF4E5",
+                    color: "#663C00",
+                    border: "1px solid #FFE2B3",
+                  }}
+                >
+                  ⚠️ Simulated Demo Result (Canvas STFT &amp; Synthetic Signal) — Real ML inference requires FastAPI backend
+                </div>
+              ) : (
+                <div
+                  className="badge ok"
+                  role="status"
+                  style={{ padding: "8px 14px", marginBottom: 14, display: "inline-block" }}
+                >
+                  Acoustic analysis complete — STFT spectrogram &amp; pitch extracted
+                </div>
+              )}
               <AudioPlayer
                 mediaPath={`/api/recordings/${result.id}/media/processed`}
                 title={`Processed 22.05 kHz mono WAV — ${result.original_filename}`}

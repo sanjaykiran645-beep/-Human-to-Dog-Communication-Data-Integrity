@@ -45,6 +45,12 @@ def find_ffmpeg() -> str | None:
             "C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe",
         ]
     )
+    local_app_data = os.getenv("LOCALAPPDATA", "")
+    if local_app_data:
+        winget_pkgs = Path(local_app_data) / "Microsoft" / "WinGet" / "Packages"
+        if winget_pkgs.exists():
+            for found in winget_pkgs.glob("**/ffmpeg.exe"):
+                candidates.append(str(found))
     for path in candidates:
         if path and Path(path).is_file():
             _FFMPEG_CACHE = path
@@ -59,9 +65,9 @@ def decoder_status() -> dict[str, Any]:
     version = None
     if exe:
         try:
-            ver = subprocess.run([exe, "-version"], capture_output=True, text=True, timeout=8)
+            ver = subprocess.run([exe, "-version"], capture_output=True, text=True, timeout=25, stdin=subprocess.DEVNULL)
             version = (ver.stdout or "").splitlines()[0] if ver.returncode == 0 else None
-            enc = subprocess.run([exe, "-hide_banner", "-decoders"], capture_output=True, text=True, timeout=8)
+            enc = subprocess.run([exe, "-hide_banner", "-decoders"], capture_output=True, text=True, timeout=25, stdin=subprocess.DEVNULL)
             text = enc.stdout or ""
             for name in ("opus", "vorbis", "aac", "mp3", "flac", "pcm", "alac"):
                 if name in text.lower():
@@ -232,7 +238,7 @@ def _ffmpeg_decode(src: Path, dest_wav: Path) -> tuple[np.ndarray, int]:
         str(tmp_path),
     ]
     try:
-        result = subprocess.run(cmd, capture_output=True, timeout=40, check=False)
+        result = subprocess.run(cmd, capture_output=True, timeout=40, check=False, stdin=subprocess.DEVNULL)
     except FileNotFoundError as exc:
         raise AudioError(
             "Audio decoder (FFmpeg) is not available on the server. Install FFmpeg and restart.",
@@ -352,6 +358,6 @@ def ffmpeg_encode(src_wav: Path, dest: Path, fmt: str) -> None:
         raise AudioError("ffmpeg missing", "decoder_missing")
     dest.parent.mkdir(parents=True, exist_ok=True)
     cmd = [exe, "-hide_banner", "-loglevel", "error", "-y", "-i", str(src_wav), str(dest)]
-    result = subprocess.run(cmd, capture_output=True, timeout=30, check=False)
+    result = subprocess.run(cmd, capture_output=True, timeout=30, check=False, stdin=subprocess.DEVNULL)
     if result.returncode != 0 or not dest.exists():
         raise AudioError("ffmpeg encode failed", "encode_failed")

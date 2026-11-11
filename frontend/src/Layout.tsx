@@ -66,6 +66,16 @@ export default function Layout() {
     }
   }, [onboardingKey, loc.pathname]);
 
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && showWelcome) {
+        dismissWelcome();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showWelcome]);
+
   function dismissWelcome() {
     localStorage.setItem(onboardingKey, "1");
     localStorage.setItem("cs_onboarding_done", "1");
@@ -179,6 +189,15 @@ export default function Layout() {
             <button type="button" className="btn ghost" onClick={handleLogout}>
               Sign out
             </button>
+          </div>
+          <div className="side-legal-links" style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap", fontSize: "0.75rem", color: "var(--muted)" }}>
+            <Link to="/privacy-policy" target="_blank" style={{ color: "inherit" }}>Privacy</Link>
+            <span>·</span>
+            <Link to="/terms-of-service" target="_blank" style={{ color: "inherit" }}>Terms</Link>
+            <span>·</span>
+            <Link to="/cookie-settings" style={{ color: "inherit" }}>Cookies</Link>
+            <span>·</span>
+            <Link to="/contact" target="_blank" style={{ color: "inherit" }}>Contact</Link>
           </div>
         </div>
       </aside>

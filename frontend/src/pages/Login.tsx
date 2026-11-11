@@ -13,6 +13,9 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
+  const [termsAgreed, setTermsAgreed] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [audioNoticeAgreed, setAudioNoticeAgreed] = useState(false);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -32,9 +35,15 @@ export default function Login() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setErr("");
-    if (mode === "register" && confirmPassword && confirmPassword !== password) {
-      setErr("Passwords do not match. Please confirm your password.");
-      return;
+    if (mode === "register") {
+      if (confirmPassword && confirmPassword !== password) {
+        setErr("Passwords do not match. Please confirm your password.");
+        return;
+      }
+      if (!termsAgreed || !ageConfirmed || !audioNoticeAgreed) {
+        setErr("Please review and agree to all required legal and privacy consents to create your account.");
+        return;
+      }
     }
     setBusy(true);
     try {
@@ -200,17 +209,64 @@ export default function Login() {
             </div>
 
             {mode === "register" && (
-              <div className="field">
-                <label htmlFor="auth-confirm-password">Confirm password (optional check)</label>
-                <input
-                  id="auth-confirm-password"
-                  type="password"
-                  placeholder="Re-enter password to verify"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  autoComplete="new-password"
-                />
-              </div>
+              <>
+                <div className="field">
+                  <label htmlFor="auth-confirm-password">Confirm password (optional check)</label>
+                  <input
+                    id="auth-confirm-password"
+                    type="password"
+                    placeholder="Re-enter password to verify"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
+                  />
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, margin: "14px 0" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                    <input
+                      id="auth-terms"
+                      type="checkbox"
+                      checked={termsAgreed}
+                      onChange={(e) => setTermsAgreed(e.target.checked)}
+                      required
+                      style={{ marginTop: 3, accentColor: "var(--accent)" }}
+                    />
+                    <label htmlFor="auth-terms" className="tiny" style={{ color: "var(--ink-2)", lineHeight: 1.4 }}>
+                      I agree to the <Link to="/terms-of-service" target="_blank">Terms of Service</Link> and{" "}
+                      <Link to="/privacy-policy" target="_blank">Privacy Policy</Link>.
+                    </label>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                    <input
+                      id="auth-age"
+                      type="checkbox"
+                      checked={ageConfirmed}
+                      onChange={(e) => setAgeConfirmed(e.target.checked)}
+                      required
+                      style={{ marginTop: 3, accentColor: "var(--accent)" }}
+                    />
+                    <label htmlFor="auth-age" className="tiny" style={{ color: "var(--ink-2)", lineHeight: 1.4 }}>
+                      I confirm that I am at least 18 years old (or have parental/guardian consent).
+                    </label>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                    <input
+                      id="auth-audio-notice"
+                      type="checkbox"
+                      checked={audioNoticeAgreed}
+                      onChange={(e) => setAudioNoticeAgreed(e.target.checked)}
+                      required
+                      style={{ marginTop: 3, accentColor: "var(--accent)" }}
+                    />
+                    <label htmlFor="auth-audio-notice" className="tiny" style={{ color: "var(--ink-2)", lineHeight: 1.4 }}>
+                      I understand that uploaded audio is stored privately on this server and can be deleted at any time.
+                    </label>
+                  </div>
+                </div>
+              </>
             )}
 
             <button className="btn accent wide" type="submit" disabled={busy} style={{ marginTop: 6 }}>

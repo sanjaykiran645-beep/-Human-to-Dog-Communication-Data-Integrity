@@ -87,9 +87,22 @@ export default function Landing() {
         </p>
       </section>
 
-      <footer className="land-foot">
-        <span>CanineSense AI</span>
-        <span>Recordings stay on your account. They are not sent to an external AI provider.</span>
+      <footer className="land-foot" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, width: "100%" }}>
+          <span>&copy; {new Date().getFullYear()} CanineSense AI Bioacoustics</span>
+          <span className="tiny" style={{ color: "var(--muted)" }}>
+            Recordings stay on your account. Zero third-party cloud AI transmission.
+          </span>
+        </div>
+        <div className="row" style={{ gap: 16, flexWrap: "wrap", fontSize: "0.85rem" }}>
+          <Link to="/privacy-policy">Privacy Policy</Link>
+          <Link to="/terms-of-service">Terms of Service</Link>
+          <Link to="/refund-policy">Refund Policy</Link>
+          <Link to="/cookie-policy">Cookie Policy</Link>
+          <Link to="/cookie-settings">Cookie Settings</Link>
+          <Link to="/data-deletion">Data Deletion</Link>
+          <Link to="/contact">Contact</Link>
+        </div>
       </footer>
     </div>
   );

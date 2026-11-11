@@ -53,6 +53,10 @@ export function getBackendUrl(): string {
   if (stored) return stored.replace(/\/+$/, "");
   const envUrl = (import.meta as any).env?.VITE_API_URL;
   if (envUrl) return String(envUrl).replace(/\/+$/, "");
+  // Default to the deployed production Render backend when accessed from GitHub Pages
+  if (typeof window !== "undefined" && window.location.hostname.includes("github.io")) {
+    return "https://caninesense-backend.onrender.com";
+  }
   return "";
 }
 

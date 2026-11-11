@@ -208,9 +208,14 @@ def get_reference_audio_stream(
     asset = get_reference_asset(asset_id, user_id=user.id)
     if not asset:
         raise HTTPException(status_code=404, detail="Reference asset not found")
-    wav_path = Path(asset.get("processed_path") or "")
+    raw_p = asset.get("processed_path") or ""
+    wav_path = Path(raw_p)
     if not wav_path.exists():
-        raise HTTPException(status_code=404, detail="Reference audio file not found on disk")
+        candidate = REF_PROC_DIR / Path(raw_p).name
+        if candidate.exists():
+            wav_path = candidate
+        else:
+            raise HTTPException(status_code=404, detail="Reference audio file not found on disk")
     return FileResponse(
         wav_path,
         media_type="audio/wav",
@@ -231,9 +236,14 @@ def get_reference_media_plot(
     asset = get_reference_asset(asset_id, user_id=user.id)
     if not asset:
         raise HTTPException(status_code=404, detail="Reference asset not found")
-    wav_path = Path(asset.get("processed_path") or "")
+    raw_p = asset.get("processed_path") or ""
+    wav_path = Path(raw_p)
     if not wav_path.exists():
-        raise HTTPException(status_code=404, detail="Reference audio file not found on disk")
+        candidate = REF_PROC_DIR / Path(raw_p).name
+        if candidate.exists():
+            wav_path = candidate
+        else:
+            raise HTTPException(status_code=404, detail="Reference audio file not found on disk")
 
     REF_PLOTS_DIR.mkdir(parents=True, exist_ok=True)
     wave_path = REF_PLOTS_DIR / f"{asset_id}_wave.png"
@@ -254,9 +264,14 @@ def get_reference_spectrogram_data(
     asset = get_reference_asset(asset_id, user_id=user.id)
     if not asset:
         raise HTTPException(status_code=404, detail="Reference asset not found")
-    wav_path = Path(asset.get("processed_path") or "")
+    raw_p = asset.get("processed_path") or ""
+    wav_path = Path(raw_p)
     if not wav_path.exists():
-        raise HTTPException(status_code=404, detail="Reference audio file not found on disk")
+        candidate = REF_PROC_DIR / Path(raw_p).name
+        if candidate.exists():
+            wav_path = candidate
+        else:
+            raise HTTPException(status_code=404, detail="Reference audio file not found on disk")
     try:
         return compute_spectrogram_from_file(wav_path)
     except SpectrogramError as exc:

@@ -89,6 +89,27 @@ _MANIFEST_CACHE: dict[str, Any] | None = None
 _MANIFEST_WRITE_LOCK = threading.RLock()
 
 
+def _normalize_asset_paths(asset: dict[str, Any]) -> dict[str, Any]:
+    """Dynamically rebind stored asset paths to the current runtime directories.
+    Ensures cross-platform portability when assets were pre-indexed on Windows or Linux.
+    """
+    mappings = [
+        ("processed_path", REF_PROC_DIR),
+        ("spectrogram_path", REF_PLOTS_DIR),
+        ("waveform_path", REF_PLOTS_DIR),
+        ("raw_path", REF_RAW_DIR),
+    ]
+    for key, target_dir in mappings:
+        val = asset.get(key)
+        if val:
+            p = Path(val)
+            if not p.exists():
+                candidate = target_dir / p.name
+                if candidate.exists():
+                    asset[key] = str(candidate)
+    return asset
+
+
 def normalize_category(cat: str | None) -> str:
     if not cat:
         return "BARK"
@@ -581,6 +602,8 @@ def build_or_load_reference_library(force_rebuild: bool = False) -> dict[str, An
         try:
             loaded = json.loads(REF_MANIFEST_JSON.read_text(encoding="utf-8"))
             if loaded.get("schema_version") == "2.1" and len(loaded.get("assets", [])) >= 30:
+                for a in loaded.get("assets", []):
+                    _normalize_asset_paths(a)
                 _MANIFEST_CACHE = loaded
                 return loaded
         except Exception:
@@ -1093,7 +1116,7 @@ def get_reference_asset(asset_id: str, user_id: str | None = None) -> dict[str, 
         if a["asset_id"] == asset_id:
             if not is_reference_accessible(a, user_id):
                 return None
-            return a
+            return _normalize_asset_paths(a)
     return None
 
 

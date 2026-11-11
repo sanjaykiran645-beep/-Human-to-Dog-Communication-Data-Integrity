@@ -587,9 +587,44 @@ export async function handleMockApi<T>(path: string, init: RequestInit = {}): Pr
     } catch {
       recs = [];
     }
+    let dogs: any[] = [];
+    try {
+      dogs = JSON.parse(localStorage.getItem(dogKey) || "[]");
+    } catch {
+      dogs = [];
+    }
+    let comm: any[] = [];
+    try {
+      comm = JSON.parse(localStorage.getItem(commKey) || "[]");
+    } catch {
+      comm = [];
+    }
+    const recent = recs.slice(0, 8).map((r) => ({
+      analysis_id: r.id || "demo_an_01",
+      recording_id: r.id || "demo_rec_01",
+      vocalization: r.analysis?.vocalization || "bark",
+      confidence: r.analysis?.confidence || 0.88,
+      abstained: false,
+      filename: r.filename || "demo_audio_sample.wav",
+      created_at: r.created_at || new Date().toISOString(),
+    }));
+
     return {
+      recordings: recs.length || 8,
+      dogs: dogs.length || 1,
+      generated: comm.length || 3,
+      analyses: recs.length || 8,
+      abstentions: 0,
+      vocalization_counts: {
+        bark: 4,
+        growl: 2,
+        whine: 1,
+        pant: 1,
+      },
+      most_frequent_vocalization: "bark",
+      recent,
       total_recordings: recs.length || 8,
-      total_dogs: 1,
+      total_dogs: dogs.length || 1,
       vocalization_distribution: {
         BARK: 4,
         GROWL: 2,

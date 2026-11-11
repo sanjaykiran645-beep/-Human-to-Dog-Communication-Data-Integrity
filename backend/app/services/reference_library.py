@@ -17,7 +17,7 @@ import threading
 import uuid
 import zipfile
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 import librosa
@@ -91,7 +91,8 @@ _MANIFEST_WRITE_LOCK = threading.RLock()
 
 def _normalize_asset_paths(asset: dict[str, Any]) -> dict[str, Any]:
     """Dynamically rebind stored asset paths to the current runtime directories.
-    Ensures cross-platform portability when assets were pre-indexed on Windows or Linux.
+    Ensures cross-platform portability when assets were pre-indexed on Windows or Linux,
+    safely handling Windows backslashes even when running on a POSIX Linux container.
     """
     mappings = [
         ("processed_path", REF_PROC_DIR),
@@ -102,11 +103,16 @@ def _normalize_asset_paths(asset: dict[str, Any]) -> dict[str, Any]:
     for key, target_dir in mappings:
         val = asset.get(key)
         if val:
-            p = Path(val)
-            if not p.exists():
-                candidate = target_dir / p.name
+            # PureWindowsPath extracts the bare filename from both Windows (C:\...) and POSIX (/app/...) paths
+            filename = PureWindowsPath(str(val)).name
+            if filename and filename == Path(filename).name:
+                candidate = target_dir / filename
                 if candidate.exists():
                     asset[key] = str(candidate)
+                    continue
+            p = Path(val)
+            if p.exists():
+                asset[key] = str(p)
     return asset
 
 

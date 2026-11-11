@@ -245,11 +245,11 @@ export default function Dashboard() {
             </Link>
           </div>
 
-          {!data?.recent.length && (
+          {!data?.recent?.length && (
             <div className="empty">No analyses yet. Start with a recording to populate your workspace.</div>
           )}
 
-          {!!data?.recent.length && (
+          {!!data?.recent?.length && (
             <div className="dash-stream-list">
               {data.recent.map((r) => {
                 const pct = r.abstained ? 0 : Math.round(r.confidence * 100);

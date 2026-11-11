@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 import numpy as np
 import soundfile as sf
@@ -29,7 +29,9 @@ from ..services.reference_engine import (
     search_reference_candidates,
 )
 from ..services.reference_library import (
+    REFERENCE_DIR,
     REF_PLOTS_DIR,
+    REF_PROC_DIR,
     REPO_DATA_DIR,
     SUPPORTED_REFERENCE_CATEGORIES,
     build_or_load_reference_library,
@@ -200,6 +202,42 @@ def patch_reference_annotation(
     return summary
 
 
+def _safe_resolve_reference_wav(asset: dict) -> Path:
+    """Safely resolves an asset's processed wav file across Windows/Linux,
+    preventing path traversal and verifying that the file exists on disk.
+    """
+    raw_p = asset.get("processed_path") or ""
+    if not raw_p:
+        raise HTTPException(status_code=404, detail="Reference audio path missing")
+
+    # PureWindowsPath extracts the bare filename from both Windows (C:\...) and POSIX (/app/...) paths
+    filename = PureWindowsPath(str(raw_p)).name
+    if not filename or filename != Path(filename).name:
+        raise HTTPException(status_code=400, detail="Invalid reference file path")
+
+    # Primary check: file in standard processed reference directory
+    candidate = REF_PROC_DIR / filename
+    if candidate.exists():
+        wav_path = candidate
+    else:
+        # Fallback check: path as specified
+        p = Path(raw_p)
+        if p.exists():
+            wav_path = p
+        else:
+            raise HTTPException(status_code=404, detail="Reference audio file not found on disk")
+
+    # Strictly enforce path containment within REFERENCE_DIR to prevent directory traversal
+    resolved = wav_path.resolve()
+    ref_root = REFERENCE_DIR.resolve()
+    try:
+        resolved.relative_to(ref_root)
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Access outside reference library forbidden")
+
+    return resolved
+
+
 @router.get("/references/{asset_id}/audio")
 def get_reference_audio_stream(
     asset_id: str,
@@ -208,14 +246,7 @@ def get_reference_audio_stream(
     asset = get_reference_asset(asset_id, user_id=user.id)
     if not asset:
         raise HTTPException(status_code=404, detail="Reference asset not found")
-    raw_p = asset.get("processed_path") or ""
-    wav_path = Path(raw_p)
-    if not wav_path.exists():
-        candidate = REF_PROC_DIR / Path(raw_p).name
-        if candidate.exists():
-            wav_path = candidate
-        else:
-            raise HTTPException(status_code=404, detail="Reference audio file not found on disk")
+    wav_path = _safe_resolve_reference_wav(asset)
     return FileResponse(
         wav_path,
         media_type="audio/wav",
@@ -236,14 +267,7 @@ def get_reference_media_plot(
     asset = get_reference_asset(asset_id, user_id=user.id)
     if not asset:
         raise HTTPException(status_code=404, detail="Reference asset not found")
-    raw_p = asset.get("processed_path") or ""
-    wav_path = Path(raw_p)
-    if not wav_path.exists():
-        candidate = REF_PROC_DIR / Path(raw_p).name
-        if candidate.exists():
-            wav_path = candidate
-        else:
-            raise HTTPException(status_code=404, detail="Reference audio file not found on disk")
+    wav_path = _safe_resolve_reference_wav(asset)
 
     REF_PLOTS_DIR.mkdir(parents=True, exist_ok=True)
     wave_path = REF_PLOTS_DIR / f"{asset_id}_wave.png"
@@ -264,14 +288,7 @@ def get_reference_spectrogram_data(
     asset = get_reference_asset(asset_id, user_id=user.id)
     if not asset:
         raise HTTPException(status_code=404, detail="Reference asset not found")
-    raw_p = asset.get("processed_path") or ""
-    wav_path = Path(raw_p)
-    if not wav_path.exists():
-        candidate = REF_PROC_DIR / Path(raw_p).name
-        if candidate.exists():
-            wav_path = candidate
-        else:
-            raise HTTPException(status_code=404, detail="Reference audio file not found on disk")
+    wav_path = _safe_resolve_reference_wav(asset)
     try:
         return compute_spectrogram_from_file(wav_path)
     except SpectrogramError as exc:

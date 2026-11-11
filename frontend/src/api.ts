@@ -179,8 +179,11 @@ export async function mediaUrl(path: string): Promise<string> {
         if ((res.status >= 500 || res.status === 429) && attempt < 2) {
           continue;
         }
-        const { getMockMediaUrl } = await import("./mockBackend");
-        return getMockMediaUrl(path);
+        if (isDemoSession()) {
+          const { getMockMediaUrl } = await import("./mockBackend");
+          return getMockMediaUrl(path);
+        }
+        throw new Error(`Media fetch failed (${res.status} ${res.statusText})`);
       }
       const rawBlob = await res.blob();
       if (rawBlob.size === 0 && attempt < 2) {
@@ -203,6 +206,9 @@ export async function mediaUrl(path: string): Promise<string> {
     }
   }
 
-  const { getMockMediaUrl } = await import("./mockBackend");
-  return getMockMediaUrl(path);
+  if (isDemoSession()) {
+    const { getMockMediaUrl } = await import("./mockBackend");
+    return getMockMediaUrl(path);
+  }
+  throw lastErr || new Error("Failed to load media from backend service.");
 }

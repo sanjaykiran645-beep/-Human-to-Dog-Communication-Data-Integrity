@@ -120,12 +120,37 @@ export default function Layout() {
       {open && <button className="scrim" aria-label="Close menu" type="button" onClick={() => setOpen(false)} />}
 
       <aside className={`sidebar ${open ? "open" : ""}`}>
-        <div className="brand">
-          <Logo size={38} />
-          <div>
-            <div className="brand-name">CanineSense</div>
-            <div className="brand-sub">Acoustic Lab</div>
-          </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <Link
+            to="/app"
+            className="brand"
+            style={{ textDecoration: "none", color: "inherit" }}
+            aria-label="CanineSense AI Dashboard"
+            onClick={() => setOpen(false)}
+          >
+            <Logo size={36} />
+            <div>
+              <div className="brand-name">CanineSense</div>
+              <div className="brand-sub">Acoustic Lab</div>
+            </div>
+          </Link>
+          <button
+            type="button"
+            className="mobile-close-btn"
+            aria-label="Close navigation menu"
+            onClick={() => setOpen(false)}
+            style={{
+              background: "none",
+              border: "none",
+              fontSize: "1.5rem",
+              lineHeight: 1,
+              cursor: "pointer",
+              color: "var(--ink)",
+              padding: "4px 8px",
+            }}
+          >
+            ×
+          </button>
         </div>
 
         <nav aria-label="Primary navigation">
@@ -179,7 +204,13 @@ export default function Layout() {
             </div>
             <div className="side-user-meta">
               <strong>{user?.name || "Researcher"}</strong>
-              <span>{user?.email || "Private workspace"}</span>
+              {user?.email ? (
+                <a href={`mailto:${user.email}`} style={{ color: "inherit", textDecoration: "none" }}>
+                  {user.email}
+                </a>
+              ) : (
+                <span>Private workspace</span>
+              )}
             </div>
           </div>
           <div className="side-actions">

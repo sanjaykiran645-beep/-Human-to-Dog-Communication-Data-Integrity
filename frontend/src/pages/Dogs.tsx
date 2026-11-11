@@ -9,6 +9,7 @@ export default function Dogs() {
   const [dogs, setDogs] = useState<Dog[]>([]);
   const [form, setForm] = useState(empty);
   const [err, setErr] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
 
   function load() {
@@ -19,6 +20,7 @@ export default function Dogs() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setErr("");
+    setSuccessMsg("");
     const body = {
       name: form.name,
       breed: form.breed || null,
@@ -30,9 +32,11 @@ export default function Dogs() {
     try {
       if (editing) await api(`/api/dogs/${editing}`, { method: "PATCH", body: JSON.stringify(body) });
       else await api("/api/dogs", { method: "POST", body: JSON.stringify(body) });
+      setSuccessMsg(editing ? "Dog profile updated successfully!" : "Dog profile added successfully!");
       setForm(empty);
       setEditing(null);
       load();
+      setTimeout(() => setSuccessMsg(""), 4000);
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Failed");
     }
@@ -40,8 +44,14 @@ export default function Dogs() {
 
   async function remove(id: string) {
     if (!confirm("Delete this profile?")) return;
-    await api(`/api/dogs/${id}`, { method: "DELETE" });
-    load();
+    try {
+      await api(`/api/dogs/${id}`, { method: "DELETE" });
+      setSuccessMsg("Dog profile removed.");
+      setTimeout(() => setSuccessMsg(""), 4000);
+      load();
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : "Failed to delete profile");
+    }
   }
 
   return (
@@ -56,19 +66,39 @@ export default function Dogs() {
       <div className="grid-2">
         <div className="card">
           <h2>{editing ? "Edit profile" : "Add a dog"}</h2>
-          {err && <div className="error">{err}</div>}
+          {err && <div className="error" role="alert">{err}</div>}
+          {successMsg && (
+            <div
+              className="badge ok"
+              role="status"
+              style={{ padding: "8px 14px", marginBottom: 14, display: "block" }}
+            >
+              {successMsg}
+            </div>
+          )}
           <form onSubmit={onSubmit}>
             <div className="field">
-              <label>Name</label>
-              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+              <label htmlFor="dog-name">Name</label>
+              <input
+                id="dog-name"
+                placeholder="e.g. Barnaby"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                required
+              />
             </div>
             <div className="field">
-              <label>Breed</label>
-              <input value={form.breed} onChange={(e) => setForm({ ...form, breed: e.target.value })} />
+              <label htmlFor="dog-breed">Breed</label>
+              <input
+                id="dog-breed"
+                placeholder="e.g. Golden Retriever"
+                value={form.breed}
+                onChange={(e) => setForm({ ...form, breed: e.target.value })}
+              />
             </div>
             <div className="field">
-              <label>Sex</label>
-              <select value={form.sex} onChange={(e) => setForm({ ...form, sex: e.target.value })}>
+              <label htmlFor="dog-sex">Sex</label>
+              <select id="dog-sex" value={form.sex} onChange={(e) => setForm({ ...form, sex: e.target.value })}>
                 <option value="">Unknown</option>
                 <option value="female">Female</option>
                 <option value="male">Male</option>
@@ -76,17 +106,38 @@ export default function Dogs() {
             </div>
             <div className="grid-2">
               <div className="field">
-                <label>Age (years)</label>
-                <input type="number" min={0} step={0.1} value={form.age_years} onChange={(e) => setForm({ ...form, age_years: e.target.value })} />
+                <label htmlFor="dog-age">Age (years)</label>
+                <input
+                  id="dog-age"
+                  type="number"
+                  min={0}
+                  step={0.1}
+                  placeholder="e.g. 3.5"
+                  value={form.age_years}
+                  onChange={(e) => setForm({ ...form, age_years: e.target.value })}
+                />
               </div>
               <div className="field">
-                <label>Weight (kg)</label>
-                <input type="number" min={0.2} step={0.1} value={form.weight_kg} onChange={(e) => setForm({ ...form, weight_kg: e.target.value })} />
+                <label htmlFor="dog-weight">Weight (kg)</label>
+                <input
+                  id="dog-weight"
+                  type="number"
+                  min={0.2}
+                  step={0.1}
+                  placeholder="e.g. 28.5"
+                  value={form.weight_kg}
+                  onChange={(e) => setForm({ ...form, weight_kg: e.target.value })}
+                />
               </div>
             </div>
             <div className="field">
-              <label>Notes</label>
-              <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+              <label htmlFor="dog-notes">Acoustic &amp; Behavioral Notes</label>
+              <textarea
+                id="dog-notes"
+                placeholder="Baseline acoustic pitch, typical barking triggers, or medical notes..."
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              />
             </div>
             <div className="row">
               <button className="btn">{editing ? "Save" : "Add"}</button>

@@ -16,6 +16,7 @@ export default function Login() {
   const [termsAgreed, setTermsAgreed] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [audioNoticeAgreed, setAudioNoticeAgreed] = useState(false);
+  const [successMsg, setSuccessMsg] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -54,7 +55,8 @@ export default function Login() {
         body: JSON.stringify(body),
       });
       setSession(data.access_token, data.user);
-      nav("/app");
+      setSuccessMsg(mode === "login" ? "Signed in successfully!" : "Account created successfully!");
+      setTimeout(() => nav("/app"), 200);
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Failed");
     } finally {
@@ -68,7 +70,12 @@ export default function Login() {
         {/* Left Bioacoustic Visual Showcase Panel */}
         <div className="auth-showcase">
           <div>
-            <Link to="/" className="row" style={{ textDecoration: "none", color: "inherit", gap: 12 }}>
+            <Link
+              to="/"
+              className="row"
+              style={{ textDecoration: "none", color: "inherit", gap: 12 }}
+              aria-label="CanineSense AI Home"
+            >
               <Logo size={42} />
               <div>
                 <div className="kicker">CanineSense AI</div>
@@ -165,7 +172,20 @@ export default function Login() {
               : "Register your private CanineSense AI workspace. All recordings and analyses stay under your account."}
           </p>
 
-          {err && <div className="error">{err}</div>}
+          {err && (
+            <div className="error" role="alert">
+              {err}
+            </div>
+          )}
+          {successMsg && (
+            <div
+              className="badge ok"
+              role="status"
+              style={{ padding: "10px 14px", marginBottom: 14, display: "block" }}
+            >
+              {successMsg}
+            </div>
+          )}
 
           <form onSubmit={onSubmit}>
             {mode === "register" && (

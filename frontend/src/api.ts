@@ -58,8 +58,8 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     }
     if (res.status === 401) {
       clearSession();
-      if (!window.location.pathname.startsWith("/login") && !window.location.pathname.startsWith("/register")) {
-        window.location.href = "/login";
+      if (!window.location.hash.includes("login") && !window.location.hash.includes("register")) {
+        window.location.hash = "#/login";
       }
     }
     if (!res.ok) {
@@ -106,8 +106,8 @@ export async function mediaUrl(path: string): Promise<string> {
       const res = await fetch(path, { headers, cache: "no-store" });
       if (res.status === 401) {
         clearSession();
-        if (!window.location.pathname.startsWith("/login") && !window.location.pathname.startsWith("/register")) {
-          window.location.href = "/login";
+        if (!window.location.hash.includes("login") && !window.location.hash.includes("register")) {
+          window.location.hash = "#/login";
         }
         throw new Error("Session expired. Please sign in again.");
       }

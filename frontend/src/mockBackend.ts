@@ -338,6 +338,31 @@ export async function handleMockApi<T>(path: string, init: RequestInit = {}): Pr
     }
   }
 
+  if (cleanPath.startsWith("/api/dogs/") && method === "PATCH") {
+    const dogId = cleanPath.replace("/api/dogs/", "");
+    let dogs: Dog[] = [];
+    try {
+      dogs = JSON.parse(localStorage.getItem(dogKey) || "[]");
+    } catch {
+      dogs = [];
+    }
+    const idx = dogs.findIndex((d) => d.id === dogId);
+    if (idx !== -1) {
+      dogs[idx] = {
+        ...dogs[idx],
+        name: body.name || dogs[idx].name,
+        breed: body.breed !== undefined ? body.breed : dogs[idx].breed,
+        sex: body.sex !== undefined ? body.sex : dogs[idx].sex,
+        age_years: body.age_years !== undefined ? body.age_years : dogs[idx].age_years,
+        weight_kg: body.weight_kg !== undefined ? body.weight_kg : dogs[idx].weight_kg,
+        notes: body.notes !== undefined ? body.notes : dogs[idx].notes,
+      };
+      localStorage.setItem(dogKey, JSON.stringify(dogs));
+      return dogs[idx] as unknown as T;
+    }
+    return {} as unknown as T;
+  }
+
   if (cleanPath.startsWith("/api/dogs/") && method === "DELETE") {
     const dogId = cleanPath.replace("/api/dogs/", "");
     let dogs: Dog[] = [];

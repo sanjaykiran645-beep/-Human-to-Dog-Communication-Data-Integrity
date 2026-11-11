@@ -286,6 +286,13 @@ export default function Analyze() {
           )}
           {result?.id && (
             <>
+              <div
+                className="badge ok"
+                role="status"
+                style={{ padding: "8px 14px", marginBottom: 14, display: "inline-block" }}
+              >
+                Acoustic analysis complete — STFT spectrogram &amp; pitch extracted
+              </div>
               <AudioPlayer
                 mediaPath={`/api/recordings/${result.id}/media/processed`}
                 title={`Processed 22.05 kHz mono WAV — ${result.original_filename}`}

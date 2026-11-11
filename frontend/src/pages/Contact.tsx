@@ -110,6 +110,23 @@ export default function Contact() {
                 security@caninesense.ai
               </a>
             </div>
+
+            <div
+              style={{
+                padding: "20px",
+                border: "1px solid var(--line)",
+                borderRadius: "var(--radius-sm)",
+                background: "var(--surface-soft)",
+              }}
+            >
+              <h3 style={{ margin: "0 0 6px", fontSize: "1rem" }}>Telephone Inquiries</h3>
+              <p className="tiny" style={{ margin: "0 0 8px", color: "var(--ink-2)" }}>
+                Direct research laboratory line (Monday – Friday, 9am – 5pm).
+              </p>
+              <a href="tel:+18005550199" style={{ fontWeight: 600 }}>
+                +1 (800) 555-0199
+              </a>
+            </div>
           </div>
 
           <section style={{ marginBottom: 32 }}>

@@ -39,14 +39,21 @@ export default function Settings() {
   }
 
   async function exportData() {
-    const data = await api<unknown>("/api/account/export");
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "caninesense-export.json";
-    a.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setErr("");
+    try {
+      const data = await api<unknown>("/api/account/export");
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "caninesense-export.json";
+      a.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setMsg("Account research archive exported successfully as JSON.");
+      setTimeout(() => setMsg(""), 5000);
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : "Failed to export data");
+    }
   }
 
   async function destroy() {
@@ -76,8 +83,20 @@ export default function Settings() {
       </div>
       <div className="card">
         <h2>Change password</h2>
-        {err && <div className="error">{err}</div>}
-        {msg && <p>{msg}</p>}
+        {err && (
+          <div className="error" role="alert" style={{ marginBottom: 12 }}>
+            {err}
+          </div>
+        )}
+        {msg && (
+          <div
+            className="badge ok"
+            role="status"
+            style={{ padding: "8px 14px", marginBottom: 12, display: "block" }}
+          >
+            {msg}
+          </div>
+        )}
         <form onSubmit={changePassword}>
           <div className="field">
             <label>Current</label>

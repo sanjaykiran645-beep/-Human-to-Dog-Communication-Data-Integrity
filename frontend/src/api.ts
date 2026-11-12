@@ -51,15 +51,17 @@ export function getBackendUrl(): string {
   if (typeof window === "undefined") return "";
   const stored = localStorage.getItem(BACKEND_URL_KEY);
   if (stored) return stored.replace(/\/+$/, "");
-  const envUrl = (import.meta as any).env?.VITE_API_URL;
+  const envUrl = import.meta.env.VITE_API_URL;
   if (envUrl) return String(envUrl).replace(/\/+$/, "");
-  // Default to the deployed production Render backend when accessed from GitHub Pages or any hosted production domain
+  // Default to the configured production backend when accessed from GitHub Pages or any hosted production domain
   if (
-    typeof window !== "undefined" &&
     window.location.hostname !== "localhost" &&
     window.location.hostname !== "127.0.0.1"
   ) {
-    return "https://caninesense-backend.onrender.com";
+    return (
+      import.meta.env.VITE_PRODUCTION_BACKEND_URL ||
+      "https://caninesense-backend.onrender.com"
+    );
   }
   return "";
 }

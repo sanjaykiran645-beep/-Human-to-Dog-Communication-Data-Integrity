@@ -1,18 +1,55 @@
+# ==============================================================================
+# CANINESENSE AI — SECURE GITIGNORE
+# ==============================================================================
+
+# Environment, secrets, and credentials
 .env
-data/storage/
-data/datasets/
-data/evaluation_samples/
-data/scratch/
+.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.secret
+!.env.example
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+!frontend/.env.example
+
+# Runtime databases, audio storage & data directory
+data/
 *.sqlite3
 *.sqlite3-shm
 *.sqlite3-wal
 *.db
 *.sqlite
-.secret
-**/__pycache__/
-**/*.pyc
-**/.pytest_cache/
+
+# Python runtime & test caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# Node.js & Vite build artifacts
+node_modules/
 frontend/node_modules/
 frontend/dist/
-.venv/
+.npm
+*.log
+
+# Mobile & Android artifacts
+*.apk
+*.aab
+android/.gradle/
+android/app/build/
+mobile-android/app/build/
+
+# IDE, Editor & OS metadata
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
 Unselected files/

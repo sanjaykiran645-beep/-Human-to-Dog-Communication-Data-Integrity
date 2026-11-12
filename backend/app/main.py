@@ -27,7 +27,10 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
 )
 
-_DEFAULT_ORIGINS = "http://127.0.0.1:8000,http://localhost:8000,http://127.0.0.1:5173,http://localhost:5173"
+_DEFAULT_ORIGINS = (
+    "http://127.0.0.1:8000,http://localhost:8000,http://127.0.0.1:5173,http://localhost:5173,"
+    "https://sanjaykiran645-beep.github.io"
+)
 CORS_ORIGINS = [o.strip() for o in os.getenv("CANINESENSE_CORS_ORIGINS", _DEFAULT_ORIGINS).split(",") if o.strip()]
 # Extra origins allowed to embed the UI in an iframe (space separated). Default: same origin only.
 FRAME_ANCESTORS = "'self' " + os.getenv("CANINESENSE_FRAME_ANCESTORS", "").strip()
@@ -35,9 +38,11 @@ FRAME_ANCESTORS = "'self' " + os.getenv("CANINESENSE_FRAME_ANCESTORS", "").strip
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
+    allow_origin_regex=r"https://.*\.github\.io",
     allow_credentials=False,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Authorization", "Content-Type", "Range", "Accept"],
+    expose_headers=["Content-Range", "Accept-Ranges", "Content-Length", "Content-Type"],
     max_age=600,
 )
 

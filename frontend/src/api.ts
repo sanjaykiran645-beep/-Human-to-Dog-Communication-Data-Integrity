@@ -53,8 +53,12 @@ export function getBackendUrl(): string {
   if (stored) return stored.replace(/\/+$/, "");
   const envUrl = (import.meta as any).env?.VITE_API_URL;
   if (envUrl) return String(envUrl).replace(/\/+$/, "");
-  // Default to the deployed production Render backend when accessed from GitHub Pages
-  if (typeof window !== "undefined" && window.location.hostname.includes("github.io")) {
+  // Default to the deployed production Render backend when accessed from GitHub Pages or any hosted production domain
+  if (
+    typeof window !== "undefined" &&
+    window.location.hostname !== "localhost" &&
+    window.location.hostname !== "127.0.0.1"
+  ) {
     return "https://caninesense-backend.onrender.com";
   }
   return "";

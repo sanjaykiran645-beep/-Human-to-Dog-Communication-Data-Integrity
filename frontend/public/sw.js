@@ -1,23 +1,10 @@
-// CanineSense AI - Safe PWA Service Worker
-// Strictly caches only immutable static shell assets (HTML shell, CSS, JS, branding icon).
+// CanineSense AI - Safe PWA Service Worker (v2)
+// Strictly caches only immutable static shell assets (CSS, JS, branding icon).
 // NEVER caches private recordings, user data, or /api requests.
 
-const CACHE_NAME = "caninesense-shell-v1";
-const SHELL_ASSETS = [
-  "/",
-  "/index.html",
-  "/manifest.webmanifest",
-  "/favicon.svg"
-];
+const CACHE_NAME = "caninesense-shell-v2";
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(SHELL_ASSETS).catch(() => {
-        // Soft fail if offline during install
-      });
-    })
-  );
   self.skipWaiting();
 });
 
@@ -40,12 +27,22 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
   // 1. Bypass all API and dynamic data calls immediately to network - NO CACHING
-  if (url.pathname.startsWith("/api") || event.request.method !== "GET") {
+  if (url.pathname.includes("/api/") || event.request.method !== "GET") {
     return;
   }
 
-  // 2. Content-hashed assets (/assets/*) - cache-first with network fallback
-  if (url.pathname.startsWith("/assets/")) {
+  // 2. Navigation / SPA shell requests - Network-first so deployments update immediately
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        return caches.match(event.request);
+      })
+    );
+    return;
+  }
+
+  // 3. Content-hashed static assets (assets/*) - Cache first, network fallback
+  if (url.pathname.includes("/assets/")) {
     event.respondWith(
       caches.match(event.request).then((cached) => {
         if (cached) return cached;
@@ -61,17 +58,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // 3. Navigation / SPA shell requests - Network-first with cache fallback
-  if (event.request.mode === "navigate") {
-    event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.match("/index.html");
-      })
-    );
-    return;
-  }
-
-  // 4. Default - Network first
+  // 4. Default - Network first with cache fallback
   event.respondWith(
     fetch(event.request).catch(() => {
       return caches.match(event.request);

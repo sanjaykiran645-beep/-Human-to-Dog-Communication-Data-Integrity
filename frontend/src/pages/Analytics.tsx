@@ -6,8 +6,8 @@ export default function Analytics() {
   const [models, setModels] = useState<any>(null);
 
   useEffect(() => {
-    api("/api/analytics/summary").then(setData);
-    api("/api/models/current").then(setModels);
+    api("/api/analytics/summary").then(setData).catch(() => {});
+    api("/api/models/current").then(setModels).catch(() => {});
   }, []);
 
   const counts: Record<string, number> = data?.vocalization_counts || {};

@@ -13,7 +13,9 @@ export default function Dogs() {
   const [editing, setEditing] = useState<string | null>(null);
 
   function load() {
-    api<Dog[]>("/api/dogs").then(setDogs);
+    api<Dog[]>("/api/dogs")
+      .then(setDogs)
+      .catch((e) => setErr(e instanceof Error ? e.message : "Failed to load dogs"));
   }
   useEffect(load, []);
 

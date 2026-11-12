@@ -1,14 +1,79 @@
 import { useEffect, useRef, useState } from "react";
 import { mediaUrl } from "../api";
 
-// Coordinate all AudioPlayer instances so only one plays at a time
-let activeAudioElement: HTMLAudioElement | null = null;
+// Coordinator for all AudioPlayer instances so only one plays at a time
+interface AudioCoordinatorEntry {
+  id: string;
+  element: HTMLAudioElement;
+  onExternalPause: () => void;
+  onExternalStop: () => void;
+}
+
+const activeAudioEntries = new Map<string, AudioCoordinatorEntry>();
+type PlaybackStateListener = (isPlaying: boolean) => void;
+const playbackListeners = new Set<PlaybackStateListener>();
+
+function notifyPlaybackState() {
+  const isPlaying = Array.from(activeAudioEntries.values()).some(
+    (entry) => !entry.element.paused && !entry.element.ended && entry.element.currentTime > 0
+  );
+  playbackListeners.forEach((fn) => {
+    try {
+      fn(isPlaying);
+    } catch {
+      /* ignore */
+    }
+  });
+}
+
+export function subscribeAudioPlayback(listener: PlaybackStateListener): () => void {
+  playbackListeners.add(listener);
+  return () => {
+    playbackListeners.delete(listener);
+  };
+}
+
+export function pauseAllOtherAudio(currentId: string) {
+  activeAudioEntries.forEach((entry, id) => {
+    if (id !== currentId) {
+      try {
+        entry.onExternalPause();
+      } catch {
+        /* ignore */
+      }
+    }
+  });
+  notifyPlaybackState();
+}
+
+export function stopAllActiveAudio() {
+  activeAudioEntries.forEach((entry) => {
+    try {
+      entry.onExternalStop();
+    } catch {
+      /* ignore */
+    }
+  });
+  if (typeof document !== "undefined") {
+    document.querySelectorAll("audio, video").forEach((media) => {
+      try {
+        const el = media as HTMLMediaElement;
+        el.pause();
+        el.currentTime = 0;
+      } catch {
+        /* ignore */
+      }
+    });
+  }
+  notifyPlaybackState();
+}
 
 export interface AudioPlayerProps {
   mediaPath?: string | null;
   blobUrl?: string | null;
   title?: string;
   downloadFilename?: string;
+  disabled?: boolean;
   onStatusChange?: (status: string) => void;
 }
 
@@ -17,9 +82,11 @@ export default function AudioPlayer({
   blobUrl,
   title = "Audio playback",
   downloadFilename = "caninesense-audio.wav",
+  disabled = false,
   onStatusChange,
 }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const playerId = useRef<string>(Math.random().toString(36).substring(2, 9));
   const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -32,6 +99,42 @@ export default function AudioPlayer({
     setStatus(next);
     onStatusChange?.(next);
   }
+
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+
+    const entry: AudioCoordinatorEntry = {
+      id: playerId.current,
+      element: el,
+      onExternalPause: () => {
+        if (!el.paused) {
+          el.pause();
+          updateStatus("paused");
+        }
+      },
+      onExternalStop: () => {
+        el.pause();
+        el.currentTime = 0;
+        setCurrentTime(0);
+        updateStatus("stopped");
+      },
+    };
+
+    activeAudioEntries.set(playerId.current, entry);
+    return () => {
+      activeAudioEntries.delete(playerId.current);
+      notifyPlaybackState();
+    };
+  }, [resolvedUrl]);
+
+  useEffect(() => {
+    if (disabled && status === "playing" && audioRef.current) {
+      audioRef.current.pause();
+      updateStatus("paused");
+      notifyPlaybackState();
+    }
+  }, [disabled, status]);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,6 +157,7 @@ export default function AudioPlayer({
         if (audioRef.current) {
           audioRef.current.pause();
         }
+        notifyPlaybackState();
       };
     }
 
@@ -89,29 +193,28 @@ export default function AudioPlayer({
     return () => {
       cancelled = true;
       if (audioRef.current) {
-        if (activeAudioElement === audioRef.current) {
-          activeAudioElement = null;
-        }
         audioRef.current.pause();
       }
       if (createdObjectUrl) {
         URL.revokeObjectURL(createdObjectUrl);
       }
+      notifyPlaybackState();
     };
   }, [mediaPath, blobUrl, reloadTick]);
 
   function handlePlay() {
     const el = audioRef.current;
-    if (!el || !resolvedUrl) return;
-    if (activeAudioElement && activeAudioElement !== el) {
-      activeAudioElement.pause();
-    }
-    activeAudioElement = el;
+    if (!el || !resolvedUrl || disabled) return;
+    pauseAllOtherAudio(playerId.current);
     el.play()
-      .then(() => updateStatus("playing"))
+      .then(() => {
+        updateStatus("playing");
+        notifyPlaybackState();
+      })
       .catch((e) => {
         setError(e instanceof Error ? e.message : "Playback blocked by browser");
         updateStatus("error");
+        notifyPlaybackState();
       });
   }
 
@@ -120,6 +223,7 @@ export default function AudioPlayer({
     if (!el) return;
     el.pause();
     updateStatus("paused");
+    notifyPlaybackState();
   }
 
   function handleStop() {
@@ -129,22 +233,24 @@ export default function AudioPlayer({
     el.currentTime = 0;
     setCurrentTime(0);
     updateStatus("stopped");
+    notifyPlaybackState();
   }
 
   function handleReplay() {
     const el = audioRef.current;
-    if (!el || !resolvedUrl) return;
-    if (activeAudioElement && activeAudioElement !== el) {
-      activeAudioElement.pause();
-    }
-    activeAudioElement = el;
+    if (!el || !resolvedUrl || disabled) return;
+    pauseAllOtherAudio(playerId.current);
     el.currentTime = 0;
     setCurrentTime(0);
     el.play()
-      .then(() => updateStatus("playing"))
+      .then(() => {
+        updateStatus("playing");
+        notifyPlaybackState();
+      })
       .catch((e) => {
         setError(e instanceof Error ? e.message : "Playback failed");
         updateStatus("error");
+        notifyPlaybackState();
       });
   }
 
@@ -234,13 +340,21 @@ export default function AudioPlayer({
           if (Number.isFinite(d) && d > 0) setDuration(d);
         }}
         onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-        onPlay={() => updateStatus("playing")}
+        onPlay={() => {
+          updateStatus("playing");
+          pauseAllOtherAudio(playerId.current);
+          notifyPlaybackState();
+        }}
         onPause={() => {
           if (audioRef.current && audioRef.current.currentTime > 0 && !audioRef.current.ended) {
             updateStatus("paused");
           }
+          notifyPlaybackState();
         }}
-        onEnded={() => updateStatus("ended")}
+        onEnded={() => {
+          updateStatus("ended");
+          notifyPlaybackState();
+        }}
         onError={() => {
           if (resolvedUrl) {
             setError("Audio stream could not be decoded by the browser.");
@@ -256,7 +370,7 @@ export default function AudioPlayer({
             className="btn accent"
             type="button"
             onClick={handlePause}
-            disabled={!resolvedUrl || loading}
+            disabled={disabled || !resolvedUrl || loading}
             style={{ padding: "6px 14px", fontSize: "0.84rem" }}
           >
             Pause
@@ -266,7 +380,7 @@ export default function AudioPlayer({
             className="btn accent"
             type="button"
             onClick={handlePlay}
-            disabled={!resolvedUrl || loading}
+            disabled={disabled || !resolvedUrl || loading}
             style={{ padding: "6px 14px", fontSize: "0.84rem" }}
           >
             {status === "paused" ? "Resume" : "Play"}
@@ -277,7 +391,7 @@ export default function AudioPlayer({
           className="btn ghost"
           type="button"
           onClick={handleStop}
-          disabled={!resolvedUrl || loading || (status !== "playing" && status !== "paused" && currentTime === 0)}
+          disabled={disabled || !resolvedUrl || loading || (status !== "playing" && status !== "paused" && currentTime === 0)}
           style={{ padding: "6px 12px", fontSize: "0.84rem" }}
         >
           Stop
@@ -287,7 +401,7 @@ export default function AudioPlayer({
           className="btn ghost"
           type="button"
           onClick={handleReplay}
-          disabled={!resolvedUrl || loading}
+          disabled={disabled || !resolvedUrl || loading}
           style={{ padding: "6px 12px", fontSize: "0.84rem" }}
         >
           Replay
@@ -301,7 +415,7 @@ export default function AudioPlayer({
             step={0.01}
             value={Math.min(currentTime, duration || 1)}
             onChange={(e) => handleSeek(Number(e.target.value))}
-            disabled={!resolvedUrl || loading || duration <= 0}
+            disabled={disabled || !resolvedUrl || loading || duration <= 0}
             aria-label="Audio playback progress"
             style={{ flex: 1, accentColor: "var(--accent)" }}
           />

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { api, isDemoSession } from "../api";
 import type { Dog } from "../api";
-import AudioPlayer from "../components/AudioPlayer";
+import AudioPlayer, { stopAllActiveAudio, subscribeAudioPlayback } from "../components/AudioPlayer";
 import ResultView from "../components/ResultView";
 import SpectrogramViewer from "../components/SpectrogramViewer";
 import { encodeWav, recordPcmWav } from "../wav";
@@ -162,10 +162,13 @@ export default function Communicate() {
   const [blindNotes, setBlindNotes] = useState("");
   const [blindSubmitting, setBlindSubmitting] = useState(false);
   const [blindRevealed, setBlindRevealed] = useState<any>(null);
+  const [anyAudioPlaying, setAnyAudioPlaying] = useState(false);
 
   const recRef = useRef<{ stop: () => void } | null>(null);
   const timerRef = useRef<number | null>(null);
   const respFileInputRef = useRef<HTMLInputElement | null>(null);
+  const speechDebounceRef = useRef<number | null>(null);
+  const speechRecRef = useRef<any>(null);
 
   function loadHistory() {
     api<any[]>("/api/communicate")
@@ -239,9 +242,29 @@ export default function Communicate() {
   }, [refCategoryFilter]);
 
   useEffect(() => {
+    return subscribeAudioPlayback((playing) => setAnyAudioPlaying(playing));
+  }, []);
+
+  useEffect(() => {
     return () => {
       if (pendingRespBlobUrl) URL.revokeObjectURL(pendingRespBlobUrl);
-      if (timerRef.current) window.clearInterval(timerRef.current);
+      if (timerRef.current) {
+        window.clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      if (speechDebounceRef.current) {
+        window.clearTimeout(speechDebounceRef.current);
+        speechDebounceRef.current = null;
+      }
+      try {
+        speechRecRef.current?.abort();
+        speechRecRef.current = null;
+      } catch {
+        /* ignore */
+      }
+      recRef.current?.stop();
+      recRef.current = null;
+      stopAllActiveAudio();
     };
   }, [pendingRespBlobUrl]);
 
@@ -292,6 +315,7 @@ export default function Communicate() {
 
   async function onGenerate(e?: FormEvent, override?: string, nextVarIdx?: number) {
     e?.preventDefault();
+    if (busy) return;
     setErr("");
     setFbSavedMsg("");
 
@@ -471,17 +495,32 @@ export default function Communicate() {
     }
     try {
       const rec = new SR();
+      speechRecRef.current = rec;
       rec.lang = "en-US";
-      rec.onresult = (ev: any) => setText(ev.results[0][0].transcript);
+      rec.onresult = (ev: any) => {
+        const transcript = ev.results?.[0]?.[0]?.transcript;
+        if (!transcript) return;
+        if (speechDebounceRef.current) {
+          window.clearTimeout(speechDebounceRef.current);
+        }
+        speechDebounceRef.current = window.setTimeout(() => {
+          setText(transcript);
+        }, 200);
+      };
       rec.onerror = () => {
         setListening(false);
+        speechRecRef.current = null;
         setErr("Voice input could not be captured. Check microphone permission or type instead.");
       };
-      rec.onend = () => setListening(false);
+      rec.onend = () => {
+        setListening(false);
+        speechRecRef.current = null;
+      };
       rec.start();
       setListening(true);
     } catch {
       setListening(false);
+      speechRecRef.current = null;
       setErr("Could not start voice recognition.");
     }
   }
@@ -497,8 +536,9 @@ export default function Communicate() {
   }
 
   async function startResponseRec() {
-    if (!generated) return;
+    if (!generated || busy) return;
     setErr("");
+    stopAllActiveAudio();
     try {
       const rec = await recordPcmWav(10);
       recRef.current = rec;
@@ -651,6 +691,7 @@ export default function Communicate() {
                     mediaPath={selectedBlindSample.audio_url}
                     title={`Blind Sample ${selectedBlindSample.blind_code} (Method Hidden)`}
                     downloadFilename={`${selectedBlindSample.blind_code}.wav`}
+                    disabled={recordingResp || submittingResp}
                   />
                 )}
               </div>
@@ -898,6 +939,7 @@ export default function Communicate() {
                     mediaPath={inspectedRef.audio_url}
                     title={`Reference Preview — ${inspectedRef.original_filename}`}
                     downloadFilename={`ref-${inspectedRef.effective_category}-${inspectedRef.asset_id.slice(0, 8)}.wav`}
+                    disabled={recordingResp || submittingResp}
                   />
 
                   <SpectrogramViewer
@@ -1407,6 +1449,7 @@ export default function Communicate() {
                     mediaPath={primaryRef.audio_url}
                     title={`Original Reference — ${primaryRef.original_filename}`}
                     downloadFilename={`reference-${primaryRef.effective_category}-${primaryRef.asset_id.slice(0, 8)}.wav`}
+                    disabled={recordingResp || submittingResp}
                   />
                   <SpectrogramViewer
                     spectrogramDataPath={primaryRef.spectrogram_data_url}
@@ -1438,6 +1481,7 @@ export default function Communicate() {
                     mediaPath={`/api/communicate/${generated.id}/audio`}
                     title={`Generated ${generated.requested_category || generated.vocalization_target} (${generated.output_classification})`}
                     downloadFilename={`caninesense-${generated.vocalization_target}-${generated.id.slice(0, 8)}.wav`}
+                    disabled={recordingResp || submittingResp}
                   />
                   <SpectrogramViewer
                     spectrogramDataPath={`/api/communicate/${generated.id}/spectrogram-data`}
@@ -1455,6 +1499,7 @@ export default function Communicate() {
                 mediaPath={`/api/communicate/${generated.id}/audio`}
                 title={`Generated ${generated.vocalization_target}-like sound (${generated.source_text})`}
                 downloadFilename={`caninesense-${generated.vocalization_target}-${generated.id.slice(0, 8)}.wav`}
+                disabled={recordingResp || submittingResp}
               />
               <SpectrogramViewer
                 spectrogramDataPath={`/api/communicate/${generated.id}/spectrogram-data`}
@@ -1611,11 +1656,14 @@ export default function Communicate() {
                 className={`btn ${recordingResp ? "danger" : "accent"}`}
                 type="button"
                 onClick={recordingResp ? stopResponseRec : startResponseRec}
-                disabled={submittingResp}
+                disabled={submittingResp || busy || anyAudioPlaying}
+                title={anyAudioPlaying ? "Pause audio playback before recording response" : undefined}
               >
                 {recordingResp
                   ? `Stop recording (${respSeconds}s / 10s)`
-                  : "Record dog response (microphone)"}
+                  : anyAudioPlaying
+                    ? "Pause audio to record response"
+                    : "Record dog response (microphone)"}
               </button>
 
               <button

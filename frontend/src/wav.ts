@@ -46,12 +46,15 @@ export async function recordPcmWav(maxSeconds = 60): Promise<{ stop: () => void;
   const ctx = new AudioContext();
   const src = ctx.createMediaStreamSource(stream);
   const proc = ctx.createScriptProcessor(4096, 1, 1);
+  const silentGain = ctx.createGain();
+  silentGain.gain.value = 0;
   const chunks: Float32Array[] = [];
   proc.onaudioprocess = (e) => {
     chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
   };
   src.connect(proc);
-  proc.connect(ctx.destination);
+  proc.connect(silentGain);
+  silentGain.connect(ctx.destination);
   let resolveFile: (f: File) => void;
   const done = new Promise<File>((res) => {
     resolveFile = res;
@@ -61,6 +64,7 @@ export async function recordPcmWav(maxSeconds = 60): Promise<{ stop: () => void;
     try {
       proc.disconnect();
       src.disconnect();
+      silentGain.disconnect();
     } catch {
       /* ignore */
     }

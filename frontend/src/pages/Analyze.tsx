@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, isDemoSession } from "../api";
 import type { Dog } from "../api";
-import AudioPlayer from "../components/AudioPlayer";
+import AudioPlayer, { stopAllActiveAudio } from "../components/AudioPlayer";
 import ResultView from "../components/ResultView";
 import SpectrogramViewer from "../components/SpectrogramViewer";
 import { encodeWav, recordPcmWav } from "../wav";
@@ -107,7 +107,13 @@ export default function Analyze() {
 
   useEffect(() => {
     return () => {
-      if (timer.current) window.clearInterval(timer.current);
+      stopRecRef.current?.();
+      stopRecRef.current = null;
+      if (timer.current) {
+        window.clearInterval(timer.current);
+        timer.current = null;
+      }
+      stopAllActiveAudio();
     };
   }, []);
 
@@ -132,6 +138,7 @@ export default function Analyze() {
 
   async function startRec() {
     setErr("");
+    stopAllActiveAudio();
     try {
       const rec = await recordPcmWav(60);
       stopRecRef.current = rec.stop;
@@ -314,6 +321,7 @@ export default function Analyze() {
                 mediaPath={`/api/recordings/${result.id}/media/processed`}
                 title={`Processed 22.05 kHz mono WAV — ${result.original_filename}`}
                 downloadFilename={`processed-${result.original_filename || "audio"}.wav`}
+                disabled={recording}
               />
               <SpectrogramViewer
                 spectrogramDataPath={`/api/recordings/${result.id}/spectrogram-data`}

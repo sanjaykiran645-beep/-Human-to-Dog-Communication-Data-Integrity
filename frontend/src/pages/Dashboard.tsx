@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api, getUser } from "../api";
+import { api, getBackendUrl, getUser } from "../api";
 
 type Summary = {
   recordings: number;
@@ -63,7 +63,7 @@ export default function Dashboard() {
             <Link to="/app/history" className="btn ghost">
               Archive ({data?.recordings ?? 0})
             </Link>
-            <a href="/api/download/apk" download="CanineSense_AI_v1.0.0.apk" className="btn ghost">
+            <a href={`${getBackendUrl()}/api/download/apk`} download="CanineSense_AI_v1.0.0.apk" className="btn ghost">
               Download Android APK
             </a>
           </div>

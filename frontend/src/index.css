@@ -1503,11 +1503,17 @@ audio {
   .app-header {
     padding: 12px 18px;
   }
-  .header-search input[type="text"] {
-    width: 150px;
+  .header-search input,
+  .header-search input[type="text"],
+  .header-search input[type="search"] {
+    width: 140px;
+    max-width: 32vw;
   }
-  .header-search input[type="text"]:focus {
-    width: 180px;
+  .header-search input:focus,
+  .header-search input[type="text"]:focus,
+  .header-search input[type="search"]:focus {
+    width: 170px;
+    max-width: 40vw;
   }
   .grid-2,
   .grid-3,

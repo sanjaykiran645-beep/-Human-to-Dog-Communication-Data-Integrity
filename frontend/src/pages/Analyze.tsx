@@ -130,7 +130,20 @@ export default function Analyze() {
       const data = await api<any>("/api/recordings/analyze", { method: "POST", body: fd });
       setResult(data);
     } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : "Analysis failed");
+      const raw = ex instanceof Error ? ex.message : "Analysis failed";
+      if (
+        raw.toLowerCase().includes("ffmpeg") ||
+        raw.toLowerCase().includes("decoder") ||
+        raw.toLowerCase().includes("soundfile") ||
+        raw.toLowerCase().includes("decode") ||
+        raw.toLowerCase().includes("format")
+      ) {
+        setErr(
+          `Audio Decoder Notice: ${raw}. The server could not decode this compressed format. Please use the built-in browser microphone recorder (captures 16-bit PCM WAV) or upload an uncompressed .wav file.`
+        );
+      } else {
+        setErr(raw);
+      }
     } finally {
       setBusy(false);
     }

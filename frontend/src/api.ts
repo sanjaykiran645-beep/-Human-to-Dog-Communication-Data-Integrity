@@ -123,7 +123,26 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
       } catch {
         /* ignore */
       }
-      throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+      let formattedMsg: string;
+      if (typeof detail === "string") {
+        formattedMsg = detail;
+      } else if (Array.isArray(detail)) {
+        formattedMsg = detail
+          .map((item: any) => {
+            if (typeof item === "string") return item;
+            const field = Array.isArray(item?.loc)
+              ? item.loc.filter((part: any) => part !== "body").join(".")
+              : "";
+            const msg = item?.msg || "Validation error";
+            return field ? `${field}: ${msg}` : msg;
+          })
+          .join("; ");
+      } else if (detail && typeof detail === "object") {
+        formattedMsg = (detail as any).message || (detail as any).msg || JSON.stringify(detail);
+      } else {
+        formattedMsg = String(detail || res.statusText);
+      }
+      throw new Error(formattedMsg);
     }
 
     if (res.status === 204) return undefined as T;

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import Logo from "./Logo";
-import { api, clearSession, getUser, isDemoSession } from "./api";
+import { api, clearSession, getBackendUrl, getUser, isDemoSession } from "./api";
 
 const links = [
   { to: "/app", label: "Dashboard", icon: IconHome, end: true, group: "core" },
@@ -266,7 +266,7 @@ export default function Layout() {
             </form>
 
             <a
-              href="/api/download/apk"
+              href={`${getBackendUrl()}/api/download/apk`}
               download="CanineSense_AI_v1.0.0.apk"
               className="btn ghost"
               style={{ padding: "6px 12px", fontSize: "0.78rem", whiteSpace: "nowrap" }}

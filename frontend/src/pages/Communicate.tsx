@@ -163,6 +163,8 @@ export default function Communicate() {
   const [blindSubmitting, setBlindSubmitting] = useState(false);
   const [blindRevealed, setBlindRevealed] = useState<any>(null);
   const [anyAudioPlaying, setAnyAudioPlaying] = useState(false);
+  const [responseComparisonTab, setResponseComparisonTab] = useState<"both" | "output" | "response">("both");
+  const [referenceComparisonTab, setReferenceComparisonTab] = useState<"both" | "output" | "reference">("both");
 
   const recRef = useRef<{ stop: () => void } | null>(null);
   const timerRef = useRef<number | null>(null);
@@ -372,11 +374,20 @@ export default function Communicate() {
           variation_index: activeVarIdx,
         }),
       });
-      setIntent(data.intent);
+      const returnedIntent = data.intent || {};
       if (data.status === "needs_clarification") {
+        returnedIntent.needs_clarification = true;
+        if (data.clarification_prompt && !returnedIntent.reason) {
+          returnedIntent.reason = data.clarification_prompt;
+        }
+        if (data.candidates && (!returnedIntent.candidates || !returnedIntent.candidates.length)) {
+          returnedIntent.candidates = data.candidates;
+        }
+        setIntent(returnedIntent);
         setGenerated(null);
         return;
       }
+      setIntent(returnedIntent);
       if (!data.generated?.id || !data.generated?.validation?.valid) {
         setErr("Audio generation did not pass file validation.");
         setGenerated(null);
@@ -1219,23 +1230,29 @@ export default function Communicate() {
       </div>
 
       {/* Ambiguous Intent Clarification */}
-      {intent?.needs_clarification && (
-        <div className="card" style={{ borderColor: "var(--accent)" }}>
-          <h2>Clarification required — ambiguous or incomplete intent</h2>
-          <p>{intent.reason}</p>
-          <p className="tiny">
-            Engine B does not guess when multiple command cues conflict. Select the intended category below to generate:
+      {(intent?.needs_clarification || intent?.status === "needs_clarification") && (
+        <div className="card" style={{ borderColor: "var(--accent)", background: "#fffdf9" }}>
+          <div className="row" style={{ justifyContent: "space-between", marginBottom: 6 }}>
+            <h2 style={{ margin: 0 }}>Clarification required — ambiguous or incomplete intent</h2>
+            <span className="badge warn">Ambiguous Cue</span>
+          </div>
+          <p style={{ marginTop: 4 }}>
+            {intent.clarification_prompt || intent.reason || "The entered command cue is ambiguous or matches multiple vocalization targets."}
           </p>
-          <div className="row" style={{ marginTop: 10 }}>
-            {(intent.candidates || []).map((c: string) => (
+          <p className="tiny">
+            Engine B does not guess when multiple command cues conflict. Select the intended vocalization below to synthesize:
+          </p>
+          <div className="row" style={{ marginTop: 10, gap: 8, flexWrap: "wrap" }}>
+            {(intent.candidates && intent.candidates.length ? intent.candidates : ["bark", "whine", "growl", "howl"]).map((c: string) => (
               <button
                 key={c}
                 className="btn accent"
                 type="button"
                 disabled={busy}
                 onClick={() => onGenerate(undefined, c)}
+                style={{ padding: "6px 14px", textTransform: "capitalize" }}
               >
-                Use intent: {c.replace(/_/g, " ")}
+                Use intent: {c.replace(/_/g, " ")} →
               </button>
             ))}
           </div>
@@ -1427,70 +1444,102 @@ export default function Communicate() {
           {/* Side-by-Side Original Reference vs Generated/Transformed Audio & Spectrograms */}
           {primaryRef ? (
             <div style={{ marginTop: 14 }}>
-              <h3>Side-by-Side Comparison: Original Reference Recording vs. Generated / Transformed Output</h3>
-              <div className="grid-2" style={{ gap: 14, marginTop: 8 }}>
-                <div
-                  style={{
-                    border: "1px solid var(--line)",
-                    borderRadius: 14,
-                    padding: 12,
-                    background: "#f8fbf9",
-                  }}
-                >
-                  <div className="row" style={{ justifyContent: "space-between" }}>
-                    <strong>Source Reference Recording (Authentic Dog)</strong>
-                    <span className="badge ok">{primaryRef.effective_category}</span>
-                  </div>
-                  <div className="tiny" style={{ marginTop: 4 }}>
-                    File: <code>{primaryRef.original_filename}</code> · Provenance: {primaryRef.provenance} ·{" "}
-                    {primaryRef.duration_sec}s
-                  </div>
-                  <AudioPlayer
-                    mediaPath={primaryRef.audio_url}
-                    title={`Original Reference — ${primaryRef.original_filename}`}
-                    downloadFilename={`reference-${primaryRef.effective_category}-${primaryRef.asset_id.slice(0, 8)}.wav`}
-                    disabled={recordingResp || submittingResp}
-                  />
-                  <SpectrogramViewer
-                    spectrogramDataPath={primaryRef.spectrogram_data_url}
-                    spectrogramImagePath={primaryRef.spectrogram_url}
-                    waveformPath={primaryRef.waveform_url}
-                    title={`Original Reference Waveform & STFT (${primaryRef.effective_category})`}
-                    compact
-                  />
+              <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                <h3 style={{ margin: 0 }}>Side-by-Side Comparison: Original Reference vs. Generated Output</h3>
+                <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${referenceComparisonTab === "both" ? "accent" : "ghost"}`}
+                    onClick={() => setReferenceComparisonTab("both")}
+                    style={{ padding: "3px 9px", fontSize: "0.76rem" }}
+                  >
+                    Side-by-Side (Both)
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${referenceComparisonTab === "output" ? "accent" : "ghost"}`}
+                    onClick={() => setReferenceComparisonTab("output")}
+                    style={{ padding: "3px 9px", fontSize: "0.76rem" }}
+                  >
+                    Engine B Output
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${referenceComparisonTab === "reference" ? "accent" : "ghost"}`}
+                    onClick={() => setReferenceComparisonTab("reference")}
+                    style={{ padding: "3px 9px", fontSize: "0.76rem" }}
+                  >
+                    Source Reference
+                  </button>
                 </div>
+              </div>
+              <div className={referenceComparisonTab === "both" ? "grid-2" : "grid-1"} style={{ gap: 14, marginTop: 8 }}>
+                {(referenceComparisonTab === "both" || referenceComparisonTab === "reference") && (
+                  <div
+                    style={{
+                      border: "1px solid var(--line)",
+                      borderRadius: 14,
+                      padding: 12,
+                      background: "#f8fbf9",
+                    }}
+                  >
+                    <div className="row" style={{ justifyContent: "space-between" }}>
+                      <strong>Source Reference Recording (Authentic Dog)</strong>
+                      <span className="badge ok">{primaryRef.effective_category}</span>
+                    </div>
+                    <div className="tiny" style={{ marginTop: 4 }}>
+                      File: <code>{primaryRef.original_filename}</code> · Provenance: {primaryRef.provenance} ·{" "}
+                      {primaryRef.duration_sec}s
+                    </div>
+                    <AudioPlayer
+                      mediaPath={primaryRef.audio_url}
+                      title={`Original Reference — ${primaryRef.original_filename}`}
+                      downloadFilename={`reference-${primaryRef.effective_category}-${primaryRef.asset_id.slice(0, 8)}.wav`}
+                      disabled={recordingResp || submittingResp}
+                    />
+                    <SpectrogramViewer
+                      spectrogramDataPath={primaryRef.spectrogram_data_url}
+                      spectrogramImagePath={primaryRef.spectrogram_url}
+                      waveformPath={primaryRef.waveform_url}
+                      title={`Original Reference Waveform & STFT (${primaryRef.effective_category})`}
+                      compact
+                    />
+                  </div>
+                )}
 
-                <div
-                  style={{
-                    border: "1px solid var(--line)",
-                    borderRadius: 14,
-                    padding: 12,
-                    background: "#fdfaf5",
-                  }}
-                >
-                  <div className="row" style={{ justifyContent: "space-between" }}>
-                    <strong>Engine B Output ({generated.output_classification})</strong>
-                    <span className="badge exp">{generated.generation_method}</span>
+                {(referenceComparisonTab === "both" || referenceComparisonTab === "output") && (
+                  <div
+                    style={{
+                      border: "1px solid var(--line)",
+                      borderRadius: 14,
+                      padding: 12,
+                      background: "#fdfaf5",
+                    }}
+                  >
+                    <div className="row" style={{ justifyContent: "space-between" }}>
+                      <strong>Engine B Output ({generated.output_classification})</strong>
+                      <span className="badge exp">{generated.generation_method}</span>
+                    </div>
+                    <div className="tiny" style={{ marginTop: 4 }}>
+                      Command: &ldquo;{generated.source_text}&rdquo; · Mode:{" "}
+                      <code>{generated.transformation_parameters?.mode || generated.generation_method}</code> ·{" "}
+                      {valInfo?.duration_sec}s
+                    </div>
+                    <AudioPlayer
+                      mediaPath={`/api/communicate/${generated.id}/audio`}
+                      title={`Generated ${generated.requested_category || generated.vocalization_target} (${generated.output_classification})`}
+                      downloadFilename={`caninesense-${generated.vocalization_target}-${generated.id.slice(0, 8)}.wav`}
+                      disabled={recordingResp || submittingResp}
+                    />
+                    <SpectrogramViewer
+                      spectrogramDataPath={`/api/communicate/${generated.id}/spectrogram-data`}
+                      spectrogramImagePath={`/api/communicate/${generated.id}/media/spectrogram`}
+                      waveformPath={`/api/communicate/${generated.id}/media/waveform`}
+                      title={`Output Waveform & STFT (${generated.output_classification})`}
+                      compact
+                    />
                   </div>
-                  <div className="tiny" style={{ marginTop: 4 }}>
-                    Command: &ldquo;{generated.source_text}&rdquo; · Mode:{" "}
-                    <code>{generated.transformation_parameters?.mode || generated.generation_method}</code> ·{" "}
-                    {valInfo?.duration_sec}s
-                  </div>
-                  <AudioPlayer
-                    mediaPath={`/api/communicate/${generated.id}/audio`}
-                    title={`Generated ${generated.requested_category || generated.vocalization_target} (${generated.output_classification})`}
-                    downloadFilename={`caninesense-${generated.vocalization_target}-${generated.id.slice(0, 8)}.wav`}
-                    disabled={recordingResp || submittingResp}
-                  />
-                  <SpectrogramViewer
-                    spectrogramDataPath={`/api/communicate/${generated.id}/spectrogram-data`}
-                    spectrogramImagePath={`/api/communicate/${generated.id}/media/spectrogram`}
-                    waveformPath={`/api/communicate/${generated.id}/media/waveform`}
-                    title={`Output Waveform & STFT (${generated.output_classification})`}
-                    compact
-                  />
-                </div>
+                )}
               </div>
             </div>
           ) : (
@@ -1781,25 +1830,57 @@ export default function Communicate() {
 
           {generated && (
             <div style={{ marginTop: 16 }}>
-              <h2>Side-by-side spectrogram comparison (Engine B Output vs. Recorded Dog Response)</h2>
-              <div className="grid-2">
-                <div>
-                  <SpectrogramViewer
-                    spectrogramDataPath={`/api/communicate/${generated.id}/spectrogram-data`}
-                    spectrogramImagePath={`/api/communicate/${generated.id}/media/spectrogram`}
-                    title={`Engine B Output (${generated.vocalization_target})`}
-                    compact
-                  />
+              <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+                <h2 style={{ margin: 0 }}>Side-by-side spectrogram comparison (Engine B Output vs. Recorded Dog Response)</h2>
+                <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${responseComparisonTab === "both" ? "accent" : "ghost"}`}
+                    onClick={() => setResponseComparisonTab("both")}
+                    style={{ padding: "3px 9px", fontSize: "0.76rem" }}
+                  >
+                    Side-by-Side (Both)
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${responseComparisonTab === "output" ? "accent" : "ghost"}`}
+                    onClick={() => setResponseComparisonTab("output")}
+                    style={{ padding: "3px 9px", fontSize: "0.76rem" }}
+                  >
+                    Engine B Cue Only
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${responseComparisonTab === "response" ? "accent" : "ghost"}`}
+                    onClick={() => setResponseComparisonTab("response")}
+                    style={{ padding: "3px 9px", fontSize: "0.76rem" }}
+                  >
+                    Dog Response Only
+                  </button>
                 </div>
-                <div>
-                  <SpectrogramViewer
-                    spectrogramDataPath={`/api/recordings/${activeResponse.recording.id}/spectrogram-data`}
-                    spectrogramImagePath={`/api/recordings/${activeResponse.recording.id}/media/spectrogram`}
-                    waveformPath={`/api/recordings/${activeResponse.recording.id}/media/waveform`}
-                    title={`Engine A Recorded Response (${activeResponse.recording.analysis?.vocalization || "unknown"})`}
-                    compact
-                  />
-                </div>
+              </div>
+              <div className={responseComparisonTab === "both" ? "grid-2" : "grid-1"}>
+                {(responseComparisonTab === "both" || responseComparisonTab === "output") && (
+                  <div>
+                    <SpectrogramViewer
+                      spectrogramDataPath={`/api/communicate/${generated.id}/spectrogram-data`}
+                      spectrogramImagePath={`/api/communicate/${generated.id}/media/spectrogram`}
+                      title={`Engine B Output (${generated.vocalization_target})`}
+                      compact
+                    />
+                  </div>
+                )}
+                {(responseComparisonTab === "both" || responseComparisonTab === "response") && (
+                  <div>
+                    <SpectrogramViewer
+                      spectrogramDataPath={`/api/recordings/${activeResponse.recording.id}/spectrogram-data`}
+                      spectrogramImagePath={`/api/recordings/${activeResponse.recording.id}/media/spectrogram`}
+                      waveformPath={`/api/recordings/${activeResponse.recording.id}/media/waveform`}
+                      title={`Engine A Recorded Response (${activeResponse.recording.analysis?.vocalization || "unknown"})`}
+                      compact
+                    />
+                  </div>
+                )}
               </div>
             </div>
           )}

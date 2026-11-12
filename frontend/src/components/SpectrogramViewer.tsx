@@ -470,7 +470,7 @@ export default function SpectrogramViewer({
           )}
 
           {/* Color scale legend and live cursor readout */}
-          <div className="row" style={{ justifyContent: "space-between", marginTop: 8, gap: 12 }}>
+          <div className="row" style={{ justifyContent: "space-between", marginTop: 8, gap: 12, flexWrap: "wrap" }}>
             <div className="row" style={{ gap: 6, alignItems: "center" }}>
               <span className="tiny">Intensity (dBFS):</span>
               <span className="tiny">-80 dB</span>

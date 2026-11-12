@@ -34,14 +34,19 @@ export default function History() {
 
   async function remove(id: string) {
     if (!confirm("Delete this recording and its analysis?")) return;
-    await api(`/api/recordings/${id}`, { method: "DELETE" });
-    setRows((r) => {
-      const next = r.filter((x) => x.id !== id);
-      if (open?.id === id) {
-        setOpen(next[0] || null);
-      }
-      return next;
-    });
+    setErr("");
+    try {
+      await api(`/api/recordings/${id}`, { method: "DELETE" });
+      setRows((r) => {
+        const next = r.filter((x) => x.id !== id);
+        if (open?.id === id) {
+          setOpen(next[0] || null);
+        }
+        return next;
+      });
+    } catch (ex) {
+      setErr(ex instanceof Error ? `Delete failed: ${ex.message}` : "Failed to delete recording.");
+    }
   }
 
   const filteredRows = rows.filter((r) => {

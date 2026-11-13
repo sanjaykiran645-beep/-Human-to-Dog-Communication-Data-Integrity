@@ -19,6 +19,7 @@ from ..deps import get_current_user, limit_analyze
 from ..services import audit, storage
 from ..services.audio import AudioError, load_processed, write_and_decode
 from ..services.behavior import estimate_behavior
+from ..services.breed_intelligence import resolve_breed_intelligence
 from ..services.explain import explain
 from ..services.features import extract_features
 from ..services.inference import predict_vocalization
@@ -103,7 +104,7 @@ def run_analysis_pipeline(
     classification = predict_vocalization(features, quality)
     dog_dict = None
     if dog is not None:
-        dog_dict = {"weight_kg": dog.weight_kg, "breed": dog.breed, "name": dog.name}
+        dog_dict = {"weight_kg": dog.weight_kg, "breed": dog.breed, "name": dog.name, "breed_intelligence": resolve_breed_intelligence(dog.breed, dog.weight_kg, dog.age_years)}
     behavior = estimate_behavior(features, classification, dog_dict)
     explanation = explain(features, quality, classification, behavior)
     return {

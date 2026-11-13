@@ -53,7 +53,7 @@ export default function Layout() {
   const [open, setOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
   const onboardingKey = user?.id ? `cs_onboarding_done_${user.id}` : "cs_onboarding_done";
-  const [showWelcome, setShowWelcome] = useState<boolean>(() => {
+  const [showWelcome, setShowWelcome] = useState<boolean>(() => { return false; // return false; //
     const done = localStorage.getItem(onboardingKey) === "1" || localStorage.getItem("cs_onboarding_done") === "1";
     const isDashboard = loc.pathname === "/app" || loc.pathname === "/app/";
     return !done && isDashboard;

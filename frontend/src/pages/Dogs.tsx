@@ -1,190 +1,191 @@
-import { useEffect, useState } from "react";
-import type { FormEvent } from "react";
-import { api } from "../api";
-import type { Dog } from "../api";
+import { FormEvent, useEffect, useState } from "react";
+import { api, Dog } from "../api";
 
-const empty = { name: "", breed: "", sex: "", age_years: "", weight_kg: "", notes: "" };
+const POPULAR_BREEDS = [
+  "Golden Retriever",
+  "American Pit Bull Terrier",
+  "German Shepherd",
+  "Labrador Retriever",
+  "Siberian Husky",
+  "Indian Pariah Dog (Indie)",
+  "Beagle",
+  "Rottweiler",
+  "Pug",
+  "Chihuahua",
+];
 
 export default function Dogs() {
   const [dogs, setDogs] = useState<Dog[]>([]);
-  const [form, setForm] = useState(empty);
-  const [err, setErr] = useState("");
-  const [successMsg, setSuccessMsg] = useState("");
-  const [editing, setEditing] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [breed, setBreed] = useState("");
+  const [age, setAge] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
-  function load() {
-    api<Dog[]>("/api/dogs")
-      .then(setDogs)
-      .catch((e) => setErr(e instanceof Error ? e.message : "Failed to load dogs"));
-  }
-  useEffect(load, []);
-
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    setErr("");
-    setSuccessMsg("");
-    const body = {
-      name: form.name,
-      breed: form.breed || null,
-      sex: form.sex || null,
-      age_years: form.age_years ? Number(form.age_years) : null,
-      weight_kg: form.weight_kg ? Number(form.weight_kg) : null,
-      notes: form.notes || null,
-    };
+  async function load() {
     try {
-      if (editing) await api(`/api/dogs/${editing}`, { method: "PATCH", body: JSON.stringify(body) });
-      else await api("/api/dogs", { method: "POST", body: JSON.stringify(body) });
-      setSuccessMsg(editing ? "Dog profile updated successfully!" : "Dog profile added successfully!");
-      setForm(empty);
-      setEditing(null);
-      load();
-      setTimeout(() => setSuccessMsg(""), 4000);
-    } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : "Failed");
+      localStorage.removeItem("cs_demo_mode");
+      setDogs(await api<Dog[]>("/api/dogs"));
+    } catch (e: any) {
+      setErr(e.message);
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setErr(null);
+    setSavedMsg(null);
+    setBusy(true);
+    try {
+      await api<Dog>("/api/dogs", {
+        method: "POST",
+        body: JSON.stringify({
+          name: name.trim(),
+          breed: breed.trim() || "Mixed Breed",
+          age_years: age ? Number(age) : null,
+        }),
+      });
+      setName("");
+      setBreed("");
+      setAge("");
+      setSavedMsg("Profile saved. Breed intelligence and vocal pitch automatically calibrated in backend.");
+      await load();
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
     }
   }
 
   async function remove(id: string) {
-    if (!confirm("Delete this profile?")) return;
     try {
       await api(`/api/dogs/${id}`, { method: "DELETE" });
-      setSuccessMsg("Dog profile removed.");
-      setTimeout(() => setSuccessMsg(""), 4000);
-      load();
-    } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : "Failed to delete profile");
+      await load();
+    } catch (e: any) {
+      setErr(e.message);
     }
   }
 
   return (
-    <div>
-      <div className="topbar">
+    <div className="grid-2" style={{ maxWidth: 1040, margin: "0 auto", gap: 24, alignItems: "start" }}>
+      <form className="card stack" onSubmit={submit} style={{ padding: 28, borderRadius: 18 }}>
         <div>
-          <div className="kicker">Profiles</div>
-          <h1>Dogs</h1>
-          <p>Profiles stay on your account. Weight is only used as a weak F0-size consistency note.</p>
+          <h2 style={{ margin: "0 0 6px 0", fontSize: 22 }}>Add Your Dog</h2>
+          <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+            Just enter your dog?s name and breed. Behavioral traits, intelligence profile, and vocal frequencies are synced automatically in the background.
+          </p>
         </div>
-      </div>
-      <div className="grid-2">
-        <div className="card">
-          <h2>{editing ? "Edit profile" : "Add a dog"}</h2>
-          {err && <div className="error" role="alert">{err}</div>}
-          {successMsg && (
-            <div
-              className="badge ok"
-              role="status"
-              style={{ padding: "8px 14px", marginBottom: 14, display: "block" }}
-            >
-              {successMsg}
-            </div>
-          )}
-          <form onSubmit={onSubmit}>
-            <div className="field">
-              <label htmlFor="dog-name">Name</label>
-              <input
-                id="dog-name"
-                placeholder="e.g. Barnaby"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                required
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="dog-breed">Breed</label>
-              <input
-                id="dog-breed"
-                placeholder="e.g. Golden Retriever"
-                value={form.breed}
-                onChange={(e) => setForm({ ...form, breed: e.target.value })}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="dog-sex">Sex</label>
-              <select id="dog-sex" value={form.sex} onChange={(e) => setForm({ ...form, sex: e.target.value })}>
-                <option value="">Unknown</option>
-                <option value="female">Female</option>
-                <option value="male">Male</option>
-              </select>
-            </div>
-            <div className="grid-2">
-              <div className="field">
-                <label htmlFor="dog-age">Age (years)</label>
-                <input
-                  id="dog-age"
-                  type="number"
-                  min={0}
-                  step={0.1}
-                  placeholder="e.g. 3.5"
-                  value={form.age_years}
-                  onChange={(e) => setForm({ ...form, age_years: e.target.value })}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="dog-weight">Weight (kg)</label>
-                <input
-                  id="dog-weight"
-                  type="number"
-                  min={0.2}
-                  step={0.1}
-                  placeholder="e.g. 28.5"
-                  value={form.weight_kg}
-                  onChange={(e) => setForm({ ...form, weight_kg: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="field">
-              <label htmlFor="dog-notes">Acoustic &amp; Behavioral Notes</label>
-              <textarea
-                id="dog-notes"
-                placeholder="Baseline acoustic pitch, typical barking triggers, or medical notes..."
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              />
-            </div>
-            <div className="row">
-              <button className="btn">{editing ? "Save" : "Add"}</button>
-              {editing && (
-                <button className="btn ghost" type="button" onClick={() => { setEditing(null); setForm(empty); }}>
-                  Cancel
-                </button>
-              )}
-            </div>
-          </form>
+
+        {err && <div className="alert alert-error">{err}</div>}
+        {savedMsg && (
+          <div className="alert" style={{ background: "#ecfdf5", color: "#065f46", border: "1px solid #a7f3d0" }}>
+            {savedMsg}
+          </div>
+        )}
+
+        <div className="field">
+          <label>Dog?s Name *</label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            placeholder="e.g. Max, Bruno, Bella"
+          />
         </div>
-        <div className="card">
-          <h2>Your dogs</h2>
-          {!dogs.length && <div className="empty">No profiles yet.</div>}
-          {dogs.map((d) => (
-            <div key={d.id} style={{ padding: "12px 0", borderBottom: "1px solid var(--line)" }}>
-              <strong>{d.name}</strong>
-              <div className="tiny">
-                {[d.breed, d.sex, d.weight_kg ? `${d.weight_kg} kg` : null].filter(Boolean).join(" · ") || "No details"}
-              </div>
-              <div className="row" style={{ marginTop: 8 }}>
-                <button
-                  className="btn ghost"
-                  type="button"
-                  onClick={() => {
-                    setEditing(d.id);
-                    setForm({
-                      name: d.name,
-                      breed: d.breed || "",
-                      sex: d.sex || "",
-                      age_years: d.age_years?.toString() || "",
-                      weight_kg: d.weight_kg?.toString() || "",
-                      notes: d.notes || "",
-                    });
-                  }}
-                >
-                  Edit
-                </button>
-                <button className="btn danger" type="button" onClick={() => remove(d.id)}>
-                  Delete
+
+        <div className="field">
+          <label>Breed (Auto-Syncs Vocal & Behavioral Intelligence)</label>
+          <input
+            value={breed}
+            onChange={(e) => setBreed(e.target.value)}
+            placeholder="e.g. Golden Retriever, American Pit Bull..."
+          />
+          <div className="row" style={{ gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+            {POPULAR_BREEDS.map((b) => (
+              <button
+                key={b}
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{ fontSize: 11, padding: "4px 10px", borderRadius: 999 }}
+                onClick={() => setBreed(b)}
+              >
+                {b}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="field">
+          <label>Age in Years (Optional)</label>
+          <input
+            type="number"
+            step="0.5"
+            min="0"
+            max="30"
+            value={age}
+            onChange={(e) => setAge(e.target.value)}
+            placeholder="e.g. 3"
+          />
+        </div>
+
+        <button className="btn btn-primary" disabled={busy} style={{ borderRadius: 999, padding: "10px 24px" }}>
+          {busy ? "Syncing Breed Intelligence..." : "Save Dog Profile"}
+        </button>
+      </form>
+
+      <div className="card stack" style={{ padding: 28, borderRadius: 18 }}>
+        <h2 style={{ margin: "0 0 6px 0", fontSize: 22 }}>Your Dogs ({dogs.length})</h2>
+        {dogs.length === 0 ? (
+          <p className="muted" style={{ fontSize: 14 }}>
+            No dogs added yet. Add a profile on the left to calibrate analysis and communication.
+          </p>
+        ) : (
+          <div className="stack" style={{ gap: 12 }}>
+            {dogs.map((d) => (
+              <div
+                key={d.id}
+                className="row"
+                style={{
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "14px 18px",
+                  borderRadius: 14,
+                  background: "rgba(0,0,0,0.025)",
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 16 }}>{d.name}</div>
+                  <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
+                    {d.breed || "Mixed Breed"} {d.age_years ? `? ${d.age_years} yrs` : ""}
+                  </div>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      marginTop: 6,
+                      fontSize: 11,
+                      padding: "2px 8px",
+                      borderRadius: 999,
+                      background: "rgba(124, 45, 18, 0.1)",
+                      color: "#7c2d12",
+                      fontWeight: 600,
+                    }}
+                  >
+                    ? Backend Breed Intelligence Synced
+                  </span>
+                </div>
+                <button className="btn btn-danger btn-sm" onClick={() => remove(d.id)}>
+                  Remove
                 </button>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

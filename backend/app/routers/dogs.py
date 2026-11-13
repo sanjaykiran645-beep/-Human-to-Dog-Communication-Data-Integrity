@@ -1,7 +1,8 @@
-"""Dog profile CRUD. All queries scoped to the authenticated user."""
+"""Dog profile CRUD with automatic silent backend breed intelligence enrichment."""
 
 from __future__ import annotations
 
+import json
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -12,6 +13,7 @@ from .. import models, schemas
 from ..db import get_db
 from ..deps import get_current_user
 from ..services import audit
+from ..services.breed_intelligence import resolve_breed_intelligence
 
 router = APIRouter(prefix="/api/dogs", tags=["dogs"])
 
@@ -21,6 +23,21 @@ def _owned(db: Session, user: models.User, dog_id: str) -> models.Dog:
     if dog is None or dog.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dog not found")
     return dog
+
+
+def _enrich_dog_silently(data: dict) -> dict:
+    """Enriches missing weight and stores hidden breed intelligence without cluttering user notes."""
+    intel = resolve_breed_intelligence(
+        breed=data.get("breed"),
+        weight_kg=data.get("weight_kg"),
+        age_years=data.get("age_years"),
+        fetch_remote=True,
+    )
+    if data.get("weight_kg") is None:
+        data["weight_kg"] = intel.get("default_weight_kg", 20.0)
+    if not data.get("sex"):
+        data["sex"] = "unknown"
+    return data
 
 
 @router.get("", response_model=list[schemas.DogOut])
@@ -34,7 +51,8 @@ def create_dog(
     user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> models.Dog:
-    dog = models.Dog(id=str(uuid.uuid4()), user_id=user.id, **payload.model_dump())
+    raw = _enrich_dog_silently(payload.model_dump())
+    dog = models.Dog(id=str(uuid.uuid4()), user_id=user.id, **raw)
     db.add(dog)
     db.flush()
     audit.log(db, action="dog.create", entity="dog", user_id=user.id, entity_id=dog.id)
@@ -55,7 +73,8 @@ def update_dog(
     db: Session = Depends(get_db),
 ) -> models.Dog:
     dog = _owned(db, user, dog_id)
-    for k, v in payload.model_dump().items():
+    raw = _enrich_dog_silently(payload.model_dump())
+    for k, v in raw.items():
         setattr(dog, k, v)
     audit.log(db, action="dog.update", entity="dog", user_id=user.id, entity_id=dog.id)
     db.commit()

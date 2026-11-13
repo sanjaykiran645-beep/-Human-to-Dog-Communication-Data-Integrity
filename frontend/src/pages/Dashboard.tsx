@@ -1,370 +1,240 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { api, getBackendUrl, getUser } from "../api";
-
-type Summary = {
-  recordings: number;
-  dogs: number;
-  generated: number;
-  analyses: number;
-  abstentions: number;
-  most_frequent_vocalization: string | null;
-  vocalization_counts: Record<string, number>;
-  recent: Array<{
-    analysis_id: string;
-    recording_id: string;
-    vocalization: string;
-    confidence: number;
-    abstained: boolean;
-    filename: string | null;
-    created_at: string | null;
-  }>;
-};
+import { Link } from "react-router-dom";
+import { api, Dog, getUser, Recording } from "../api";
 
 export default function Dashboard() {
   const user = getUser();
-  const nav = useNavigate();
-  const [data, setData] = useState<Summary | null>(null);
-  const [err, setErr] = useState("");
+  const [dogs, setDogs] = useState<Dog[]>([]);
+  const [recordings, setRecordings] = useState<Recording[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api<Summary>("/api/analytics/summary")
-      .then(setData)
-      .catch((e) => setErr(e.message))
-      .finally(() => setLoading(false));
+    localStorage.removeItem("cs_demo_mode");
+    Promise.all([
+      api<Dog[]>("/api/dogs").catch(() => []),
+      api<Recording[]>("/api/recordings").catch(() => []),
+    ]).then(([d, r]) => {
+      setDogs(d || []);
+      setRecordings(r || []);
+      setLoading(false);
+    });
   }, []);
 
-  const vocEntries = Object.entries(data?.vocalization_counts || {}).sort((a, b) => b[1] - a[1]);
-  const totalVoc = vocEntries.reduce((acc, [, c]) => acc + c, 0) || 1;
-  const resolvedCount = Math.max(0, (data?.analyses ?? 0) - (data?.abstentions ?? 0));
+  const activeDog = dogs[0] || null;
+  const recentRecs = recordings.slice(0, 4);
 
   return (
-    <div className="dash-shell">
-      {/* Premium Warm Minimalist Welcome Banner */}
-      <section className="dash-welcome-banner">
-        <div className="dash-welcome-copy">
-          <div className="dash-status-pill">
-            <span className="dash-pulse-dot" />
-            CanineSense AI · Dual-Engine Bioacoustic Workspace
-          </div>
-          <h1 className="dash-hero-title">Hello{user?.name ? `, ${user.name}` : ""}</h1>
-          <p className="dash-hero-sub">
-            Welcome to your private canine bioacoustics laboratory. Analyze dog vocalizations with STFT spectrograms and
-            abstention safeguards, or generate authentic reference-driven canine vocalizations.
-          </p>
-          <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
-            <Link to="/app/analyze" className="btn accent">
-              Analyze audio
-            </Link>
-            <Link to="/app/communicate" className="btn ghost">
-              Communicate Lab →
-            </Link>
-            <Link to="/app/history" className="btn ghost">
-              Archive ({data?.recordings ?? 0})
-            </Link>
-            <a href={`${getBackendUrl()}/api/download/apk`} download="CanineSense_AI_v1.0.0.apk" className="btn ghost">
-              Download Android APK
-            </a>
-          </div>
-        </div>
-
-        {/* Custom Canine Bioacoustic Visual Card */}
-        <div className="dash-welcome-visual" aria-hidden="true">
-          <div className="dash-visual-card">
-            <div className="dash-visual-head">
-              <span>ACOUSTIC SPECTRUM · 22.05 kHz</span>
-              <span>REF LIBRARY v2.1</span>
-            </div>
-            <svg viewBox="0 0 280 72" width="100%" height="72" fill="none">
-              <rect x="4" y="28" width="6" height="16" rx="3" fill="#A66B55" opacity="0.55" />
-              <rect x="16" y="18" width="6" height="36" rx="3" fill="#762F3D" />
-              <rect x="28" y="10" width="6" height="52" rx="3" fill="#762F3D" />
-              <rect x="40" y="22" width="6" height="28" rx="3" fill="#A66B55" />
-              <rect x="52" y="6" width="6" height="60" rx="3" fill="#382820" />
-              <rect x="64" y="16" width="6" height="40" rx="3" fill="#762F3D" />
-              <rect x="76" y="26" width="6" height="20" rx="3" fill="#A66B55" opacity="0.7" />
-              <rect x="88" y="14" width="6" height="44" rx="3" fill="#762F3D" />
-              <rect x="100" y="20" width="6" height="32" rx="3" fill="#A66B55" />
-              <rect x="112" y="8" width="6" height="56" rx="3" fill="#382820" />
-              <rect x="124" y="18" width="6" height="36" rx="3" fill="#762F3D" />
-              <rect x="136" y="24" width="6" height="24" rx="3" fill="#A66B55" opacity="0.75" />
-              <rect x="148" y="12" width="6" height="48" rx="3" fill="#762F3D" />
-              <rect x="160" y="6" width="6" height="60" rx="3" fill="#382820" />
-              <rect x="172" y="20" width="6" height="32" rx="3" fill="#A66B55" />
-              <rect x="184" y="28" width="6" height="16" rx="3" fill="#A66B55" opacity="0.6" />
-              <rect x="196" y="14" width="6" height="44" rx="3" fill="#762F3D" />
-              <rect x="208" y="10" width="6" height="52" rx="3" fill="#762F3D" />
-              <rect x="220" y="22" width="6" height="28" rx="3" fill="#A66B55" />
-              <rect x="232" y="16" width="6" height="40" rx="3" fill="#382820" />
-              <rect x="244" y="24" width="6" height="24" rx="3" fill="#762F3D" />
-              <rect x="256" y="18" width="6" height="36" rx="3" fill="#A66B55" />
-              <rect x="268" y="28" width="6" height="16" rx="3" fill="#A66B55" opacity="0.55" />
-            </svg>
-            <div className="dash-visual-head" style={{ marginTop: 6, marginBottom: 0 }}>
-              <span>ENGINE A: CLASSIFIER</span>
-              <span>ENGINE B: 128 CLIPS</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {err && <div className="error">{err}</div>}
-      {loading && <p className="tiny">Loading workspace summary…</p>}
-
-      {/* 4 Key Metric Cards */}
-      <section className="dash-bento-4" aria-label="Key corpus statistics">
-        <div className="dash-metric-card stat">
-          <div className="dash-metric-top">
-            <span>SIGNAL CORPUS</span>
-            <span className="dash-metric-icon" aria-hidden="true">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 12h3l2-6 4 12 3-8 2 2h4" />
-              </svg>
+    <div className="stack-lg" style={{ maxWidth: 1080, margin: "0 auto" }}>
+      {/* Sleek Minimalist Hero Banner */}
+      <div
+        className="card"
+        style={{
+          background: "linear-gradient(135deg, #1e1b18 0%, #3a2321 100%)",
+          color: "#ffffff",
+          border: "none",
+          padding: "32px 36px",
+          borderRadius: 20,
+          boxShadow: "0 16px 40px rgba(30, 27, 24, 0.14)",
+        }}
+      >
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 24 }}>
+          <div style={{ maxWidth: 580 }}>
+            <span
+              style={{
+                display: "inline-block",
+                padding: "4px 12px",
+                borderRadius: 999,
+                background: "rgba(255,255,255,0.12)",
+                fontSize: 12,
+                fontWeight: 600,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                marginBottom: 12,
+              }}
+            >
+              CanineSense AI Studio
             </span>
-          </div>
-          <div className="dash-metric-val num">{data?.recordings ?? "—"}</div>
-          <div className="dash-metric-foot lbl">
-            <span>Recordings</span>
-            <span>{data?.dogs ?? 0} dog profiles</span>
-          </div>
-        </div>
-
-        <div className="dash-metric-card stat">
-          <div className="dash-metric-top">
-            <span>DOMINANT CLASS</span>
-            <span className="dash-metric-icon" aria-hidden="true">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M5 19V9M12 19V5M19 19v-7" />
-              </svg>
-            </span>
-          </div>
-          <div className="dash-metric-val num" style={{ textTransform: "capitalize" }}>
-            {data?.most_frequent_vocalization ?? "—"}
-          </div>
-          <div className="dash-metric-foot lbl">
-            <span>Most frequent class</span>
-            <span>{resolvedCount} classified</span>
-          </div>
-        </div>
-
-        <div className="dash-metric-card stat">
-          <div className="dash-metric-top">
-            <span>SAFETY GATE</span>
-            <span className="dash-metric-icon" aria-hidden="true">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 3l8 4v5c0 5-3.5 8.5-8 9-4.5-.5-8-4-8-9V7l8-4z" />
-              </svg>
-            </span>
-          </div>
-          <div className="dash-metric-val num">{data?.abstentions ?? "—"}</div>
-          <div className="dash-metric-foot lbl">
-            <span>Unknown / abstain</span>
-            <span>Conservative guard</span>
-          </div>
-        </div>
-
-        <div className="dash-metric-card stat">
-          <div className="dash-metric-top">
-            <span>ENGINE B OUTPUTS</span>
-            <span className="dash-metric-icon" aria-hidden="true">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M4 8h8v8H4l-2 3V8h2zM14 9c1.5 1 1.5 5 0 6M17 7c2.5 2 2.5 8 0 10" />
-              </svg>
-            </span>
-          </div>
-          <div className="dash-metric-val num">{data?.generated ?? "—"}</div>
-          <div className="dash-metric-foot lbl">
-            <span>Generated vocalizations</span>
-            <span>Ref Library v2.1</span>
-          </div>
-        </div>
-      </section>
-
-      {/* Quick Actions Row */}
-      <section className="dash-quick-grid" aria-label="Quick actions">
-        <Link to="/app/analyze" className="dash-quick-card">
-          <span className="dash-quick-ico" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
-              <path d="M3 12h3l2-6 4 12 3-8 2 2h4" />
-            </svg>
-          </span>
-          <div>
-            <strong>Analyze Dog Audio</strong>
-            <span>Upload or record WAV, MP3, M4A, OGG, WEBM, or FLAC</span>
-          </div>
-        </Link>
-
-        <Link to="/app/communicate" className="dash-quick-card">
-          <span className="dash-quick-ico" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
-              <path d="M4 8h8v8H4l-2 3V8h2zM14 9c1.5 1 1.5 5 0 6M17 7c2.5 2 2.5 8 0 10" />
-            </svg>
-          </span>
-          <div>
-            <strong>Reference Vocalizer</strong>
-            <span>Generate from 128 real dog clips &amp; compare spectrograms</span>
-          </div>
-        </Link>
-
-        <Link to="/app/dogs" className="dash-quick-card">
-          <span className="dash-quick-ico" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
-              <path d="M4 11c2-5 6-6 8-6 2 0 3 1 5 1 2 0 3-2 3-2v6c0 5-3 9-8 9s-8-4-8-8z" />
-            </svg>
-          </span>
-          <div>
-            <strong>Dog Profiles ({data?.dogs ?? 0})</strong>
-            <span>Configure breed &amp; weight for F0-size consistency notes</span>
-          </div>
-        </Link>
-
-        <Link to="/app/analytics" className="dash-quick-card">
-          <span className="dash-quick-ico" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
-              <path d="M5 19V9M12 19V5M19 19v-7" />
-            </svg>
-          </span>
-          <div>
-            <strong>Corpus &amp; Model Card</strong>
-            <span>Inspect class distribution and model transparency notes</span>
-          </div>
-        </Link>
-      </section>
-
-      {/* Main Content Workspace: Recent Analyses & Vocalization Topology */}
-      <div className="dash-workspace-grid">
-        <div className="card" style={{ margin: 0 }}>
-          <div className="dash-panel-head">
-            <div>
-              <div className="dash-tag">ENGINE A · RECENT ACTIVITY</div>
-              <h2>Recent analyses</h2>
-            </div>
-            <Link to="/app/history" className="btn ghost" style={{ padding: "6px 14px", fontSize: "0.8rem" }}>
-              Full history →
-            </Link>
-          </div>
-
-          {(!data?.recent || data.recent.length === 0) && (
-            <div className="empty">No analyses yet. Start with a recording to populate your workspace.</div>
-          )}
-
-          {Boolean(data?.recent && data.recent.length > 0) && (
-            <div className="dash-stream-list">
-              {(data?.recent || []).map((r) => {
-                const pct = r.abstained ? 0 : Math.round(r.confidence * 100);
-                return (
-                  <div
-                    key={r.analysis_id}
-                    className="dash-stream-row"
-                    onClick={() => nav(`/app/history?id=${r.recording_id}`)}
-                  >
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: "0.92rem", color: "var(--ink)" }}>
-                        {r.filename || "Acoustic capture"}
-                      </div>
-                      <div className="tiny">
-                        {r.created_at ? new Date(r.created_at).toLocaleString() : "—"}
-                      </div>
-                    </div>
-
-                    <span className={`badge ${r.abstained ? "warn" : "ok"}`}>{r.vocalization}</span>
-
-                    <div className="dash-conf-wrap">
-                      <div className="dash-conf-bar">
-                        <span
-                          style={{
-                            width: `${pct}%`,
-                            background: r.abstained ? "var(--muted)" : "var(--accent)",
-                          }}
-                        />
-                      </div>
-                      <span className="tiny" style={{ minWidth: 58, textAlign: "right", fontWeight: 500 }}>
-                        {r.abstained ? "abstained" : `${pct}%`}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          <p className="tiny" style={{ marginTop: 14, marginBottom: 0 }}>
-            Click any recording above to open its audio player, waveform, interactive STFT spectrogram, and acoustic
-            evidence in History.
-          </p>
-        </div>
-
-        {/* Right Column: Vocalization Distribution & Active Engines */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div className="card" style={{ margin: 0 }}>
-            <div className="dash-panel-head">
-              <div>
-                <div className="dash-tag">CORPUS BREAKDOWN</div>
-                <h2>Vocalization distribution</h2>
-              </div>
-              <Link to="/app/analytics" className="tiny">
-                Details →
+            <h1 style={{ fontSize: 32, fontWeight: 700, margin: "0 0 10px 0", color: "#fff" }}>
+              Welcome back, {user?.name || "Trainer"}
+            </h1>
+            <p style={{ margin: "0 0 24px 0", fontSize: 15, color: "rgba(255,255,255,0.82)", lineHeight: 1.6 }}>
+              Understand what your dog is expressing and generate breed-calibrated vocal cues in one click.
+            </p>
+            <div className="row" style={{ gap: 12, flexWrap: "wrap" }}>
+              <Link
+                to="/app/analyze"
+                className="btn"
+                style={{
+                  background: "#ffffff",
+                  color: "#1e1b18",
+                  fontWeight: 600,
+                  padding: "10px 22px",
+                  borderRadius: 999,
+                }}
+              >
+                Analyze Dog Audio
+              </Link>
+              <Link
+                to="/app/communicate"
+                className="btn"
+                style={{
+                  background: "rgba(255,255,255,0.14)",
+                  color: "#ffffff",
+                  border: "1px solid rgba(255,255,255,0.28)",
+                  fontWeight: 600,
+                  padding: "10px 22px",
+                  borderRadius: 999,
+                }}
+              >
+                Speak to Dog ?
               </Link>
             </div>
-
-            {!vocEntries.length && (
-              <div className="empty" style={{ padding: "18px 10px" }}>
-                Class distribution will appear after your first acoustic analysis.
-              </div>
-            )}
-
-            {vocEntries.map(([cls, count]) => {
-              const pct = Math.round((count / totalVoc) * 100);
-              return (
-                <div key={cls} className="prob" style={{ margin: "10px 0" }}>
-                  <span style={{ textTransform: "capitalize", fontWeight: 500, color: "var(--ink)" }}>{cls}</span>
-                  <div className="bar">
-                    <span style={{ width: `${pct}%` }} />
-                  </div>
-                  <span className="tiny" style={{ textAlign: "right" }}>
-                    {count} ({pct}%)
-                  </span>
-                </div>
-              );
-            })}
           </div>
 
-          <div className="card" style={{ margin: 0 }}>
-            <div className="dash-panel-head">
-              <div>
-                <div className="dash-tag">ACTIVE SYSTEM MODULES</div>
-                <h2>Bioacoustic engines</h2>
-              </div>
+          {/* Minimalist Active Dog Pill */}
+          <div
+            style={{
+              background: "rgba(255,255,255,0.08)",
+              backdropFilter: "blur(10px)",
+              border: "1px solid rgba(255,255,255,0.15)",
+              borderRadius: 16,
+              padding: "20px 24px",
+              minWidth: 240,
+            }}
+          >
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.65)" }}>
+              Active Companion
             </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <div className="dash-node-card">
-                <div>
-                  <strong style={{ fontSize: "0.9rem", color: "var(--ink)" }}>
-                    Engine A · Bioacoustic Classifier
-                  </strong>
-                  <div className="tiny">YIN F0 · Spectral Centroid · HNR · Abstention Gate</div>
+            {activeDog ? (
+              <>
+                <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6, color: "#fff" }}>{activeDog.name}</div>
+                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", marginTop: 2 }}>
+                  {activeDog.breed || "Mixed Breed"} ? Breed Intelligence Active
                 </div>
-                <Link to="/app/analyze" className="badge ok">
-                  Open →
+                <Link
+                  to="/app/dogs"
+                  style={{ display: "inline-block", marginTop: 12, fontSize: 12, color: "#f5d0c5", textDecoration: "none", fontWeight: 600 }}
+                >
+                  Manage profiles ?
                 </Link>
-              </div>
-
-              <div className="dash-node-card">
-                <div>
-                  <strong style={{ fontSize: "0.9rem", color: "var(--ink)" }}>
-                    Engine B · Reference Vocalizer v2.1
-                  </strong>
-                  <div className="tiny">128 Validated Dog Clips · Retrieval &amp; Variation</div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 16, fontWeight: 600, marginTop: 6, color: "#fff" }}>No dog profile yet</div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 4 }}>
+                  Add your dog?s breed to auto-calibrate pitch & behavior.
                 </div>
-                <Link to="/app/communicate" className="badge">
-                  Open →
+                <Link
+                  to="/app/dogs"
+                  style={{ display: "inline-block", marginTop: 12, fontSize: 12, color: "#f5d0c5", textDecoration: "none", fontWeight: 600 }}
+                >
+                  + Add your dog ?
                 </Link>
-              </div>
-            </div>
+              </>
+            )}
           </div>
         </div>
+      </div>
+
+      {/* 3 Clean Action Cards */}
+      <div className="grid-3" style={{ gap: 18 }}>
+        <Link to="/app/analyze" className="card" style={{ textDecoration: "none", color: "inherit", padding: 24, borderRadius: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#7c2d12", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Dog ? Human
+          </div>
+          <h3 style={{ fontSize: 20, margin: "8px 0" }}>Analyze Vocalization</h3>
+          <p className="muted" style={{ fontSize: 14, margin: "0 0 16px 0", lineHeight: 1.5 }}>
+            Record or upload a bark, whine, or howl to detect emotional state and acoustic patterns.
+          </p>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#7c2d12" }}>Open Analyzer ?</span>
+        </Link>
+
+        <Link to="/app/communicate" className="card" style={{ textDecoration: "none", color: "inherit", padding: 24, borderRadius: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#7c2d12", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Human ? Dog
+          </div>
+          <h3 style={{ fontSize: 20, margin: "8px 0" }}>Translate & Speak</h3>
+          <p className="muted" style={{ fontSize: 14, margin: "0 0 16px 0", lineHeight: 1.5 }}>
+            Type or speak any phrase to generate a calm, playful, or attention cue tuned to your dog?s breed.
+          </p>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#7c2d12" }}>Open Translator ?</span>
+        </Link>
+
+        <Link to="/app/dogs" className="card" style={{ textDecoration: "none", color: "inherit", padding: 24, borderRadius: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#7c2d12", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Smart Calibration
+          </div>
+          <h3 style={{ fontSize: 20, margin: "8px 0" }}>Dog Profiles ({dogs.length})</h3>
+          <p className="muted" style={{ fontSize: 14, margin: "0 0 16px 0", lineHeight: 1.5 }}>
+            Enter your dog?s name and breed. Our backend automatically syncs breed intelligence and vocal range.
+          </p>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#7c2d12" }}>Manage Dogs ?</span>
+        </Link>
+      </div>
+
+      {/* Clean Minimalist Recent Activity */}
+      <div className="card" style={{ padding: 24, borderRadius: 16 }}>
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 18 }}>Recent Sessions</h3>
+            <p className="muted" style={{ margin: "4px 0 0 0", fontSize: 13 }}>
+              Your latest analyzed recordings
+            </p>
+          </div>
+          <Link to="/app/history" className="btn btn-secondary btn-sm">
+            View all ({recordings.length})
+          </Link>
+        </div>
+
+        {loading ? (
+          <div className="muted" style={{ padding: "20px 0", fontSize: 14 }}>Loading workspace...</div>
+        ) : recentRecs.length === 0 ? (
+          <div
+            style={{
+              padding: "28px 20px",
+              textAlign: "center",
+              background: "rgba(0,0,0,0.02)",
+              borderRadius: 12,
+              border: "1px dashed rgba(0,0,0,0.12)",
+            }}
+          >
+            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>No recordings analyzed yet</div>
+            <p className="muted" style={{ fontSize: 13, margin: "0 0 14px 0" }}>
+              Record a 3-second clip of your dog or upload an audio file to see instant results.
+            </p>
+            <Link to="/app/analyze" className="btn btn-primary btn-sm">
+              Start First Analysis
+            </Link>
+          </div>
+        ) : (
+          <div className="stack" style={{ gap: 10 }}>
+            {recentRecs.map((r) => (
+              <div
+                key={r.id}
+                className="row"
+                style={{
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "12px 16px",
+                  borderRadius: 12,
+                  background: "rgba(0,0,0,0.025)",
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>
+                    {r.analysis?.vocalization ? r.analysis.vocalization.toUpperCase() : r.original_filename}
+                  </div>
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    {r.analysis?.behavior?.context?.replace(/_/g, " ") || "Processed audio"} ? {(r.duration_sec || 0).toFixed(1)}s
+                  </div>
+                </div>
+                <span className="badge">
+                  {r.analysis ? `${Math.round((r.analysis.confidence || 0) * 100)}% match` : "Saved"}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

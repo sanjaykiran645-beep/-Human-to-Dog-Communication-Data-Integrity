@@ -1,5 +1,7 @@
-import { FormEvent, useEffect, useState } from "react";
-import { api, Dog } from "../api";
+import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
+import { api } from "../api";
+import type { Dog } from "../api";
 
 const POPULAR_BREEDS = [
   "Golden Retriever",

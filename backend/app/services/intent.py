@@ -65,7 +65,7 @@ PATTERNS: list[tuple[str, list[re.Pattern[str]]]] = [
         ],
     ),
     ("calm", [re.compile(r"\b(easy|settle|calm|quiet|shh+|hush|relax|soft|gentle|it's okay|its okay|peace)\b", re.I)]),
-    ("attention", [re.compile(r"\b(hey|look|watch|listen|focus|hello|hi|hi there|look at me|watch me|psst|buddy|baby|boy|girl|dog|wake|what|where|who|app|test|testing|speak|talk)\b", re.I)]),
+    ("attention", [re.compile(r"\b(hey|look|watch|listen|focus|hello|hi|hi there|look at me|watch me|psst|buddy|wake|app|test|testing|speak|talk)\b", re.I)]),
     ("positive_reinforcement", [re.compile(r"\b(treat|food|eat|hungry|dinner|walk|outside|park|sweetheart|angel|smart|clever|awesome|great|yay|kiss|hug)\b", re.I)]),
     ("calm", [re.compile(r"\b(sleep|bed|nap|rest|chill|okay|ok|safe|home|breathe|slow|comfort|cuddle|night)\b", re.I)]),
 ]

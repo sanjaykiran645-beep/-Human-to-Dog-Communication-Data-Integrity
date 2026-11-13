@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, Dog, getUser, Recording } from "../api";
+import { api, getUser } from "../api";
+import type { Dog } from "../api";
+type Recording = any;
 
 export default function Dashboard() {
   const user = getUser();

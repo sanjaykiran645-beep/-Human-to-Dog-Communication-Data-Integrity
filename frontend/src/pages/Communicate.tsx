@@ -1,5 +1,7 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
-import { api, authMediaUrl, Dog } from "../api";
+import { useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
+import { api, mediaUrl } from "../api";
+import type { Dog } from "../api";
 import AudioPlayer, { stopAllActiveAudio } from "../components/AudioPlayer";
 import { recordPcmWav } from "../wav";
 
@@ -42,7 +44,7 @@ export default function Communicate() {
   const [respSecs, setRespSecs] = useState(0);
   const [respAnalysis, setRespAnalysis] = useState<any | null>(null);
   const [submittingResp, setSubmittingResp] = useState(false);
-  const recRef = useRef<{ stop: () => Promise<Blob> } | null>(null);
+  const recRef = useRef<{ stop: () => void; done: Promise<File> } | null>(null);
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -56,7 +58,7 @@ export default function Communicate() {
 
     return () => {
       if (timerRef.current) window.clearInterval(timerRef.current);
-      recRef.current?.stop().catch(() => {});
+      try { recRef.current?.stop(); } catch {}
       stopAllActiveAudio();
     };
   }, []);
@@ -90,7 +92,7 @@ export default function Communicate() {
         throw new Error("Could not synthesize audio for this phrase.");
       }
       setResult(gen);
-      const url = await authMediaUrl(gen.audio_url || `/api/communicate/${gen.id}/audio`);
+      const url = await mediaUrl(gen.audio_url || `/api/communicate/${gen.id}/audio`);
       setAudioSrc(url);
     } catch (e: any) {
       setErr(e.message || "Generation failed");
@@ -111,7 +113,8 @@ export default function Communicate() {
       if (!recRef.current || !result?.id) return;
       setSubmittingResp(true);
       try {
-        const wavBlob = await recRef.current.stop();
+        recRef.current.stop();
+        const wavBlob = await recRef.current.done;
         recRef.current = null;
         const fd = new FormData();
         fd.append("file", wavBlob, "dog_response.wav");
@@ -250,7 +253,7 @@ export default function Communicate() {
             </div>
           </div>
 
-          <AudioPlayer src={audioSrc} title={`Canine Cue: ${result.input_text}`} disabled={recordingResp || submittingResp} />
+          <AudioPlayer mediaPath={audioSrc} disabled={recordingResp || submittingResp} />
 
           {/* Simple 1-Click Dog Reaction Check */}
           <div

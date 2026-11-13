@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import Logo from "./Logo";
+import ComplianceModal from "./components/ComplianceModal";
 import { api, clearSession, getBackendUrl, getUser, isDemoSession } from "./api";
 
 const links = [
@@ -339,6 +340,9 @@ export default function Layout() {
 
         <Outlet />
       </main>
+
+      {/* Mandatory Terms of Service & Scientific Disclaimers Compliance Gatekeeper */}
+      <ComplianceModal />
 
       {/* Onboarding Welcome Modal */}
       {showWelcome && (

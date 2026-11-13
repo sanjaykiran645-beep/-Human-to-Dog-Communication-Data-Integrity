@@ -13,9 +13,15 @@ export default function Settings() {
   const [err, setErr] = useState("");
 
   function handleSaveBackendUrl() {
-    setBackendUrl(backendUrlInput);
-    setMsg("Backend service URL saved successfully.");
-    setTimeout(() => setMsg(""), 4000);
+    setErr("");
+    setMsg("");
+    try {
+      setBackendUrl(backendUrlInput);
+      setMsg("Backend service URL saved successfully.");
+      setTimeout(() => setMsg(""), 4000);
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : "Security warning: Untrusted backend origin blocked.");
+    }
   }
 
   function handleClearBackendUrl() {

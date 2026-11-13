@@ -121,9 +121,18 @@ def upload_reference_recording(
             detail=f"File exceeds {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit",
         )
     try:
+        safe_raw_name = Path(upload.filename or "reference.wav").name.strip().replace("\x00", "")
+        if len(safe_raw_name) > 200:
+            safe_raw_name = safe_raw_name[:190] + Path(safe_raw_name).suffix
+        # Validate extension and generate safe UUID filename
+        allowed_exts = {".wav", ".mp3", ".m4a", ".ogg", ".webm", ".flac"}
+        ext = Path(safe_raw_name).suffix.lower()
+        if ext not in allowed_exts:
+            raise HTTPException(status_code=400, detail="Unsupported audio file extension.")
+        safe_uuid_name = f"{uuid.uuid4().hex}{ext}"
         asset = ingest_user_reference_file(
             data=data,
-            filename=upload.filename or "reference.wav",
+            filename=safe_uuid_name,
             confirmed_category=confirmed_category,
             source_dog_id=source_dog_id,
             recording_conditions=recording_conditions,

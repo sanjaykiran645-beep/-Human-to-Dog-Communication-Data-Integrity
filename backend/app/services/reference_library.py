@@ -1206,7 +1206,9 @@ def ingest_user_reference_file(
             return existing
 
     asset_id = str(uuid.uuid4())
-    ext = Path(filename).suffix.lower() or f".{fmt}"
+    raw_ext = Path(filename).suffix.lower()
+    ALLOWED_AUDIO_EXTENSIONS = {".wav", ".mp3", ".m4a", ".ogg", ".webm", ".flac"}
+    ext = raw_ext if raw_ext in ALLOWED_AUDIO_EXTENSIONS else f".{fmt}" if f".{fmt}" in ALLOWED_AUDIO_EXTENSIONS else ".wav"
     raw_dest = REF_RAW_DIR / f"{asset_id}{ext}"
     proc_dest = REF_PROC_DIR / f"{asset_id}.wav"
     raw_dest.write_bytes(data)
@@ -1236,7 +1238,7 @@ def ingest_user_reference_file(
 
     new_asset = {
         "asset_id": asset_id,
-        "original_filename": filename[:240],
+        "original_filename": Path(filename).name[:240],
         "provenance": "user_uploaded_reference",
         "owner_user_id": owner_user_id,
         "is_segment": False,

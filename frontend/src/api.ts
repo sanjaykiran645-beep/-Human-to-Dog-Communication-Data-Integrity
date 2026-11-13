@@ -47,10 +47,59 @@ export function startDemoSession() {
   setSession("cs_demo_token_offline_preview", demoUser);
 }
 
+export function isAllowedBackendOrigin(rawUrl: string): boolean {
+  if (!rawUrl || !rawUrl.trim()) return false;
+  // Always allowed in development mode
+  if (import.meta.env.DEV) return true;
+
+  try {
+    const parsed = new URL(rawUrl.trim(), window.location.origin);
+    const host = parsed.hostname.toLowerCase();
+
+    // Loopbacks and emulator addresses
+    if (host === "localhost" || host === "127.0.0.1" || host === "10.0.2.2") {
+      return true;
+    }
+
+    // Current app origin
+    if (parsed.origin === window.location.origin) {
+      return true;
+    }
+
+    // Configured env origins
+    const allowedEnvOrigins = [
+      import.meta.env.VITE_API_URL,
+      import.meta.env.VITE_PRODUCTION_BACKEND_URL,
+      "https://caninesense-backend.onrender.com",
+    ].filter(Boolean);
+
+    for (const envOrigin of allowedEnvOrigins) {
+      try {
+        const parsedEnv = new URL(String(envOrigin), window.location.origin);
+        if (parsed.origin === parsedEnv.origin) {
+          return true;
+        }
+      } catch {
+        /* ignore invalid env URL format */
+      }
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 export function getBackendUrl(): string {
   if (typeof window === "undefined") return "";
   const stored = localStorage.getItem(BACKEND_URL_KEY);
-  if (stored) return stored.replace(/\/+$/, "");
+  if (stored) {
+    if (isAllowedBackendOrigin(stored)) {
+      return stored.trim().replace(/\/+$/, "");
+    }
+    // If untrusted external URL found in localStorage in production, ignore and clear it
+    localStorage.removeItem(BACKEND_URL_KEY);
+  }
   const envUrl = import.meta.env.VITE_API_URL;
   if (envUrl) return String(envUrl).replace(/\/+$/, "");
   // Default to the configured production backend when accessed from GitHub Pages or any hosted production domain
@@ -69,9 +118,15 @@ export function getBackendUrl(): string {
 export function setBackendUrl(url: string) {
   if (!url || !url.trim()) {
     localStorage.removeItem(BACKEND_URL_KEY);
-  } else {
-    localStorage.setItem(BACKEND_URL_KEY, url.trim().replace(/\/+$/, ""));
+    return;
   }
+  const trimmed = url.trim().replace(/\/+$/, "");
+  if (!isAllowedBackendOrigin(trimmed)) {
+    throw new Error(
+      "Security Error: Custom backend URL must point to localhost, 127.0.0.1, or an authorized CanineSense backend domain in production mode."
+    );
+  }
+  localStorage.setItem(BACKEND_URL_KEY, trimmed);
 }
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {

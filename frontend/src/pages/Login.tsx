@@ -8,14 +8,13 @@ import type { User } from "../api";
 export default function Login() {
   const nav = useNavigate();
   const loc = useLocation();
-  const [mode, setMode] = useState<"login" | "register">(loc.pathname === "/register" ? "register" : "login");
+  const [mode, setMode] = useState<"login" | "register">(
+    loc.pathname === "/register" ? "register" : "login"
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
-  const [termsAgreed, setTermsAgreed] = useState(false);
-  const [ageConfirmed, setAgeConfirmed] = useState(false);
-  const [audioNoticeAgreed, setAudioNoticeAgreed] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
@@ -41,10 +40,6 @@ export default function Login() {
         setErr("Passwords do not match. Please confirm your password.");
         return;
       }
-      if (!termsAgreed || !ageConfirmed || !audioNoticeAgreed) {
-        setErr("Please review and agree to all required legal and privacy consents to create your account.");
-        return;
-      }
     }
     setBusy(true);
     try {
@@ -55,7 +50,9 @@ export default function Login() {
         body: JSON.stringify(body),
       });
       setSession(data.access_token, data.user);
-      setSuccessMsg(mode === "login" ? "Signed in successfully!" : "Account created successfully!");
+      setSuccessMsg(
+        mode === "login" ? "Signed in successfully!" : "Account created successfully!"
+      );
       setTimeout(() => nav("/app"), 200);
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Failed");
@@ -117,28 +114,11 @@ export default function Login() {
                   />
                 </svg>
               </div>
-
-              <div className="auth-feature-list">
-                <div className="auth-feature-item">
-                  <span className="auth-feature-dot">01</span>
-                  <div>
-                    <strong style={{ fontSize: "0.9rem" }}>Engine A · Acoustic Classifier</strong>
-                    <div className="tiny">YIN fundamental frequency, spectral centroid, HNR &amp; abstention gate</div>
-                  </div>
-                </div>
-                <div className="auth-feature-item">
-                  <span className="auth-feature-dot">02</span>
-                  <div>
-                    <strong style={{ fontSize: "0.9rem" }}>Engine B · Reference-Driven Vocalizer</strong>
-                    <div className="tiny">Authentic dog vocalization retrieval &amp; bounded acoustic variation</div>
-                  </div>
-                </div>
-              </div>
             </div>
-          </div>
 
-          <div className="tiny" style={{ color: "var(--ink-2)" }}>
-            Private per-user storage · Strict ownership isolation · No third-party audio sharing
+            <div className="tiny" style={{ color: "var(--ink-2)" }}>
+              Private per-user storage · Strict ownership isolation · No third-party audio sharing
+            </div>
           </div>
         </div>
 
@@ -166,10 +146,9 @@ export default function Login() {
           </div>
 
           <h1>{mode === "login" ? "Welcome back" : "Create your lab"}</h1>
-          <p>
-            {mode === "login"
-              ? "Sign in to access your private recordings, dog profiles, and acoustic analyses."
-              : "Register your private CanineSense AI workspace. All recordings and analyses stay under your account."}
+          <p>{mode === "login"
+            ? "Sign in to access your private recordings, dog profiles, and acoustic analyses."
+            : "Register your private CanineSense AI workspace. All recordings and analyses stay under your account."}
           </p>
 
           {err && (
@@ -193,102 +172,45 @@ export default function Login() {
                 <label htmlFor="auth-name">Name</label>
                 <input
                   id="auth-name"
-                  placeholder="Your name or lab handle"
+                  type="text"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={e => setName(e.target.value)}
                   required
                 />
               </div>
             )}
-
             <div className="field">
-              <label htmlFor="auth-email">Email address</label>
+              <label htmlFor="auth-email">Email</label>
               <input
                 id="auth-email"
                 type="email"
-                placeholder="researcher@example.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={e => setEmail(e.target.value)}
                 required
-                autoComplete="email"
               />
             </div>
-
             <div className="field">
               <label htmlFor="auth-password">Password</label>
               <input
                 id="auth-password"
                 type="password"
-                placeholder="At least 8 characters"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={e => setPassword(e.target.value)}
                 required
-                minLength={8}
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
               />
             </div>
-
             {mode === "register" && (
-              <>
-                <div className="field">
-                  <label htmlFor="auth-confirm-password">Confirm password (optional check)</label>
-                  <input
-                    id="auth-confirm-password"
-                    type="password"
-                    placeholder="Re-enter password to verify"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    autoComplete="new-password"
-                  />
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: 10, margin: "14px 0" }}>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                    <input
-                      id="auth-terms"
-                      type="checkbox"
-                      checked={termsAgreed}
-                      onChange={(e) => setTermsAgreed(e.target.checked)}
-                      required
-                      style={{ marginTop: 3, accentColor: "var(--accent)" }}
-                    />
-                    <label htmlFor="auth-terms" className="tiny" style={{ color: "var(--ink-2)", lineHeight: 1.4 }}>
-                      I agree to the <Link to="/terms-of-service" target="_blank">Terms of Service</Link> and{" "}
-                      <Link to="/privacy-policy" target="_blank">Privacy Policy</Link>.
-                    </label>
-                  </div>
-
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                    <input
-                      id="auth-age"
-                      type="checkbox"
-                      checked={ageConfirmed}
-                      onChange={(e) => setAgeConfirmed(e.target.checked)}
-                      required
-                      style={{ marginTop: 3, accentColor: "var(--accent)" }}
-                    />
-                    <label htmlFor="auth-age" className="tiny" style={{ color: "var(--ink-2)", lineHeight: 1.4 }}>
-                      I confirm that I am at least 18 years old (or have parental/guardian consent).
-                    </label>
-                  </div>
-
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                    <input
-                      id="auth-audio-notice"
-                      type="checkbox"
-                      checked={audioNoticeAgreed}
-                      onChange={(e) => setAudioNoticeAgreed(e.target.checked)}
-                      required
-                      style={{ marginTop: 3, accentColor: "var(--accent)" }}
-                    />
-                    <label htmlFor="auth-audio-notice" className="tiny" style={{ color: "var(--ink-2)", lineHeight: 1.4 }}>
-                      I understand that uploaded audio is stored privately on this server and can be deleted at any time.
-                    </label>
-                  </div>
-                </div>
-              </>
+              <div className="field">
+                <label htmlFor="auth-confirm-password">Confirm Password</label>
+                <input
+                  id="auth-confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  required
+                />
+              </div>
             )}
-
             <button className="btn accent wide" type="submit" disabled={busy} style={{ marginTop: 6 }}>
               {busy ? "Working…" : mode === "login" ? "Sign in" : "Create account"}
             </button>

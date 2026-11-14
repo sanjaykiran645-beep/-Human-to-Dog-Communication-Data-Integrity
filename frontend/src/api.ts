@@ -13,6 +13,16 @@ const TOKEN = "cs_token";
 const USER = "cs_user";
 const BACKEND_URL_KEY = "cs_backend_url";
 
+// Cleanup stale demo and backend URL entries
+try {
+  localStorage.removeItem("cs_demo_mode");
+  localStorage.removeItem("caninesense_demo");
+  const savedUrl = localStorage.getItem("cs_backend_url") || "";
+  if (savedUrl.includes("onrender.com")) {
+    localStorage.removeItem("cs_backend_url");
+  }
+} catch {}
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN);
 }
@@ -23,8 +33,7 @@ export function getUser(): User | null {
 }
 
 export function isDemoSession(): boolean {
-  const user = getUser();
-  return Boolean(user?.isDemo);
+  return false;
 }
 
 export function setSession(token: string, user: User) {
@@ -70,7 +79,7 @@ export function isAllowedBackendOrigin(rawUrl: string): boolean {
     const allowedEnvOrigins = [
       import.meta.env.VITE_API_URL,
       import.meta.env.VITE_PRODUCTION_BACKEND_URL,
-      "https://caninesense-backend.onrender.com",
+      // "https://caninesense-backend.onrender.com", // intentionally omitted
     ].filter(Boolean);
 
     for (const envOrigin of allowedEnvOrigins) {
@@ -91,28 +100,18 @@ export function isAllowedBackendOrigin(rawUrl: string): boolean {
 }
 
 export function getBackendUrl(): string {
-  if (typeof window === "undefined") return "";
-  const stored = localStorage.getItem(BACKEND_URL_KEY);
-  if (stored) {
-    if (isAllowedBackendOrigin(stored)) {
-      return stored.trim().replace(/\/+$/, "");
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host === "localhost" || host === "127.0.0.1") {
+      return window.location.origin;
     }
-    // If untrusted external URL found in localStorage in production, ignore and clear it
-    localStorage.removeItem(BACKEND_URL_KEY);
+    const custom = localStorage.getItem("cs_backend_url");
+    if (custom && !custom.includes("onrender.com")) {
+      return custom.replace(/\/+$/, "");
+    }
+    return window.location.origin;
   }
-  const envUrl = import.meta.env.VITE_API_URL;
-  if (envUrl) return String(envUrl).replace(/\/+$/, "");
-  // Default to the configured production backend when accessed from GitHub Pages or any hosted production domain
-  if (
-    window.location.hostname !== "localhost" &&
-    window.location.hostname !== "127.0.0.1"
-  ) {
-    return (
-      import.meta.env.VITE_PRODUCTION_BACKEND_URL ||
-      "https://caninesense-backend.onrender.com"
-    );
-  }
-  return "";
+  return "http://127.0.0.1:8000";
 }
 
 export function setBackendUrl(url: string) {
@@ -200,7 +199,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
       throw new Error(formattedMsg);
     }
 
-    if (res.status === 204) return undefined as T;
+    if (res.status === 204) return undefined as unknown as T;
     return res.json();
   } catch (err) {
     // If backend connection failed or network error
@@ -229,6 +228,16 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export async function mediaUrl(path: string): Promise<string> {
+  // Guard against already-complete URLs
+  if (
+    path.startsWith("blob:") ||
+    path.startsWith("data:") ||
+    path.startsWith("http://") ||
+    path.startsWith("https://")
+  ) {
+    return path;
+  }
+
   if (isDemoSession()) {
     const { getMockMediaUrl } = await import("./mockBackend");
     return getMockMediaUrl(path);
@@ -244,7 +253,7 @@ export async function mediaUrl(path: string): Promise<string> {
   let lastErr: Error | null = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt > 0) {
-      await new Promise((r) => window.setTimeout(r, 220 * attempt));
+      await new Promise((r) => (window as any).setTimeout(r, 220 * attempt));
     }
     try {
       const res = await fetch(targetUrl, { headers, cache: "no-store" });
@@ -274,8 +283,8 @@ export async function mediaUrl(path: string): Promise<string> {
         ct && ct !== "application/octet-stream"
           ? ct
           : path.includes("waveform") || path.includes("spectrogram")
-            ? "image/png"
-            : "audio/wav";
+          ? "image/png"
+          : "audio/wav";
       const typedBlob = rawBlob.type === inferredType ? rawBlob : new Blob([rawBlob], { type: inferredType });
       return URL.createObjectURL(typedBlob);
     } catch (err) {

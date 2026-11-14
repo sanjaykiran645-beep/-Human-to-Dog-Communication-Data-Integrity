@@ -28,6 +28,13 @@ from ..services.features import extract_features
 from ..services.inference import predict_vocalization
 
 VALID = set(CLASSES)
+CANONICAL_6_CLASSES: list[str] = ["bark", "growl", "whine", "howl", "yip", "unknown"]
+_NAMED_5_CLASSES: set[str] = {"bark", "growl", "whine", "howl", "yip"}
+
+
+def _normalize_6class(label: str | None) -> str:
+    norm = (label or "").strip().lower()
+    return norm if norm in _NAMED_5_CLASSES else "unknown"
 
 
 def _row_label(row: dict[str, str]) -> str:
@@ -197,6 +204,217 @@ def evaluate_manifest(manifest: Path, test_only: bool = False) -> dict[str, Any]
         "skipped": skipped,
         "metrics": m,
         "note": "Unknown predictions are counted as errors against the true class.",
+    }
+
+
+def evaluate_dog_independent_generalization(
+    records: list[dict[str, Any]],
+    test_ratio: float = 0.25,
+) -> dict[str, Any]:
+    """
+    Evaluate 6-class vocalization generalization under strict dog_id group isolation
+    and compute a 5-bin calibration reliability diagram (ECE), Brier score, per-class F1,
+    and abstention rate on held-out dogs.
+    """
+    if not records:
+        empty_bins = [
+            {
+                "bin_range": [round(b * 0.2, 1), round((b + 1) * 0.2, 1)],
+                "count": 0,
+                "mean_confidence": 0.0,
+                "empirical_accuracy": 0.0,
+                "calibration_gap": 0.0,
+            }
+            for b in range(5)
+        ]
+        empty_per_class = {
+            lab: {"precision": 0.0, "recall": 0.0, "f1": 0.0, "support": 0}
+            for lab in CANONICAL_6_CLASSES
+        }
+        return {
+            "validation_status": "synthetic_fixture_smoke_test",
+            "classes": list(CANONICAL_6_CLASSES),
+            "dog_independent_verified": True,
+            "train_dog_ids": [],
+            "test_dog_ids": [],
+            "dog_overlap": [],
+            "n_total_records": 0,
+            "n_test_records": 0,
+            "accuracy": 0.0,
+            "balanced_accuracy": 0.0,
+            "macro_precision": 0.0,
+            "macro_recall": 0.0,
+            "macro_f1": 0.0,
+            "abstention_rate": 0.0,
+            "ece": 0.0,
+            "brier_score": 0.0,
+            "reliability_diagram": empty_bins,
+            "per_class": empty_per_class,
+            "confusion_matrix": {"labels": list(CANONICAL_6_CLASSES), "matrix": [[0] * 6 for _ in range(6)]},
+        }
+
+    dog_groups: dict[str, list[int]] = defaultdict(list)
+    for idx, rec in enumerate(records):
+        key = str(rec.get("dog_id") or f"unassigned_{idx}").strip()
+        dog_groups[key].append(idx)
+
+    # Stratify dog groups by rarest canonical class across that dog's recordings.
+    label_counts: dict[str, int] = defaultdict(int)
+    for rec in records:
+        lbl = _normalize_6class(rec.get("label") or rec.get("vocalization_label") or rec.get("true_label"))
+        label_counts[lbl] += 1
+
+    by_label: dict[str, list[str]] = defaultdict(list)
+    for key in sorted(dog_groups):
+        grp_labels = {
+            _normalize_6class(records[i].get("label") or records[i].get("vocalization_label") or records[i].get("true_label"))
+            for i in dog_groups[key]
+        }
+        primary = min(sorted(grp_labels), key=lambda l: (label_counts[l], l)) if grp_labels else "unknown"
+        by_label[primary].append(key)
+
+    test_keys: set[str] = set()
+    for _, lkeys in sorted(by_label.items()):
+        if len(lkeys) >= 2:
+            k_test = max(1, int(round(len(lkeys) * test_ratio)))
+            test_keys.update(lkeys[:k_test])
+    if not test_keys and len(dog_groups) >= 2:
+        test_keys.add(sorted(dog_groups)[0])
+
+    if len(dog_groups) >= 2:
+        test_idx = [i for k, idxs in dog_groups.items() if k in test_keys for i in idxs]
+        train_idx = [i for k, idxs in dog_groups.items() if k not in test_keys for i in idxs]
+    else:
+        train_idx = []
+        test_idx = list(range(len(records)))
+
+    train_dogs = {records[i].get("dog_id") for i in train_idx if records[i].get("dog_id")}
+    test_dogs = {records[i].get("dog_id") for i in test_idx if records[i].get("dog_id")}
+    overlap = sorted(str(d) for d in (train_dogs & test_dogs))
+
+    eval_records = [records[i] for i in test_idx]
+    y_true: list[str] = []
+    y_pred: list[str] = []
+    confs: list[float] = []
+    abstained_flags: list[bool] = []
+
+    for rec in eval_records:
+        true_lbl = _normalize_6class(rec.get("label") or rec.get("vocalization_label") or rec.get("true_label"))
+        pred_raw = rec.get("pred_label") or rec.get("predicted_label") or rec.get("vocalization")
+        if pred_raw is not None:
+            conf = float(rec["confidence"]) if rec.get("confidence") is not None else 0.75
+            abstained = bool(rec.get("abstained", False))
+        elif isinstance(rec.get("features"), dict) and rec["features"]:
+            pred = predict_vocalization(rec["features"], rec.get("quality") or {"status": "ok"})
+            pred_raw = pred.get("vocalization")
+            conf = float(pred.get("confidence", 0.0))
+            abstained = bool(pred.get("abstained", False))
+        elif rec.get("path") and Path(str(rec["path"])).exists():
+            try:
+                y, sr = load_processed(Path(str(rec["path"])))
+                y, sr_meta = preprocess(y, sr)
+                feats = extract_features(y, sr_meta["target_sr"])
+                pred = predict_vocalization(feats, {"status": "ok"})
+                pred_raw = pred.get("vocalization")
+                conf = float(pred.get("confidence", 0.0))
+                abstained = bool(pred.get("abstained", False))
+            except Exception:
+                pred_raw = "unknown"
+                conf = 0.0
+                abstained = True
+        else:
+            pred_raw = "unknown"
+            conf = 0.0
+            abstained = True
+
+        pred_lbl = "unknown" if abstained else _normalize_6class(str(pred_raw))
+        y_true.append(true_lbl)
+        y_pred.append(pred_lbl)
+        confs.append(float(np.clip(conf, 0.0, 1.0)))
+        abstained_flags.append(bool(abstained))
+
+    m = metrics(y_true, y_pred, list(CANONICAL_6_CLASSES))
+    per_class_with_f1: dict[str, dict[str, Any]] = {}
+    for lab in CANONICAL_6_CLASSES:
+        pc = m["per_class"][lab]
+        p, r_val = pc["precision"], pc["recall"]
+        f1 = round(0.0 if (p + r_val) == 0 else (2.0 * p * r_val) / (p + r_val), 4)
+        per_class_with_f1[lab] = {
+            "precision": p,
+            "recall": r_val,
+            "f1": f1,
+            "support": pc["support"],
+        }
+
+    n_eval = len(y_true)
+    abstention_rate = round(sum(1 for a in abstained_flags if a) / max(1, n_eval), 4)
+    corrects = [1.0 if a == b else 0.0 for a, b in zip(y_true, y_pred)]
+
+    bin_buckets: list[list[int]] = [[] for _ in range(5)]
+    for idx, c_val in enumerate(confs):
+        b_idx = min(4, max(0, int(c_val * 5)))
+        bin_buckets[b_idx].append(idx)
+
+    bins: list[dict[str, Any]] = []
+    ece_acc = 0.0
+    for b_idx in range(5):
+        idxs = bin_buckets[b_idx]
+        cnt = len(idxs)
+        if cnt > 0:
+            mean_c = float(np.mean([confs[i] for i in idxs]))
+            mean_o = float(np.mean([corrects[i] for i in idxs]))
+            gap = abs(mean_o - mean_c)
+            ece_acc += (cnt / max(1, n_eval)) * gap
+        else:
+            mean_c = 0.0
+            mean_o = 0.0
+            gap = 0.0
+        bins.append(
+            {
+                "bin_range": [round(b_idx * 0.2, 1), round((b_idx + 1) * 0.2, 1)],
+                "count": cnt,
+                "mean_confidence": round(mean_c, 4),
+                "empirical_accuracy": round(mean_o, 4),
+                "calibration_gap": round(gap, 4),
+            }
+        )
+
+    ece = round(ece_acc if n_eval else 0.0, 4)
+    brier_score = round(float(np.mean([(c - o) ** 2 for c, o in zip(confs, corrects)])) if n_eval else 0.0, 4)
+
+    has_synthetic_flag = any(
+        str(rec.get("synthetic") or "").lower() in {"1", "true", "yes"} or bool(rec.get("is_fixture"))
+        for rec in eval_records
+    )
+    all_real_files = len(eval_records) > 0 and all(
+        rec.get("path") and Path(str(rec.get("path"))).exists() for rec in eval_records
+    )
+    validation_status = (
+        "empirical_held_out_dog_split"
+        if len(dog_groups) >= 2 and len(overlap) == 0 and not has_synthetic_flag and all_real_files
+        else "synthetic_fixture_smoke_test"
+    )
+
+    return {
+        "validation_status": validation_status,
+        "classes": list(CANONICAL_6_CLASSES),
+        "dog_independent_verified": len(overlap) == 0,
+        "train_dog_ids": sorted(str(d) for d in train_dogs),
+        "test_dog_ids": sorted(str(d) for d in test_dogs),
+        "dog_overlap": overlap,
+        "n_total_records": len(records),
+        "n_test_records": n_eval,
+        "accuracy": m["accuracy"],
+        "balanced_accuracy": m["balanced_accuracy"],
+        "macro_precision": m["macro_precision"],
+        "macro_recall": m["macro_recall"],
+        "macro_f1": m["macro_f1"],
+        "abstention_rate": abstention_rate,
+        "ece": ece,
+        "brier_score": brier_score,
+        "reliability_diagram": bins,
+        "per_class": per_class_with_f1,
+        "confusion_matrix": m["confusion_matrix"],
     }
 
 

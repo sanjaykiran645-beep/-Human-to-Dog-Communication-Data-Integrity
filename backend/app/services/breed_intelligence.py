@@ -17,7 +17,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "large",
         "default_weight_kg": 30.0,
         "intelligence_rank": 4,
-        "intelligence_tier": "Tier 1 - Brightest Working & Obedience (Top 5%, 95% first-command rate)",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #4",
         "temperament": ["friendly", "intelligent", "devoted", "eager_to_please", "social"],
         "clinical_notes": "Low defensive aggression; high social solicitation whining in clinic environments.",
         "vocalization_profile": {
@@ -33,7 +33,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "medium_large",
         "default_weight_kg": 24.0,
         "intelligence_rank": 35,
-        "intelligence_tier": "Tier 3 - High Drive, Loyal & People-Oriented Working Companion",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #35",
         "temperament": ["confident", "alert", "loyal", "courageous", "expressive_grumbler"],
         "clinical_notes": "Highly vocal with guttural rumbles during play/affection; high pain tolerance requires careful distress monitoring.",
         "vocalization_profile": {
@@ -49,7 +49,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "medium_large",
         "default_weight_kg": 24.0,
         "intelligence_rank": 35,
-        "intelligence_tier": "Tier 3 - High Drive, Loyal & People-Oriented Working Companion",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #35",
         "temperament": ["confident", "alert", "loyal", "courageous", "expressive_grumbler"],
         "clinical_notes": "Highly vocal with guttural rumbles during play/affection; high pain tolerance requires careful distress monitoring.",
         "vocalization_profile": {
@@ -65,7 +65,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "large",
         "default_weight_kg": 34.0,
         "intelligence_rank": 3,
-        "intelligence_tier": "Tier 1 - Elite Working & Guardian Intelligence (Rank #3)",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #3",
         "temperament": ["watchful", "courageous", "intelligent", "protective", "handler_focused"],
         "clinical_notes": "High environmental vigilance; distinct separation between high-pitch reactive whining and deep perimeter alarm barks.",
         "vocalization_profile": {
@@ -81,7 +81,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "large",
         "default_weight_kg": 31.0,
         "intelligence_rank": 7,
-        "intelligence_tier": "Tier 1 - Brightest Working & Assistance (Rank #7)",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #7",
         "temperament": ["outgoing", "even_tempered", "gentle", "playful", "food_motivated"],
         "clinical_notes": "Friendly greeting barks common; whining strongly correlated with food anticipation or social greeting.",
         "vocalization_profile": {
@@ -97,7 +97,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "medium_large",
         "default_weight_kg": 23.0,
         "intelligence_rank": 45,
-        "intelligence_tier": "Tier 4 - Independent Pack & Vocal Endurance Specialist",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #45",
         "temperament": ["vocal_talker", "outgoing", "pack_oriented", "energetic"],
         "clinical_notes": "Produces multi-syllabic prosodic howls and 'talking' warbles that should not be misclassified as pain distress.",
         "vocalization_profile": {
@@ -113,7 +113,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "medium_large",
         "default_weight_kg": 23.0,
         "intelligence_rank": 45,
-        "intelligence_tier": "Tier 4 - Independent Pack & Vocal Endurance Specialist",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #45",
         "temperament": ["vocal_talker", "outgoing", "pack_oriented", "energetic"],
         "clinical_notes": "Produces multi-syllabic prosodic howls and 'talking' warbles that should not be misclassified as pain distress.",
         "vocalization_profile": {
@@ -129,7 +129,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "large",
         "default_weight_kg": 45.0,
         "intelligence_rank": 9,
-        "intelligence_tier": "Tier 1 - Brightest Working & Steadfast Guardian (Rank #9)",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #9",
         "temperament": ["steady", "confident", "guardian", "calm"],
         "clinical_notes": "Known for affectionate low-frequency 'Rottie rumble' purr when relaxed; true threat growls have sharper high-band energy.",
         "vocalization_profile": {
@@ -145,7 +145,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "small_medium",
         "default_weight_kg": 11.0,
         "intelligence_rank": 72,
-        "intelligence_tier": "Acoustic Scenthound & Pack Tracking Specialist",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #72",
         "temperament": ["merry", "curious", "friendly", "pack_hound"],
         "clinical_notes": "High-volume baying howl when tracking or isolated.",
         "vocalization_profile": {
@@ -161,7 +161,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "small",
         "default_weight_kg": 8.0,
         "intelligence_rank": 57,
-        "intelligence_tier": "Companion & Social Sensitivity Specialist",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #57",
         "temperament": ["charming", "affectionate", "playful"],
         "clinical_notes": "Brachycephalic upper-airway acoustics produce natural low-frequency grunts and snorts.",
         "vocalization_profile": {
@@ -177,7 +177,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "toy",
         "default_weight_kg": 2.5,
         "intelligence_rank": 67,
-        "intelligence_tier": "High-Vigilance Alert Companion",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #67",
         "temperament": ["vigilant", "devoted", "reactive"],
         "clinical_notes": "Small vocal fold mass yields high baseline F0 (380-980 Hz); rapid staccato barks indicate stranger vigilance.",
         "vocalization_profile": {
@@ -193,7 +193,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "medium",
         "default_weight_kg": 20.0,
         "intelligence_rank": 2,
-        "intelligence_tier": "Tier 1 - Exceptional Cognitive Intelligence (Rank #2)",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #2",
         "temperament": ["instinctual", "active", "extremely_intelligent", "communicative"],
         "clinical_notes": "Highly nuanced vocal repertoire used intentionally to direct human attention.",
         "vocalization_profile": {
@@ -209,7 +209,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "medium",
         "default_weight_kg": 18.0,
         "intelligence_rank": 1,
-        "intelligence_tier": "Tier 1 - Highest Ranked Canine Intelligence (Rank #1)",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #1",
         "temperament": ["tenacious", "energetic", "alert", "responsive"],
         "clinical_notes": "High acoustic sensitivity; responds immediately to subtle frequency shifts and whisper-level recall cues.",
         "vocalization_profile": {
@@ -225,7 +225,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "large",
         "default_weight_kg": 36.0,
         "intelligence_rank": 5,
-        "intelligence_tier": "Tier 1 - Elite Personal Protection & Obedience (Rank #5)",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #5",
         "temperament": ["fearless", "loyal", "alert", "energetic"],
         "clinical_notes": "Sharp, decisive perimeter alert barks; prone to expressive velcro-dog whining when separated from owner.",
         "vocalization_profile": {
@@ -241,7 +241,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "large",
         "default_weight_kg": 36.0,
         "intelligence_rank": 5,
-        "intelligence_tier": "Tier 1 - Elite Personal Protection & Obedience (Rank #5)",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #5",
         "temperament": ["fearless", "loyal", "alert", "energetic"],
         "clinical_notes": "Sharp, decisive perimeter alert barks; prone to expressive velcro-dog whining when separated from owner.",
         "vocalization_profile": {
@@ -257,7 +257,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "small",
         "default_weight_kg": 6.0,
         "intelligence_rank": 70,
-        "intelligence_tier": "Indoor Companion & Watchdog Alert",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #70",
         "temperament": ["affectionate", "playful", "outgoing", "watchful"],
         "clinical_notes": "High-pitched alert barks at doorway sounds; soft nasal whimpers for lap attention.",
         "vocalization_profile": {
@@ -273,7 +273,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "toy",
         "default_weight_kg": 3.0,
         "intelligence_rank": 23,
-        "intelligence_tier": "Tier 2 - High Alert & Responsive Toy Working Dog (Rank #23)",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #23",
         "temperament": ["lively", "bold", "inquisitive", "vocal"],
         "clinical_notes": "Rapid, high-frequency staccato barking triggered by territory motion or excitement.",
         "vocalization_profile": {
@@ -289,7 +289,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "medium",
         "default_weight_kg": 18.0,
         "intelligence_rank": 12,
-        "intelligence_tier": "Tier 1 - High Adaptive, Social & Territorial Intelligence",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #12",
         "temperament": ["alert", "social", "intelligent", "agile", "low_maintenance"],
         "clinical_notes": "Exceptional vocal communication clarity; distinct alarm barks for strangers vs. pack howls.",
         "vocalization_profile": {
@@ -305,7 +305,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "small_medium",
         "default_weight_kg": 12.0,
         "intelligence_rank": 58,
-        "intelligence_tier": "Tier 4 - Companion & Expressive Vocal Chuffer",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #58",
         "temperament": ["playful", "adaptable", "affectionate", "sociable"],
         "clinical_notes": "Upper-airway soft palate resonance produces distinctive talking gargles and chuffs.",
         "vocalization_profile": {
@@ -321,7 +321,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "large",
         "default_weight_kg": 30.0,
         "intelligence_rank": 48,
-        "intelligence_tier": "Tier 4 - Playful Working Guardian (Rank #48)",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #48",
         "temperament": ["devoted", "fearless", "friendly", "high_spirited"],
         "clinical_notes": "Expressive snorts and joyful vocal whoofs during physical engagement.",
         "vocalization_profile": {
@@ -337,7 +337,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "small",
         "default_weight_kg": 9.0,
         "intelligence_rank": 49,
-        "intelligence_tier": "Tier 4 - Persistent Burrowing Scenthound (Rank #49)",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #49",
         "temperament": ["clever", "courageous", "devoted", "lively"],
         "clinical_notes": "Remarkably deep, resonant chest bark relative to small body stature due to elongated thoracic cavity.",
         "vocalization_profile": {
@@ -353,7 +353,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "toy",
         "default_weight_kg": 3.2,
         "intelligence_rank": 27,
-        "intelligence_tier": "Tier 3 - Above Average Working Intelligence (Rank #27)",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #27",
         "temperament": ["bold", "confident", "courageous", "intelligent"],
         "clinical_notes": "High fundamental pitch staccato alarm bursts with sharp formant peaks.",
         "vocalization_profile": {
@@ -369,7 +369,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "medium_small",
         "default_weight_kg": 13.0,
         "intelligence_rank": 11,
-        "intelligence_tier": "Tier 2 - Excellent Working Herder Intelligence (Rank #11)",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #11",
         "temperament": ["tenacious", "friendly", "bold", "playful"],
         "clinical_notes": "Vocal herding tendencies; uses sharp, rhythmic directing barks to guide human movement.",
         "vocalization_profile": {
@@ -385,7 +385,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "medium_large",
         "default_weight_kg": 25.0,
         "intelligence_rank": 42,
-        "intelligence_tier": "Tier 4 - Versatile Herding & Agile Working Companion",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #42",
         "temperament": ["intelligent", "work_oriented", "energetic", "good_natured"],
         "clinical_notes": "Multi-tonal whining and expressive vocal herding calls.",
         "vocalization_profile": {
@@ -401,7 +401,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "giant",
         "default_weight_kg": 65.0,
         "intelligence_rank": 48,
-        "intelligence_tier": "Gentle Giant Guardian & Companion",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #48",
         "temperament": ["friendly", "patient", "dependable", "devoted"],
         "clinical_notes": "Lowest baseline F0 of all canine breeds (80-220 Hz); massive chest resonance projects deep sonic pressure.",
         "vocalization_profile": {
@@ -417,7 +417,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "medium_small",
         "default_weight_kg": 14.0,
         "intelligence_rank": 20,
-        "intelligence_tier": "Tier 2 - Excellent Working & Companion Intelligence (Rank #20)",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #20",
         "temperament": ["affectionate", "playful", "friendly", "quiet"],
         "clinical_notes": "Gentle social communicator; soft whimpers and melodic greeting barks.",
         "vocalization_profile": {
@@ -433,7 +433,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "small",
         "default_weight_kg": 8.5,
         "intelligence_rank": 54,
-        "intelligence_tier": "Gentleman's Companion & Urban Watchdog",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #54",
         "temperament": ["friendly", "lively", "intelligent", "affectionate"],
         "clinical_notes": "Infrequent barker; uses soft snorts, chuffs, and throat clicks for communication.",
         "vocalization_profile": {
@@ -449,7 +449,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "medium_large",
         "default_weight_kg": 27.0,
         "intelligence_rank": 71,
-        "intelligence_tier": "Deep Resonance Scenthound & Tracking Specialist",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #71",
         "temperament": ["tenacious", "gentle", "affectionate", "devoted"],
         "clinical_notes": "Long loose vocal folds produce elongated melodic bays with heavy sub-harmonic content.",
         "vocalization_profile": {
@@ -465,7 +465,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "small",
         "default_weight_kg": 6.8,
         "intelligence_rank": 30,
-        "intelligence_tier": "Tier 3 - High Drive Working Terrier (Rank #30)",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #30",
         "temperament": ["fearless", "energetic", "alert", "intelligent"],
         "clinical_notes": "High burst rate alert barking with elevated spectral centroids.",
         "vocalization_profile": {
@@ -481,7 +481,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "toy",
         "default_weight_kg": 3.0,
         "intelligence_rank": 59,
-        "intelligence_tier": "Gentle Toy Companion & Lap Specialist",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #59",
         "temperament": ["playful", "affectionate", "gentle", "docile"],
         "clinical_notes": "Delicate high-F0 greeting chirps and stranger alarm yips.",
         "vocalization_profile": {
@@ -497,7 +497,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "large",
         "default_weight_kg": 44.0,
         "intelligence_rank": 22,
-        "intelligence_tier": "Tier 2 - Excellent Working Farm Guardian (Rank #22)",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #22",
         "temperament": ["affectionate", "loyal", "intelligent", "calm"],
         "clinical_notes": "Deep chest resonance; gentle calming rumbles and low alarm thuds.",
         "vocalization_profile": {
@@ -513,7 +513,7 @@ BREED_DB: dict[str, dict[str, Any]] = {
         "size_category": "medium_small",
         "default_weight_kg": 10.0,
         "intelligence_rank": 60,
-        "intelligence_tier": "Ancient Spitz & Independent Hunter",
+        "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter) — Rank #60",
         "temperament": ["alert", "confident", "fearless", "loyal"],
         "clinical_notes": "Famous 'Shiba scream' - high-frequency, high-decibel vocal distress vocalization during veterinary handling or nail trims.",
         "vocalization_profile": {
@@ -575,7 +575,7 @@ def resolve_breed_intelligence(
             "size_category": size_cat,
             "default_weight_kg": w,
             "intelligence_rank": 20,
-            "intelligence_tier": "Adaptive Canine Cognitive & Acoustic Profile",
+            "intelligence_tier": "Coren Working & Obedience Trial Tier (Trainability Only — Not an Acoustic Parameter)",
             "temperament": ["attentive", "social", "responsive", "expressive"],
             "clinical_notes": "Balanced vocalization baseline calibrated by body mass and vocal tract length.",
             "vocalization_profile": {
@@ -614,4 +614,26 @@ def resolve_breed_intelligence(
     vp["f0_range_hz"] = f0_r
     matched["vocalization_profile"] = vp
     matched["sex"] = norm_sex
+
+    # Scientific separation: cognitive/obedience ranking (Coren) is NOT an acoustic parameter.
+    matched["cognitive_obedience_tier"] = {
+        "rank": matched.get("intelligence_rank"),
+        "tier": matched.get("intelligence_tier"),
+        "source": "Stanley Coren working/obedience trial rankings (The Intelligence of Dogs). "
+        "Describes trainability only; it is not used to derive any acoustic value.",
+    }
+    matched["allometric_acoustic_prior"] = {
+        "size_category": matched.get("size_category"),
+        "reference_weight_kg": matched.get("default_weight_kg"),
+        "f0_range_hz": vp.get("f0_range_hz"),
+        "formants_hz": vp.get("formants_hz"),
+        "optimal_synth_pitch_hz": vp.get("optimal_synth_pitch_hz"),
+        "sex_multiplier": {"male": 0.91, "female": 1.08}.get(norm_sex, 1.0),
+        "basis": "Body-mass allometry of the source-filter vocal model (Taylor & Reby).",
+    }
+    matched["parameter_provenance"] = (
+        "Acoustic F0 and formant priors are allometric body-mass approximations (Taylor & Reby "
+        "source-filter allometry), not breed-certified empirical measurements. Sex multipliers "
+        "(male x0.91, female x1.08) are heuristic dimorphism priors."
+    )
     return matched

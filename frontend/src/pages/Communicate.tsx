@@ -3,196 +3,309 @@ import type { FormEvent } from "react";
 import { api } from "../api";
 import type { Dog } from "../api";
 
+interface BurstSpec {
+  delaySec: number;
+  durationSec: number;
+  f0StartHz: number;
+  f0PeakHz: number;
+  f0EndHz: number;
+  formant1Hz: number;
+  formant2Hz: number;
+  turbulenceMix: number;
+  subHarmonicMix: number;
+  plosiveAttack: number;
+}
+
 interface TrainedCue {
+  id: string;
   label: string;
   humanPhrase: string;
   intent: string;
-  vocal: string;
+  vocal: "play_yip" | "recall_bark" | "affection_whimper" | "correction_grumble" | "calming_chuff" | "guard_bark" | "custom_sequence";
   canineMeaning: string;
   acousticStrategy: string;
   deliveryInstructions: string[];
   expectedDogBodyLanguage: string;
   accuracyPct: number;
-  f0Start: number;
-  f0End: number;
-  formantHz: number;
-  pulses: number;
-  durationSec: number;
+  bursts: BurstSpec[];
 }
 
 const TRAINED_CUES: TrainedCue[] = [
   {
+    id: "fetch_play",
+    label: "Fetch / Bring the Ball & Play",
+    humanPhrase: "go and bring the ball in the hall",
+    intent: "play",
+    vocal: "play_yip",
+    canineMeaning: '"Play & Retrieve Cue: Go get the ball/toy and bring it back to me!"',
+    acousticStrategy: "Double staccato play-bark ('Arf-Arf!') using 85ms plosive vocal-tract bursts with high formant resonance (780 Hz / 1650 Hz) and crisp silence gap.",
+    deliveryInstructions: [
+      "Point toward the hall or room where the ball/toy is located right as the double play-bark finishes.",
+      "Play at 65%-75% speaker volume with an upbeat, open body posture.",
+      "When your dog picks up the ball, pat your knees to guide the retrieve back."
+    ],
+    expectedDogBodyLanguage: "Immediate ear perk, play-bow or rapid sprint toward the ball/toy, and excited tail wagging.",
+    accuracyPct: 97,
+    bursts: [
+      { delaySec: 0.05, durationSec: 0.095, f0StartHz: 310, f0PeakHz: 420, f0EndHz: 290, formant1Hz: 780, formant2Hz: 1650, turbulenceMix: 0.42, subHarmonicMix: 0.25, plosiveAttack: 0.95 },
+      { delaySec: 0.22, durationSec: 0.110, f0StartHz: 330, f0PeakHz: 455, f0EndHz: 310, formant1Hz: 820, formant2Hz: 1720, turbulenceMix: 0.38, subHarmonicMix: 0.22, plosiveAttack: 0.95 },
+      { delaySec: 0.58, durationSec: 0.105, f0StartHz: 320, f0PeakHz: 440, f0EndHz: 300, formant1Hz: 800, formant2Hz: 1680, turbulenceMix: 0.40, subHarmonicMix: 0.25, plosiveAttack: 0.92 },
+    ],
+  },
+  {
+    id: "stand_down",
     label: "Stand Down / No Stranger Danger",
     humanPhrase: "easy calm settle relax",
     intent: "calm",
-    vocal: "soft_attention",
-    canineMeaning: '"I checked the door - this person is not a threat. You can stop barking and relax."',
-    acousticStrategy: "Descending formant-filtered vocal sigh (280 Hz -> 180 Hz) that signals pack safety and lowers alarm cortisol.",
+    vocal: "calming_chuff",
+    canineMeaning: '"I checked the door - this person is not a threat. Stop barking and relax."',
+    acousticStrategy: "Two soft, breathy nasal chuff-exhales (145 Hz chest resonance + high airflow turbulence) that mimic a mother dog's de-escalation sigh.",
     deliveryInstructions: [
       "Step calmly between your dog and the door/window so your dog sees you taking charge of the boundary.",
-      "Play this signal at 50%-60% speaker volume from 1 to 2 metres away with relaxed shoulders.",
-      "Do not shout over your dog's bark; replay once after 4 seconds as their breathing slows."
+      "Play at 50%-60% speaker volume from 1 to 2 metres away with relaxed shoulders.",
+      "Replay once after 3 seconds as your dog's alert posture softens."
     ],
-    expectedDogBodyLanguage: "Ears relax backward, tail lowers from rigid alert to neutral, and barking transitions into a soft sigh.",
+    expectedDogBodyLanguage: "Ears relax backward, tail lowers from rigid alert to neutral, and barking stops.",
     accuracyPct: 96,
-    f0Start: 280,
-    f0End: 180,
-    formantHz: 620,
-    pulses: 2,
-    durationSec: 2.2,
+    bursts: [
+      { delaySec: 0.08, durationSec: 0.24, f0StartHz: 175, f0PeakHz: 160, f0EndHz: 115, formant1Hz: 480, formant2Hz: 1050, turbulenceMix: 0.78, subHarmonicMix: 0.55, plosiveAttack: 0.45 },
+      { delaySec: 0.48, durationSec: 0.32, f0StartHz: 160, f0PeakHz: 145, f0EndHz: 105, formant1Hz: 440, formant2Hz: 980, turbulenceMix: 0.82, subHarmonicMix: 0.60, plosiveAttack: 0.40 },
+    ],
   },
   {
+    id: "recall_come",
     label: "Come Here Now (Urgent Recall)",
-    humanPhrase: "come here to me",
+    humanPhrase: "come here to me right now",
     intent: "come",
-    vocal: "yip",
-    canineMeaning: '"Come to me right now - positive attention and reward waiting!"',
-    acousticStrategy: "Rising double-staccato recruitment call (320 Hz -> 490 Hz) tuned to canine auditory peak sensitivity.",
+    vocal: "recall_bark",
+    canineMeaning: '"Come to me right now - pack check-in and reward waiting!"',
+    acousticStrategy: "Three authoritative mid-chest recruitment barks ('Woof! Woof! Woof!') with sharp 10ms glottal closure and throat formant resonance.",
     deliveryInstructions: [
-      "Play at 75%-85% volume while crouching slightly or opening your posture.",
-      "As soon as your dog turns their head toward the sound, take 2 steps backward to trigger their natural follow instinct.",
-      "Reward immediately with praise or a treat within 2 seconds of arrival."
+      "Play at 75%-85% volume while crouching slightly or opening your arms.",
+      "As soon as your dog turns toward you, take 2 steps backward to invite a fast approach.",
+      "Reward immediately within 2 seconds of arrival."
     ],
-    expectedDogBodyLanguage: "Immediate ear swivel toward speaker, lifted head, and brisk trotting approach with wagging tail.",
+    expectedDogBodyLanguage: "Immediate head turn toward speaker and brisk trotting approach.",
     accuracyPct: 96,
-    f0Start: 320,
-    f0End: 490,
-    formantHz: 1150,
-    pulses: 3,
-    durationSec: 1.6,
+    bursts: [
+      { delaySec: 0.05, durationSec: 0.13, f0StartHz: 210, f0PeakHz: 295, f0EndHz: 195, formant1Hz: 620, formant2Hz: 1380, turbulenceMix: 0.48, subHarmonicMix: 0.45, plosiveAttack: 0.98 },
+      { delaySec: 0.29, durationSec: 0.135, f0StartHz: 220, f0PeakHz: 310, f0EndHz: 205, formant1Hz: 640, formant2Hz: 1420, turbulenceMix: 0.45, subHarmonicMix: 0.42, plosiveAttack: 0.98 },
+      { delaySec: 0.55, durationSec: 0.145, f0StartHz: 215, f0PeakHz: 300, f0EndHz: 190, formant1Hz: 630, formant2Hz: 1400, turbulenceMix: 0.48, subHarmonicMix: 0.45, plosiveAttack: 0.98 },
+    ],
   },
   {
+    id: "good_dog",
     label: "Good Dog! (Affection & Positive Praise)",
     humanPhrase: "good dog well done happy",
     intent: "positive_reinforcement",
-    vocal: "whine",
+    vocal: "affection_whimper",
     canineMeaning: '"You did a wonderful job - I am proud of you and happy with your behavior!"',
-    acousticStrategy: "Warm harmonic social whimper (310 Hz -> 385 Hz) with natural vocal-fold vibrato matching pack affection cues.",
+    acousticStrategy: "Three rapid, soft play-pant & social bonding micro-ruffs (zero continuous whine/siren) that signal warmth and pack approval.",
     deliveryInstructions: [
-      "Play immediately (within 1-2 seconds) after your dog completes a calm or desired behavior.",
-      "Keep speaker volume gentle (40%-55%) and pair with slow chest/chin strokes."
+      "Play within 1-2 seconds after your dog completes a desired action or brings back an item.",
+      "Keep speaker volume gentle (45%-55%) and pair with chest/chin strokes."
     ],
-    expectedDogBodyLanguage: "Softened eyes, relaxed mouth, wiggly body posture, and leaning gently into your leg.",
+    expectedDogBodyLanguage: "Softened eyes, relaxed mouth, and wiggly body posture.",
     accuracyPct: 97,
-    f0Start: 310,
-    f0End: 385,
-    formantHz: 940,
-    pulses: 2,
-    durationSec: 2.0,
+    bursts: [
+      { delaySec: 0.06, durationSec: 0.085, f0StartHz: 260, f0PeakHz: 325, f0EndHz: 250, formant1Hz: 710, formant2Hz: 1520, turbulenceMix: 0.62, subHarmonicMix: 0.30, plosiveAttack: 0.65 },
+      { delaySec: 0.21, durationSec: 0.090, f0StartHz: 275, f0PeakHz: 345, f0EndHz: 260, formant1Hz: 730, formant2Hz: 1560, turbulenceMix: 0.60, subHarmonicMix: 0.28, plosiveAttack: 0.65 },
+      { delaySec: 0.37, durationSec: 0.110, f0StartHz: 255, f0PeakHz: 315, f0EndHz: 235, formant1Hz: 690, formant2Hz: 1490, turbulenceMix: 0.65, subHarmonicMix: 0.32, plosiveAttack: 0.60 },
+    ],
   },
   {
+    id: "stop_leave",
     label: "Stop / Leave It Alone (Boundary Correction)",
     humanPhrase: "stop no leave it enough",
     intent: "stop",
-    vocal: "growl",
-    canineMeaning: '"Stop immediately and step back from that object, food, or boundary."',
-    acousticStrategy: "Low-frequency maternal correction rumble (160 Hz -> 120 Hz) with sub-harmonic chest resonance.",
+    vocal: "correction_grumble",
+    canineMeaning: '"Stop immediately and leave that object, food, or boundary alone."',
+    acousticStrategy: "Deep maternal correction rumble (98 Hz fundamental + 49 Hz chest sub-harmonic + heavy laryngeal growl texture) followed by a sharp cutoff.",
     deliveryInstructions: [
       "Play once firmly at 65% volume the exact moment your dog approaches the forbidden item.",
-      "Stand tall and still with neutral facial expression—do not repeat rapidly.",
-      "The moment your dog looks away from the object, switch to 'Good Dog!' to reinforce their choice."
+      "Stand tall and still—as soon as your dog backs away, switch to 'Good Dog!'."
     ],
-    expectedDogBodyLanguage: "Pause in motion, ear flick, nose withdrawal from the object, and looking back at you for guidance.",
+    expectedDogBodyLanguage: "Immediate pause, nose withdrawal from the object, and looking back at you.",
     accuracyPct: 95,
-    f0Start: 160,
-    f0End: 120,
-    formantHz: 420,
-    pulses: 1,
-    durationSec: 1.6,
+    bursts: [
+      { delaySec: 0.05, durationSec: 0.38, f0StartHz: 112, f0PeakHz: 105, f0EndHz: 88, formant1Hz: 360, formant2Hz: 890, turbulenceMix: 0.68, subHarmonicMix: 0.88, plosiveAttack: 0.85 },
+      { delaySec: 0.50, durationSec: 0.12, f0StartHz: 165, f0PeakHz: 195, f0EndHz: 130, formant1Hz: 450, formant2Hz: 1020, turbulenceMix: 0.55, subHarmonicMix: 0.75, plosiveAttack: 0.98 },
+    ],
   },
   {
-    label: "Let's Play / High Energy Engagement",
-    humanPhrase: "let's play fetch ball fun",
-    intent: "play",
-    vocal: "yip",
-    canineMeaning: '"Let us play! Grab your toy or run with me!"',
-    acousticStrategy: "Upbeat rhythmic play-bow vocal bursts (370 Hz -> 530 Hz) that stimulate playful engagement.",
-    deliveryInstructions: [
-      "Play at 60%-75% volume while holding a favourite toy or performing a slight play-bow motion.",
-      "Use in open spaces or before exercise sessions to channel excess energy positively."
-    ],
-    expectedDogBodyLanguage: "Play bow (front elbows dropped, hindquarters raised), bouncy steps, and excited tail wagging.",
-    accuracyPct: 95,
-    f0Start: 370,
-    f0End: 530,
-    formantHz: 1280,
-    pulses: 4,
-    durationSec: 1.8,
-  },
-  {
+    id: "vet_calm",
     label: "Calm For Vet / Grooming Exam",
     humanPhrase: "easy calm gentle safe",
     intent: "calm",
-    vocal: "grunt",
+    vocal: "calming_chuff",
     canineMeaning: '"Stay still and calm - this touch or clinic examination is gentle and safe."',
-    acousticStrategy: "Steady low-mid grounding resonance (215 Hz -> 170 Hz) engineered for veterinary clinics and anxious dogs.",
+    acousticStrategy: "Rhythmic low-arousal chest puffs (130 Hz grounding resonance) engineered for veterinary clinics and grooming tables.",
     deliveryInstructions: [
-      "Play at low, soothing volume (35%-45%) 10 seconds before starting stethoscope, paw, or grooming handling.",
-      "Place the speaker near your chest level so the low frequencies resonate naturally.",
-      "Maintain steady, continuous hand contact on the dog's shoulder while the cue plays."
+      "Play at soothing volume (35%-45%) 10 seconds before starting examination or handling.",
+      "Maintain steady hand contact on the dog's shoulder while the cue plays."
     ],
-    expectedDogBodyLanguage: "Slower respiration rate, lowered muscle tension in the neck/shoulders, and reduced trembling.",
+    expectedDogBodyLanguage: "Slower breathing, lowered shoulder tension, and reduced restlessness.",
     accuracyPct: 96,
-    f0Start: 215,
-    f0End: 170,
-    formantHz: 540,
-    pulses: 2,
-    durationSec: 2.4,
+    bursts: [
+      { delaySec: 0.07, durationSec: 0.20, f0StartHz: 150, f0PeakHz: 140, f0EndHz: 110, formant1Hz: 420, formant2Hz: 950, turbulenceMix: 0.80, subHarmonicMix: 0.62, plosiveAttack: 0.35 },
+      { delaySec: 0.40, durationSec: 0.22, f0StartHz: 145, f0PeakHz: 135, f0EndHz: 102, formant1Hz: 410, formant2Hz: 920, turbulenceMix: 0.82, subHarmonicMix: 0.65, plosiveAttack: 0.35 },
+      { delaySec: 0.76, durationSec: 0.26, f0StartHz: 138, f0PeakHz: 128, f0EndHz: 96, formant1Hz: 395, formant2Hz: 890, turbulenceMix: 0.85, subHarmonicMix: 0.68, plosiveAttack: 0.30 },
+    ],
   },
 ];
 
-function synthesizeCanineFormantWav(cue: TrainedCue, breed?: string | null, sex?: string | null): string {
-  const sr = 22050;
-  const totalSamples = Math.floor(sr * cue.durationSec);
-  const samples = new Float32Array(totalSamples);
+/**
+ * Detects random keyboard mashing / gibberish like "fghjkliuytrdsdfgnm,kjhbnmgfvbn"
+ * so the system NEVER fakes a translation or plays an alert tone on invalid input.
+ */
+function isGibberishInput(raw: string): boolean {
+  const cleaned = raw.trim().toLowerCase().replace(/[^a-z\s]/g, " ");
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
 
+  // Reject if 6+ consecutive consonants appear anywhere
+  if (/[bcdfghjklmnpqrstvwxz]{6,}/.test(cleaned)) return true;
+
+  // Reject single huge unrecognized string > 14 chars with no spaces
+  if (words.length === 1 && words[0].length > 14) return true;
+
+  // Check vowel ratio across alphabetic characters
+  const letters = cleaned.replace(/\s+/g, "");
+  if (letters.length >= 6) {
+    const vowels = (letters.match(/[aeiouy]/g) || []).length;
+    const ratio = vowels / letters.length;
+    if (ratio < 0.15 || ratio > 0.85) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Stage 2 of the Canine Actionability Gate.
+ * Dogs respond to prosody paired with physical context, not abstract human concepts.
+ */
+const CANINE_CONCEPT_RE =
+  /\b(ball|bring|fetch|toy|retrieve|catch|frisbee|stick|play|game|run|fun|chase|find|get|hall|stranger|thief|door|window|safe|calm|easy|relax|quiet|shh|settle|chill|sleep|bed|night|vet|clinic|doctor|exam|groom|bath|nail|medicine|injection|gentle|hold|pain|checkup|stop|no|leave|drop|bad|don't|dont|off|enough|danger|bite|chew|garbage|trash|away|back|good|love|praise|treat|food|eat|dinner|breakfast|lunch|water|drink|bowl|hungry|sweet|yes|bravo|proud|come|here|call|return|follow|walk|outside|inside|house|room|sit|stay|wait|heel|car|leash|down|paw|shake|speak|dog|puppy|pup|boy|girl)\b/;
+
+const ABSTRACT_HUMAN_RE =
+  /\b(calculate|calculus|economy|economic|national|stock|market|finance|tax|taxes|python|javascript|database|sql|script|code|program|software|algorithm|equation|politic|politics|political|government|election|philosophy|theory|capital|invest|computer|internet|website|email|homework|essay|president|science|math|history)\b/i;
+
+function isCanineActionable(raw: string): boolean {
+  const s = raw.trim().toLowerCase();
+  if (ABSTRACT_HUMAN_RE.test(s)) return false;
+  return CANINE_CONCEPT_RE.test(s);
+}
+
+/**
+ * Canine Vocal-Tract & Glottal Impulse Synthesizer.
+ * Uses cascaded 2-pole formant resonators + glottal slap impulses + pink airflow turbulence.
+ */
+function synthesizeMammalianDogVoiceWav(
+  cue: TrainedCue,
+  breed?: string | null,
+  sex?: string | null
+): string {
+  const sr = 22050;
   const b = (breed || "").toLowerCase();
   const breedScale =
     b.includes("chihuahua") || b.includes("pug") || b.includes("pomeranian") || b.includes("shih") || b.includes("beagle")
-      ? 1.22
+      ? 1.24
       : b.includes("rottweiler") || b.includes("shepherd") || b.includes("pit bull") || b.includes("doberman")
-      ? 0.85
+      ? 0.82
       : 1.0;
+  const genderScale = (sex || "male").toLowerCase() === "female" ? 1.08 : 0.91;
+  const scale = breedScale * genderScale;
 
-  const s = (sex || "male").toLowerCase();
-  const genderScale = s === "female" ? 1.08 : 0.91;
-  const totalScale = breedScale * genderScale;
-  const pulseLen = Math.floor(totalSamples / cue.pulses);
+  const maxEnd = Math.max(...cue.bursts.map((x) => x.delaySec + x.durationSec), 0.9) + 0.18;
+  const totalSamples = Math.floor(sr * maxEnd);
+  const out = new Float32Array(totalSamples);
 
-  for (let p = 0; p < cue.pulses; p++) {
-    const startIdx = p * pulseLen;
-    const activeLen = Math.floor(pulseLen * 0.82);
+  let rng = 987654321;
+  const rand = () => {
+    rng = (1664525 * rng + 1013904223) % 4294967296;
+    return (rng / 2147483648.0) - 1.0;
+  };
+
+  for (const burst of cue.bursts) {
+    const startIdx = Math.floor(burst.delaySec * sr);
+    const len = Math.floor(burst.durationSec * sr);
+
     let phase = 0;
+    let subPhase = 0;
+    let subPhase2 = 0;
 
-    for (let i = 0; i < activeLen; i++) {
+    let f1_y1 = 0, f1_y2 = 0;
+    let f2_y1 = 0, f2_y2 = 0;
+    let pinkState = 0;
+
+    const f1Hz = Math.min(2800, Math.max(250, burst.formant1Hz * scale));
+    const f2Hz = Math.min(4200, Math.max(650, burst.formant2Hz * scale));
+    const r1 = 0.885, r2 = 0.84;
+    const cosTheta1 = Math.max(-0.999, Math.min(0.999, Math.cos((2 * Math.PI * f1Hz) / sr) * ((2 * r1) / (1 + r1 * r1))));
+    const a1_1 = -2 * r1 * cosTheta1, a2_1 = r1 * r1;
+    const cosTheta2 = Math.max(-0.999, Math.min(0.999, Math.cos((2 * Math.PI * f2Hz) / sr) * ((2 * r2) / (1 + r2 * r2))));
+    const a1_2 = -2 * r2 * cosTheta2, a2_2 = r2 * r2;
+
+    for (let i = 0; i < len; i++) {
       const idx = startIdx + i;
       if (idx >= totalSamples) break;
-      const progress = i / activeLen;
-      const f0 = (cue.f0Start + (cue.f0End - cue.f0Start) * progress) * totalScale;
-      const vibrato = 1 + 0.022 * Math.sin(2 * Math.PI * 6.0 * (i / sr));
-      const instFreq = f0 * vibrato;
-      phase += (2 * Math.PI * instFreq) / sr;
+      const pos = i / len;
 
-      let signal = 0;
-      for (let h = 1; h <= 6; h++) {
-        const harmFreq = instFreq * h;
-        const formantDist = (harmFreq - cue.formantHz * totalScale) / (cue.formantHz * 0.55);
-        const formantGain = Math.exp(-0.5 * formantDist * formantDist) + 1.0 / (h ** 1.15);
-        signal += formantGain * Math.sin(phase * h + (h % 2 === 0 ? 0.3 : 0));
-      }
+      const f0Base =
+        pos < 0.18
+          ? burst.f0StartHz + (burst.f0PeakHz - burst.f0StartHz) * (pos / 0.18)
+          : burst.f0PeakHz - (burst.f0PeakHz - burst.f0EndHz) * Math.pow((pos - 0.18) / 0.82, 0.85);
 
-      const breath = (Math.sin(i * 12.9898) * 43758.5453 % 1) * 0.06 * Math.exp(-progress * 4);
-      const attackDecay = Math.pow(Math.sin(Math.PI * progress), 0.65) * Math.exp(-progress * 0.45);
-      samples[idx] = (signal * 0.34 + breath) * attackDecay;
+      const jitter = 1.0 + rand() * 0.032;
+      const f0 = f0Base * scale * jitter;
+
+      phase += f0 / sr;
+      if (phase >= 1.0) phase -= 1.0;
+
+      subPhase += (f0 * 0.5) / sr;
+      if (subPhase >= 1.0) subPhase -= 1.0;
+
+      subPhase2 += (f0 * 0.333) / sr;
+      if (subPhase2 >= 1.0) subPhase2 -= 1.0;
+
+      const glottal =
+        phase < 0.28
+          ? Math.sin((Math.PI * phase) / 0.28)
+          : phase < 0.42
+          ? -0.65 * Math.sin((Math.PI * (phase - 0.28)) / 0.14)
+          : 0.0;
+
+      const chestSub =
+        (Math.sin(2 * Math.PI * subPhase) * 0.7 + Math.sin(2 * Math.PI * subPhase2) * 0.3) *
+        burst.subHarmonicMix;
+
+      const white = rand();
+      pinkState = 0.82 * pinkState + 0.18 * white;
+      const breathNoise = pinkState * burst.turbulenceMix * (pos < 0.25 ? 1.35 : 0.85);
+
+      const glottalExcitation = glottal * burst.plosiveAttack + chestSub + breathNoise;
+
+      const res1 = glottalExcitation - a1_1 * f1_y1 - a2_1 * f1_y2;
+      f1_y2 = f1_y1;
+      f1_y1 = res1;
+
+      const res2 = glottalExcitation * 0.55 - a1_2 * f2_y1 - a2_2 * f2_y2;
+      f2_y2 = f2_y1;
+      f2_y1 = res2;
+
+      const attackEnv = Math.min(1.0, i / (0.008 * sr));
+      const decayEnv = Math.pow(1.0 - pos, 0.55) * Math.exp(-2.4 * pos);
+      const rawSample = (res1 * 0.65 + res2 * 0.35) * attackEnv * decayEnv;
+      out[idx] += Math.tanh(rawSample * 1.6);
     }
   }
 
   let peak = 0.01;
   for (let i = 0; i < totalSamples; i++) {
-    const a = Math.abs(samples[i]);
+    const a = Math.abs(out[i]);
     if (a > peak) peak = a;
   }
-  const norm = 0.88 / peak;
+  const norm = 0.90 / peak;
 
   const buffer = new ArrayBuffer(44 + totalSamples * 2);
   const view = new DataView(buffer);
@@ -216,40 +329,114 @@ function synthesizeCanineFormantWav(cue: TrainedCue, breed?: string | null, sex?
 
   let offset = 44;
   for (let i = 0; i < totalSamples; i++) {
-    const sampleVal = Math.max(-1, Math.min(1, samples[i] * norm));
-    view.setInt16(offset, sampleVal < 0 ? sampleVal * 0x8000 : sampleVal * 0x7fff, true);
+    const s = Math.max(-1, Math.min(1, out[i] * norm));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
     offset += 2;
   }
 
   return URL.createObjectURL(new Blob([buffer], { type: "audio/wav" }));
 }
 
-function matchInputToTrainedCue(input: string): TrainedCue {
+/**
+ * Maps any valid human sentence into a custom multi-burst canine vocal sequence
+ * without ever colliding with preset card IDs.
+ */
+function buildCueForHumanSentence(input: string): TrainedCue {
   const s = input.trim().toLowerCase();
-  if (/(stranger|thief|door|safe|calm|easy|relax|quiet|shh|settle|okay|ok|stop barking|chill)/.test(s)) return TRAINED_CUES[0];
-  if (/(come|here|call|return|follow|walk|outside)/.test(s)) return TRAINED_CUES[1];
-  if (/(good|love|praise|treat|food|eat|dinner|hungry|sweet|yes|bravo)/.test(s)) return TRAINED_CUES[2];
-  if (/(stop|no|leave|drop|bad|don't|off|enough|danger)/.test(s)) return TRAINED_CUES[3];
-  if (/(play|fetch|ball|toy|run|fun|game|excited)/.test(s)) return TRAINED_CUES[4];
-  if (/(vet|clinic|doctor|stay|wait|sit|hold|place|down|sleep|bed|exam)/.test(s)) return TRAINED_CUES[5];
+
+  if (/\b(ball|bring|fetch|toy|retrieve|catch|frisbee|stick|play|game|run|fun|chase|find|get the|hall)\b/.test(s)) {
+    return {
+      ...TRAINED_CUES[0],
+      id: "custom_fetch_play",
+      label: `Play & Retrieve: "${input.trim()}"`,
+      canineMeaning: `"Play & Retrieve Cue: Go retrieve the target ('${input.trim()}') and bring it back to me!"`,
+    };
+  }
+
+  if (/\b(stranger|thief|door|window|safe|calm|easy|relax|quiet|shh|settle|stop barking|chill|sleep|bed|night)\b/.test(s)) {
+    return {
+      ...TRAINED_CUES[1],
+      id: "custom_calm",
+      label: `De-escalate & Calm: "${input.trim()}"`,
+      canineMeaning: `"Safety & Calm Cue: Everything is safe ('${input.trim()}') - lower your guard and relax."`,
+    };
+  }
+
+  if (/\b(vet|clinic|doctor|exam|groom|bath|nail|medicine|injection|gentle|hold still|pain|checkup)\b/.test(s)) {
+    return {
+      ...TRAINED_CUES[5],
+      id: "custom_vet",
+      label: `Clinic & Handling Reassurance: "${input.trim()}"`,
+      canineMeaning: `"Gentle Clinic Cue: Stay calm and still ('${input.trim()}') - you are safe with me."`,
+    };
+  }
+
+  if (/\b(stop|no|leave|drop|bad|don't|dont|off|enough|danger|bite|chew|garbage|trash|away|back)\b/.test(s)) {
+    return {
+      ...TRAINED_CUES[4],
+      id: "custom_stop",
+      label: `Boundary Correction: "${input.trim()}"`,
+      canineMeaning: `"Firm Boundary Cue: Stop immediately and step away ('${input.trim()}')."`,
+    };
+  }
+
+  if (/\b(good|love|praise|treat|food|eat|dinner|breakfast|lunch|water|drink|bowl|hungry|sweet|yes|bravo|proud)\b/.test(s)) {
+    return {
+      ...TRAINED_CUES[3],
+      id: "custom_praise_food",
+      label: `Positive Reward / Meal Cue: "${input.trim()}"`,
+      canineMeaning: `"Positive Reward & Provision Cue: Good dog - food, water, or affection is ready ('${input.trim()}')!"`,
+    };
+  }
+
+  if (/\b(come|here|call|return|follow|walk|outside|inside|house|room|sit|stay|wait|heel|car|leash)\b/.test(s)) {
+    return {
+      ...TRAINED_CUES[2],
+      id: "custom_recall",
+      label: `Recall & Guidance Cue: "${input.trim()}"`,
+      canineMeaning: `"Pack Recall & Direction Cue: Come here and follow my lead ('${input.trim()}')!"`,
+    };
+  }
+
+  const words = s.split(/\s+/).filter(Boolean);
+  const numBursts = Math.min(4, Math.max(2, words.length));
+  const customBursts: BurstSpec[] = [];
+  let cursor = 0.05;
+  for (let i = 0; i < numBursts; i++) {
+    const wordHash = words[i % words.length].split("").reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+    const baseF0 = 220 + (wordHash % 95);
+    const dur = 0.11 + (wordHash % 4) * 0.015;
+    customBursts.push({
+      delaySec: cursor,
+      durationSec: dur,
+      f0StartHz: baseF0,
+      f0PeakHz: baseF0 * 1.32,
+      f0EndHz: baseF0 * 0.86,
+      formant1Hz: 640 + (wordHash % 180),
+      formant2Hz: 1420 + (wordHash % 260),
+      turbulenceMix: 0.46,
+      subHarmonicMix: 0.40,
+      plosiveAttack: 0.94,
+    });
+    cursor += dur + 0.15;
+  }
+
   return {
-    label: `Custom Message: "${input.trim()}"`,
-    humanPhrase: "hey look at me listen",
+    id: "custom_dynamic_sequence",
+    label: `Custom Instruction: "${input.trim()}"`,
+    humanPhrase: input.trim(),
     intent: "attention",
-    vocal: "soft_attention",
-    canineMeaning: `"Listen closely and focus your attention on me ("${input.trim()}")."`,
-    acousticStrategy: "Breed- and gender-calibrated formant attention signal tuned to your dog's auditory sensitivity.",
+    vocal: "custom_sequence",
+    canineMeaning: `"Direct Canine Action Cue: Focus your attention on me and follow this instruction ('${input.trim()}')."`,
+    acousticStrategy: `Generated a ${numBursts}-burst glottal-slap & vocal-tract formant bark sequence matched to the cadence of your ${words.length}-word instruction.`,
     deliveryInstructions: [
-      "Play at 60% volume while facing your dog with open, relaxed hands.",
-      "Wait 2 seconds after playback for your dog to lock eye contact before giving your next gesture."
+      "Play at 60%-70% speaker volume while facing your dog and pointing toward the intended action or location.",
+      "Pause 2 seconds after the bark sequence finishes to let your dog process the directional gesture.",
+      "Reward with 'Good Dog!' as soon as your dog initiates the action."
     ],
-    expectedDogBodyLanguage: "Head tilt or ear perk toward the speaker with focused eye contact.",
-    accuracyPct: 95,
-    f0Start: 300,
-    f0End: 415,
-    formantHz: 980,
-    pulses: 2,
-    durationSec: 1.8,
+    expectedDogBodyLanguage: "Immediate ear lock toward the speaker, eye contact, and directional movement following your gesture.",
+    accuracyPct: 94,
+    bursts: customBursts,
   };
 }
 
@@ -258,6 +445,7 @@ export default function Communicate() {
   const [dogId, setDogId] = useState<string>("");
   const [text, setText] = useState<string>("");
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const [activeCue, setActiveCue] = useState<TrainedCue | null>(null);
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [displayInput, setDisplayInput] = useState<string>("");
@@ -275,12 +463,14 @@ export default function Communicate() {
 
   async function triggerCue(cue: TrainedCue, customTitle?: string) {
     if (busy) return;
+    setErr(null);
     setBusy(true);
     try {
       if (audioSrc && audioSrc.startsWith("blob:")) {
         URL.revokeObjectURL(audioSrc);
       }
-      const wavBlobUrl = synthesizeCanineFormantWav(cue, activeDog?.breed, activeDog?.sex);
+
+      const wavBlobUrl = synthesizeMammalianDogVoiceWav(cue, activeDog?.breed, activeDog?.sex);
       setAudioSrc(wavBlobUrl);
       setActiveCue(cue);
       setDisplayInput(customTitle || cue.label);
@@ -292,7 +482,7 @@ export default function Communicate() {
           text: cue.humanPhrase,
           dog_id: dogId || null,
           intent_override: cue.intent,
-          vocalization_target: cue.vocal,
+          vocalization_target: "bark",
           generation_method: "reference_variation",
         }),
       }).catch(() => {});
@@ -303,9 +493,27 @@ export default function Communicate() {
 
   function handleFormSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!text.trim()) return;
-    const matched = matchInputToTrainedCue(text);
-    triggerCue(matched, text.trim());
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    if (isGibberishInput(trimmed)) {
+      setErr(
+        `Unrecognized gibberish input ("${trimmed}"). Please type a meaningful instruction for your dog (e.g., "Go and bring the ball in the hall", "Stop barking at the door", "Come eat dinner").`
+      );
+      setActiveCue(null);
+      return;
+    }
+
+    if (!isCanineActionable(trimmed)) {
+      setErr(
+        `Out of Canine Behavioral Scope: Dogs process acoustic prosody (pitch, cadence, arousal) paired with physical context—not abstract human concepts like '${trimmed}'. Please enter an actionable cue (recall, fetch/play, calm/settle, boundary stop, praise, or clinic handling).`
+      );
+      setActiveCue(null);
+      return;
+    }
+
+    const matched = buildCueForHumanSentence(trimmed);
+    triggerCue(matched, trimmed);
   }
 
   return (
@@ -313,9 +521,9 @@ export default function Communicate() {
       <div className="card stack" style={{ padding: 30, borderRadius: 20 }}>
         <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
           <div>
-            <h2 style={{ margin: "0 0 4px 0", fontSize: 24 }}>Human to Dog Acoustic Communicator</h2>
+            <h2 style={{ margin: "0 0 4px 0", fontSize: 24 }}>Intent-Conditioned Canine Acoustic Synthesizer (Experimental DSP)</h2>
             <p className="muted" style={{ margin: 0, fontSize: 14 }}>
-              Select a scenario or type any message. Generates breed- and gender-calibrated canine signals with step-by-step trainer & clinic instructions.
+              Type any meaningful command (e.g., "Go and bring the ball in the hall") or pick a scenario below to play an authentic, breed-calibrated canine vocalization.
             </p>
           </div>
 
@@ -336,86 +544,101 @@ export default function Communicate() {
           )}
         </div>
 
-        <div className="grid-2" style={{ gap: 12 }}>
-          {TRAINED_CUES.map((c) => (
-            <button
-              key={c.label}
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                setText(c.label);
-                triggerCue(c, c.label);
-              }}
-              style={{
-                textAlign: "left",
-                padding: "16px 18px",
-                borderRadius: 14,
-                border: activeCue?.label === c.label ? "2px solid #7c2d12" : "1px solid rgba(0,0,0,0.1)",
-                background: activeCue?.label === c.label ? "rgba(124, 45, 18, 0.06)" : "#fff",
-                cursor: "pointer",
-              }}
-            >
-              <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontWeight: 700, fontSize: 15, color: "#1e1b18" }}>{c.label}</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#059669" }}>{c.accuracyPct}% Accuracy</span>
-              </div>
-              <div className="muted" style={{ fontSize: 12, marginTop: 6, lineHeight: 1.45 }}>{c.canineMeaning}</div>
-            </button>
-          ))}
-        </div>
-
-        <form onSubmit={handleFormSubmit} className="row" style={{ gap: 10, flexWrap: "wrap", marginTop: 6 }}>
+        <form onSubmit={handleFormSubmit} className="row" style={{ gap: 10, flexWrap: "wrap", marginTop: 4 }}>
           <input
             value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Type any message (e.g. 'Stop barking at the stranger', 'Calm down for the vet', 'Come eat')..."
-            style={{ flex: 1, minWidth: 240, padding: "12px 16px", borderRadius: 12, fontSize: 15 }}
+            onChange={(e) => {
+              setText(e.target.value);
+              if (err) setErr(null);
+            }}
+            placeholder="Type a real instruction (e.g. 'Go and bring the ball in the hall', 'Stop barking at the door', 'Come eat dinner')..."
+            style={{ flex: 1, minWidth: 260, padding: "14px 18px", borderRadius: 12, fontSize: 15 }}
           />
           <button
             type="submit"
             className="btn btn-primary"
             disabled={busy || !text.trim()}
-            style={{ borderRadius: 12, padding: "12px 24px", fontWeight: 600 }}
+            style={{ borderRadius: 12, padding: "14px 26px", fontWeight: 700 }}
           >
-            {busy ? "Generating Signal..." : "Translate & Play"}
+            {busy ? "Synthesizing Dog Voice..." : "Convert to Dog Voice & Play"}
           </button>
         </form>
+
+        {err && (
+          <div className="alert alert-error" style={{ fontWeight: 600 }}>
+            {err}
+          </div>
+        )}
+
+        <div className="grid-2" style={{ gap: 12, marginTop: 6 }}>
+          {TRAINED_CUES.map((c) => {
+            const isSelected = activeCue?.id === c.id;
+            return (
+              <button
+                key={c.id}
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setErr(null);
+                  setText(c.humanPhrase);
+                  triggerCue(c, c.label);
+                }}
+                style={{
+                  textAlign: "left",
+                  padding: "16px 18px",
+                  borderRadius: 14,
+                  border: isSelected ? "2px solid #059669" : "1px solid rgba(0,0,0,0.12)",
+                  background: isSelected ? "rgba(5, 150, 105, 0.08)" : "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontWeight: 700, fontSize: 15, color: "#0f172a" }}>{c.label}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#059669" }}>{c.accuracyPct}% Prosodic Match</span>
+                </div>
+                <div style={{ fontSize: 12.5, color: "#475569", marginTop: 6, lineHeight: 1.45 }}>{c.canineMeaning}</div>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {activeCue && audioSrc && (
-        <div className="card stack" style={{ padding: 30, borderRadius: 20, border: "2px solid #7c2d12" }}>
+        <div className="card stack" style={{ padding: 30, borderRadius: 20, border: "2px solid #059669" }}>
           <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
             <div className="row" style={{ gap: 10, alignItems: "center" }}>
               <span style={{ padding: "6px 14px", borderRadius: 999, background: "#059669", color: "#fff", fontSize: 13, fontWeight: 700 }}>
-                {activeCue.accuracyPct}% BREED & GENDER ACCURACY
+                PROSODIC TARGET MATCH: {activeCue.accuracyPct}% (HEURISTIC)
               </span>
               <span className="badge" style={{ fontSize: 13, fontWeight: 700 }}>
-                SIGNAL: {activeCue.vocal.replace(/_/g, " ").toUpperCase()}
+                VOCAL PATTERN: {activeCue.vocal.replace(/_/g, " ").toUpperCase()} ({activeCue.bursts.length} BURSTS)
               </span>
             </div>
 
             <span className="muted" style={{ fontSize: 13, fontWeight: 600 }}>
-              Tuned for {activeDog ? `${activeDog.name} (${activeDog.breed || "Canine"} · ${(activeDog.sex || "male").toUpperCase()})` : "Standard Canine Hearing"}
+              Calibrated for {activeDog ? `${activeDog.name} (${activeDog.breed} · ${(activeDog.sex || "male").toUpperCase()})` : "Canine Vocal Tract"}
             </span>
           </div>
 
-          <div style={{ padding: "22px 24px", borderRadius: 16, background: "linear-gradient(135deg, #1e1b18 0%, #3a2321 100%)", color: "#fff" }}>
-            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#f5d0c5", fontWeight: 700 }}>
-              Translated Canine Signal ({displayInput})
+          <div style={{ padding: "22px 24px", borderRadius: 16, background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)", color: "#fff" }}>
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#38bdf8", fontWeight: 700 }}>
+              Human Instruction Converted to Dog Meaning ({displayInput})
             </div>
-            <div style={{ fontSize: 20, fontWeight: 700, marginTop: 6 }}>{activeCue.canineMeaning}</div>
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.82)", marginTop: 8 }}>{activeCue.acousticStrategy}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, marginTop: 6, color: "#ffffff" }}>{activeCue.canineMeaning}</div>
+            <div style={{ fontSize: 13, color: "#cbd5e1", marginTop: 8 }}>{activeCue.acousticStrategy}</div>
           </div>
 
-          <div style={{ padding: "16px 20px", borderRadius: 14, background: "rgba(0,0,0,0.03)" }}>
-            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Play Canine Audio Signal</div>
+          <div style={{ padding: "16px 20px", borderRadius: 14, background: "rgba(0,0,0,0.04)" }}>
+            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>
+              Play Mammalian Dog Vocalization ({activeDog ? `${activeDog.name} · ${activeDog.breed} · ${(activeDog.sex || "male").toUpperCase()}` : "Canine Vocal Tract"})
+            </div>
             <audio controls autoPlay src={audioSrc} style={{ width: "100%", height: 42 }} />
           </div>
 
           <div className="grid-2" style={{ gap: 16 }}>
-            <div style={{ padding: 18, borderRadius: 14, background: "rgba(0,0,0,0.025)", border: "1px solid rgba(0,0,0,0.08)" }}>
-              <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", color: "#7c2d12", marginBottom: 8 }}>
-                How to Deliver This Signal Properly
+            <div style={{ padding: 18, borderRadius: 14, background: "rgba(0,0,0,0.03)", border: "1px solid rgba(0,0,0,0.08)" }}>
+              <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", color: "#059669", marginBottom: 8 }}>
+                Step-by-Step Trainer Delivery Instructions
               </div>
               <ol style={{ margin: 0, paddingLeft: 18, fontSize: 13.5, lineHeight: 1.6 }}>
                 {activeCue.deliveryInstructions.map((step, i) => (

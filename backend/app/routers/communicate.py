@@ -43,7 +43,7 @@ from ..services.reference_library import (
     update_reference_asset_annotation,
 )
 from ..services.spectrogram import SpectrogramError, compute_spectrogram_from_file
-from ..services.synthesis import validate_generated_wav
+from ..services.synthesis import compute_acoustic_similarity_to_reference, synthesize, validate_generated_wav
 from ..services.viz import ensure_plots, write_plots
 from .recordings import _dog_or_none, _serialize_recording, run_analysis_pipeline
 
@@ -604,6 +604,30 @@ def generate(
         spec_path.unlink(missing_ok=True)
         raise HTTPException(status_code=500, detail=f"Audio generation validation failed: {exc}") from exc
 
+    similarity_metrics = None
+    try:
+        primary_ref = params.get("primary_reference_asset") or {}
+        ref_id = primary_ref.get("asset_id")
+        y_ref_cmp = None
+        if ref_id:
+            ref_asset = get_reference_asset(ref_id, user_id=user.id)
+            if ref_asset:
+                ref_wav = _safe_resolve_reference_wav(ref_asset)
+                y_ref_raw, _ = sf.read(str(ref_wav), dtype="float32", always_2d=False)
+                if y_ref_raw.ndim > 1:
+                    y_ref_raw = np.mean(y_ref_raw, axis=1)
+                y_ref_cmp = y_ref_raw
+        if y_ref_cmp is None:
+            y_ref_cmp, _ = synthesize(vocalization=target, intent=intent, sr=int(params["sr"]))
+        similarity_metrics = compute_acoustic_similarity_to_reference(y, y_ref_cmp, sr=int(params["sr"]))
+    except Exception:
+        similarity_metrics = None
+
+    params["acoustic_similarity_validation"] = similarity_metrics
+    if similarity_metrics and isinstance(params.get("acoustic_comparison"), dict):
+        params["acoustic_comparison"]["acoustic_similarity_validation"] = similarity_metrics
+    elif similarity_metrics and params.get("acoustic_comparison") is None:
+        params["acoustic_comparison"] = {"acoustic_similarity_validation": similarity_metrics}
     params["validation"] = validation
     actual_method = params.get("generation_method", gen_method)
     output_class = params.get("output_classification", "Reference-Driven Audio")
@@ -636,6 +660,7 @@ def generate(
         "primary_reference_asset": params.get("primary_reference_asset"),
         "transformation_parameters": params.get("transformation_parameters"),
         "acoustic_comparison": params.get("acoustic_comparison"),
+        "acoustic_similarity_validation": params.get("acoustic_similarity_validation"),
         "generation_warnings": params.get("generation_warnings", []),
         "mapping_note": mapping.get("note"),
         "intent_model": parsed.get("model_version"),
@@ -794,6 +819,136 @@ def get_generated_spectrogram_data(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+CALMING_CUE_INTENTS = {"calm", "soothe", "quiet", "settle", "relax", "stay"}
+CALMING_CUE_TARGETS = {"soft_attention", "grunt", "pant"}
+
+
+def _compute_arousal_delta(
+    gen: models.GeneratedAudio,
+    post_features: dict,
+    dog: models.Dog | None,
+    db: Session,
+    exclude_recording_id: str | None = None,
+) -> dict:
+    """Compare post-cue vocalization RMS, F0, and burst rate against pre-cue or individual baseline."""
+    params = json.loads(gen.params_json or "{}")
+    baseline_source = "target_cue_profile"
+    prior_rms_vals: list[float] = []
+    prior_f0_vals: list[float] = []
+    prior_onset_vals: list[float] = []
+
+    if dog is not None:
+        rows = list(
+            db.scalars(
+                select(models.Analysis)
+                .where(models.Analysis.dog_id == dog.id)
+                .order_by(models.Analysis.created_at.desc())
+                .limit(20)
+            )
+        )
+        for row in rows:
+            if exclude_recording_id and row.recording_id == exclude_recording_id:
+                continue
+            try:
+                feats = json.loads(row.features_json or "{}")
+                r_val = float(feats.get("rms") or 0.0)
+                f_val = float(feats.get("f0_mean") or feats.get("dominant_freq") or 0.0)
+                o_val = float(feats.get("onset_rate") or 0.0)
+                if r_val > 0.0 and np.isfinite(r_val):
+                    prior_rms_vals.append(r_val)
+                if f_val > 0.0 and np.isfinite(f_val):
+                    prior_f0_vals.append(f_val)
+                if o_val >= 0.0 and np.isfinite(o_val):
+                    prior_onset_vals.append(o_val)
+            except Exception:
+                continue
+
+    cue_f0 = float(params.get("f0_base_hz") or params.get("f0") or 280.0)
+    cue_rms = float(params.get("output_rms") or 0.14)
+    cue_dur = max(0.5, float(params.get("duration") or 1.0))
+    cue_events = float(
+        params.get("n_events")
+        or (params.get("acoustic_comparison") or {}).get("generated_metrics", {}).get("event_count")
+        or 2.0
+    )
+    cue_onset = cue_events / cue_dur
+
+    if prior_rms_vals and prior_f0_vals:
+        baseline_source = "individual_dog_historical_baseline"
+        pre_rms = float(np.mean(prior_rms_vals))
+        pre_f0 = float(np.mean(prior_f0_vals))
+        pre_onset = float(np.mean(prior_onset_vals)) if prior_onset_vals else cue_onset
+    else:
+        pre_rms = cue_rms
+        pre_f0 = cue_f0
+        pre_onset = cue_onset
+
+    post_rms = float(post_features.get("rms") or 0.0)
+    post_f0 = float(
+        post_features.get("f0_mean")
+        or post_features.get("dominant_freq")
+        or post_features.get("pitch_hz")
+        or pre_f0
+    )
+    post_onset = float(post_features.get("onset_rate") or 0.0)
+
+    delta_rms = round(post_rms - pre_rms, 5)
+    delta_f0_hz = round(post_f0 - pre_f0, 2)
+    delta_onset_rate = round(post_onset - pre_onset, 3)
+
+    arousal_index_delta = round(
+        0.40 * ((post_rms - pre_rms) / max(pre_rms, 0.05))
+        + 0.35 * ((post_f0 - pre_f0) / max(pre_f0, 100.0))
+        + 0.25 * ((post_onset - pre_onset) / max(pre_onset, 0.5)),
+        4,
+    )
+
+    if arousal_index_delta >= 0.10 or delta_f0_hz >= 35.0 or delta_rms >= 0.04:
+        arousal_outcome = "increased_arousal"
+    elif arousal_index_delta <= -0.10 or delta_f0_hz <= -35.0 or delta_rms <= -0.04:
+        arousal_outcome = "decreased_arousal"
+    else:
+        arousal_outcome = "unchanged"
+
+    intent_norm = (gen.intent or "").strip().lower()
+    target_norm = (gen.vocalization_target or "").strip().lower()
+    source_norm = (gen.source_text or "").strip().lower()
+    is_calming_cue = (
+        intent_norm in CALMING_CUE_INTENTS
+        or target_norm in CALMING_CUE_TARGETS
+        or any(tok in source_norm for tok in ("calm", "soothe", "quiet", "settle", "relax"))
+    )
+
+    safety_warning = None
+    if is_calming_cue and arousal_outcome == "increased_arousal":
+        safety_warning = (
+            "Safety Warning: Post-cue vocal arousal increased (elevated energy, F0 pitch, or burst rate) "
+            "following a calming cue. Discontinue audio playback immediately, give the dog space, and check for stress or discomfort."
+        )
+
+    return {
+        "arousal_outcome": arousal_outcome,
+        "arousal_index_delta": arousal_index_delta,
+        "delta_rms": delta_rms,
+        "delta_f0_hz": delta_f0_hz,
+        "delta_onset_rate": delta_onset_rate,
+        "baseline_source": baseline_source,
+        "prior_recordings_used": len(prior_rms_vals),
+        "pre_cue_baseline": {
+            "rms": round(pre_rms, 5),
+            "f0_hz": round(pre_f0, 2),
+            "onset_rate_hz": round(pre_onset, 3),
+        },
+        "post_cue_measured": {
+            "rms": round(post_rms, 5),
+            "f0_hz": round(post_f0, 2),
+            "onset_rate_hz": round(post_onset, 3),
+        },
+        "is_calming_cue": is_calming_cue,
+        "safety_warning": safety_warning,
+    }
+
+
 @router.get("/{gen_id}/responses")
 def list_generated_responses(
     gen_id: str,
@@ -815,12 +970,17 @@ def list_generated_responses(
     for r in resps:
         rec = db.get(models.Recording, r.recording_id)
         analysis = db.get(models.Analysis, r.analysis_id) if r.analysis_id else None
+        r_behavior = json.loads(analysis.behavior_json or "{}") if analysis else {}
+        arousal_delta = r_behavior.get("arousal_delta")
         if rec and rec.user_id == user.id:
             out.append(
                 {
                     "id": r.id,
                     "generated_id": gen.id,
                     "recording": _serialize_recording(rec, analysis),
+        "arousal_outcome": arousal_delta.get("arousal_outcome") if isinstance(arousal_delta, dict) else None,
+        "arousal_delta": arousal_delta,
+        "safety_warning": arousal_delta.get("safety_warning") if isinstance(arousal_delta, dict) else None,
                     "created_at": r.created_at.isoformat() if r.created_at else None,
                     "interpretation_warning": (
                         "A recorded response is not proof that the dog understood the generated sound. "
@@ -864,11 +1024,16 @@ def record_response(
         ex_rec = db.get(models.Recording, ex_resp.recording_id)
         if ex_rec and ex_rec.sha256 == file_sha and ex_rec.user_id == user.id:
             ex_analysis = db.get(models.Analysis, ex_resp.analysis_id) if ex_resp.analysis_id else None
+            ex_behavior = json.loads(ex_analysis.behavior_json or "{}") if ex_analysis else {}
+            ex_ad = ex_behavior.get("arousal_delta")
             return {
                 "id": ex_resp.id,
                 "generated_id": gen.id,
                 "idempotent_retry": True,
                 "recording": _serialize_recording(ex_rec, ex_analysis),
+                "arousal_outcome": ex_ad.get("arousal_outcome") if isinstance(ex_ad, dict) else None,
+                "arousal_delta": ex_ad,
+                "safety_warning": ex_ad.get("safety_warning") if isinstance(ex_ad, dict) else None,
                 "interpretation_warning": (
                     "A recorded response is not proof that the dog understood the generated sound. "
                     "Engine A analyzed the response independently of Engine B."
@@ -898,7 +1063,10 @@ def record_response(
         dog = db.get(models.Dog, gen.dog_id) if gen.dog_id else None
         if dog and dog.user_id != user.id:
             dog = None
-        result = run_analysis_pipeline(y, sr, quality, dog)
+        result = run_analysis_pipeline(y, sr, quality, dog, db=db)
+        arousal_delta = _compute_arousal_delta(gen, result["features"], dog, db, exclude_recording_id=rec_id)
+        result["behavior"]["arousal_delta"] = arousal_delta
+        result["behavior"]["arousal_outcome"] = arousal_delta["arousal_outcome"]
     except Exception as exc:
         storage.delete_recording_tree(user.id, rec_id)
         raise HTTPException(status_code=500, detail="Response analysis failed.") from exc
@@ -967,6 +1135,9 @@ def record_response(
         "id": resp.id,
         "generated_id": gen.id,
         "recording": _serialize_recording(rec, analysis),
+        "arousal_outcome": arousal_delta.get("arousal_outcome") if isinstance(arousal_delta, dict) else None,
+        "arousal_delta": arousal_delta,
+        "safety_warning": arousal_delta.get("safety_warning") if isinstance(arousal_delta, dict) else None,
         "interpretation_warning": (
             "A recorded response is not proof that the dog understood the generated sound. "
             "Engine A analyzed the response independently of Engine B."
@@ -1011,6 +1182,7 @@ def _serialize_gen(row: models.GeneratedAudio, db: Session | None = None) -> dic
         "primary_reference_asset": primary_ref,
         "transformation_parameters": params.get("transformation_parameters") or notes.get("transformation_parameters") or {},
         "acoustic_comparison": params.get("acoustic_comparison") or notes.get("acoustic_comparison"),
+        "acoustic_similarity_validation": params.get("acoustic_similarity_validation") or notes.get("acoustic_similarity_validation"),
         "generation_warnings": params.get("generation_warnings") or notes.get("generation_warnings") or [],
         "user_feedback": notes.get("user_feedback"),
         "synth_version": row.synth_version,

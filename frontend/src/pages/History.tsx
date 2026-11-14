@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../api";
+import { api, historyCacheKey } from "../api";
 
 export default function History() {
   const [items, setItems] = useState<any[]>([]);
@@ -10,11 +10,15 @@ export default function History() {
   async function load() {
     setLoading(true);
     try {
-      const serverRecs = await api<any[]>("/api/recordings").catch(() => []);
-      const localRecs = JSON.parse(localStorage.getItem("cs_saved_history_v1") || "[]");
+      const serverRecs = await api<any[]>("/api/recordings").catch(() => null);
+      const cacheKey = historyCacheKey();
+      const cached: any[] = JSON.parse(localStorage.getItem(cacheKey) || "[]");
+      // Only explicitly tagged offline-fallback analyses are ever shown from the browser cache.
+      const localRecs = cached.filter((x: any) => x?.unsynced_local_fallback === true);
       const seen = new Set<string>();
       const merged: any[] = [];
-      for (const r of [...(serverRecs || []), ...localRecs]) {
+      // When the backend answered, SQLite is authoritative; otherwise show tagged local fallbacks only.
+      for (const r of [...(Array.isArray(serverRecs) ? serverRecs : []), ...localRecs]) {
         const key = r.id || `${r.original_filename}_${r.created_at}`;
         if (!seen.has(key)) {
           seen.add(key);
@@ -35,8 +39,9 @@ export default function History() {
     try {
       await api(`/api/recordings/${id}`, { method: "DELETE" }).catch(() => {});
     } catch {}
-    const localRecs = JSON.parse(localStorage.getItem("cs_saved_history_v1") || "[]").filter((x: any) => x.id !== id);
-    localStorage.setItem("cs_saved_history_v1", JSON.stringify(localRecs));
+    const cacheKey = historyCacheKey();
+    const localRecs = JSON.parse(localStorage.getItem(cacheKey) || "[]").filter((x: any) => x.id !== id);
+    localStorage.setItem(cacheKey, JSON.stringify(localRecs));
     setItems((prev) => prev.filter((x) => x.id !== id));
   }
 
@@ -104,7 +109,7 @@ export default function History() {
                   <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
                     <div className="row" style={{ gap: 8, alignItems: "center" }}>
                       <span style={{ padding: "4px 12px", borderRadius: 999, background: "#059669", color: "#fff", fontSize: 12, fontWeight: 700 }}>
-                        {vocal} · {conf}% ACCURACY
+                        {vocal} · HEURISTIC RULE MATCH: {conf}%{r.unsynced_local_fallback ? " · UNSYNCED LOCAL FALLBACK" : ""}
                       </span>
                       <span className="badge" style={{ fontSize: 12 }}>Pitch: {f0} Hz</span>
                     </div>

@@ -1622,140 +1622,251 @@ html, body, #root, .app {
   }
 }
 
+/* === DYNAMIC COLOR THEME ENGINE (FULL-SCREEN BACKGROUND & SURFACES) === */
 
-/* === DYNAMIC COLOR THEME ENGINE === */
-html[data-theme="default"] body,
-body[data-theme="default"],
-html[data-theme="studio-warm"] body,
-body[data-theme="studio-warm"] {
-  --bg: #F7F2E8 !important;
-  --bg-2: #E8DDC8 !important;
-  --paper: #FFFDF8 !important;
-  --surface: #FFFDF8 !important;
-  --surface-soft: #FBF7EF !important;
-  --surface-tint: #F3EBDC !important;
-  --ink: #382820 !important;
-  --ink-2: #443A34 !important;
-  --text: #382820 !important;
-  --muted: #6E6256 !important;
-  --accent: #762F3D !important;
-  --accent-hover: #5E2330 !important;
-  --line: #E8DFD2 !important;
-  --line-strong: #D8C9A7 !important;
-  --border: #E8DFD2 !important;
-  background:
-    radial-gradient(1100px 580px at 8% -8%, rgba(216, 201, 167, 0.35) 0%, transparent 55%),
-    radial-gradient(900px 520px at 102% 6%, rgba(232, 221, 200, 0.45) 0%, transparent 50%),
-    #F7F2E8 !important;
-  color: #382820 !important;
-}
-
+/* 1. WHITE & BLACK (Full Deep Black Canvas & Crisp White Cards) */
+html[data-theme="white-black"],
 html[data-theme="white-black"] body,
-body[data-theme="white-black"] {
-  --bg: #ffffff !important;
-  --bg-2: #f4f4f5 !important;
-  --bg-elev: #f4f4f5 !important;
-  --surface: #ffffff !important;
-  --paper: #ffffff !important;
-  --surface-soft: #fafafa !important;
-  --surface-tint: #f4f4f5 !important;
-  --ink: #000000 !important;
-  --ink-2: #18181b !important;
-  --text: #000000 !important;
-  --muted: #52525b !important;
-  --primary: #000000 !important;
-  --accent: #000000 !important;
-  --accent-hover: #27272a !important;
-  --line: #000000 !important;
-  --line-strong: #000000 !important;
-  --border: #000000 !important;
-  background: #ffffff !important;
-  color: #000000 !important;
+body[data-theme="white-black"],
+body[data-theme="white-black"] #root,
+body[data-theme="white-black"] .app-shell,
+body[data-theme="white-black"] main,
+body[data-theme="white-black"] .main-content,
+body[data-theme="white-black"] div[class*="shell"],
+body[data-theme="white-black"] div[class*="layout"] {
+  background: #09090b !important;
+  background-color: #09090b !important;
+  background-image: none !important;
+  color: #ffffff !important;
+}
+body[data-theme="white-black"] aside,
+body[data-theme="white-black"] .sidebar,
+body[data-theme="white-black"] header,
+body[data-theme="white-black"] .topbar {
+  background: #000000 !important;
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border-color: #3f3f46 !important;
+}
+body[data-theme="white-black"] aside *,
+body[data-theme="white-black"] header * {
+  color: #ffffff !important;
 }
 body[data-theme="white-black"] .card {
   background: #ffffff !important;
+  background-color: #ffffff !important;
   color: #000000 !important;
   border: 2px solid #000000 !important;
-  box-shadow: 4px 4px 0px #000000 !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5) !important;
+}
+body[data-theme="white-black"] .card h1,
+body[data-theme="white-black"] .card h2,
+body[data-theme="white-black"] .card h3,
+body[data-theme="white-black"] .card label,
+body[data-theme="white-black"] .card span,
+body[data-theme="white-black"] .card div {
+  color: #000000;
+}
+body[data-theme="white-black"] .card .muted,
+body[data-theme="white-black"] .card p {
+  color: #27272a !important;
 }
 body[data-theme="white-black"] .btn-primary {
   background: #000000 !important;
   color: #ffffff !important;
   border: 2px solid #000000 !important;
 }
-body[data-theme="white-black"] .sidebar {
-  background: #ffffff !important;
-  border-right: 2px solid #000000 !important;
-}
 
+/* 2. RED & BLUE (Full Cobalt Blue & Crimson Red Background Transformation) */
+html[data-theme="red-blue"],
 html[data-theme="red-blue"] body,
-body[data-theme="red-blue"] {
-  --bg: #eff6ff !important;
-  --bg-2: #dbeafe !important;
-  --surface: #ffffff !important;
-  --paper: #ffffff !important;
-  --surface-soft: #f8fafc !important;
-  --surface-tint: #eff6ff !important;
-  --ink: #1e3a8a !important;
-  --ink-2: #172554 !important;
-  --text: #1e3a8a !important;
-  --muted: #2563eb !important;
-  --primary: #dc2626 !important;
-  --accent: #dc2626 !important;
-  --accent-hover: #b91c1c !important;
-  --line: #93c5fd !important;
-  --line-strong: #3b82f6 !important;
-  --border: #93c5fd !important;
-  background: linear-gradient(135deg, #eff6ff 0%, #fef2f2 100%) !important;
-  color: #1e3a8a !important;
+body[data-theme="red-blue"],
+body[data-theme="red-blue"] #root,
+body[data-theme="red-blue"] .app-shell,
+body[data-theme="red-blue"] main,
+body[data-theme="red-blue"] .main-content,
+body[data-theme="red-blue"] div[class*="shell"],
+body[data-theme="red-blue"] div[class*="layout"] {
+  background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 50%, #991b1b 100%) !important;
+  background-color: #1e3a8a !important;
+  color: #ffffff !important;
+}
+body[data-theme="red-blue"] aside,
+body[data-theme="red-blue"] .sidebar,
+body[data-theme="red-blue"] header,
+body[data-theme="red-blue"] .topbar {
+  background: #172554 !important;
+  background-color: #172554 !important;
+  color: #ffffff !important;
+  border-color: #ef4444 !important;
+}
+body[data-theme="red-blue"] aside *,
+body[data-theme="red-blue"] header * {
+  color: #ffffff !important;
 }
 body[data-theme="red-blue"] .card {
-  background: #ffffff !important;
-  border: 2px solid #2563eb !important;
-  box-shadow: 0 10px 25px rgba(37, 99, 235, 0.12) !important;
+  background: #1e3a8a !important;
+  background-color: #1e3a8a !important;
+  color: #ffffff !important;
+  border: 2px solid #ef4444 !important;
+  box-shadow: 0 14px 34px rgba(220, 38, 38, 0.32) !important;
+}
+body[data-theme="red-blue"] .card h1,
+body[data-theme="red-blue"] .card h2,
+body[data-theme="red-blue"] .card h3,
+body[data-theme="red-blue"] .card label {
+  color: #ffffff !important;
+}
+body[data-theme="red-blue"] .card .muted,
+body[data-theme="red-blue"] .card p {
+  color: #dbeafe !important;
+}
+body[data-theme="red-blue"] input,
+body[data-theme="red-blue"] select {
+  background: #0f172a !important;
+  color: #ffffff !important;
+  border: 1px solid #60a5fa !important;
 }
 body[data-theme="red-blue"] .btn-primary {
   background: linear-gradient(135deg, #dc2626 0%, #2563eb 100%) !important;
   color: #ffffff !important;
   border: none !important;
 }
-body[data-theme="red-blue"] .sidebar {
-  background: #ffffff !important;
-  border-right: 2px solid #93c5fd !important;
-}
 
+/* 3. YELLOW & GREEN (Full Emerald Green & Solar Yellow Background Transformation) */
+html[data-theme="yellow-green"],
 html[data-theme="yellow-green"] body,
-body[data-theme="yellow-green"] {
-  --bg: #fefce8 !important;
-  --bg-2: #fef08a !important;
-  --surface: #ffffff !important;
-  --paper: #ffffff !important;
-  --surface-soft: #f0fdf4 !important;
-  --surface-tint: #fefce8 !important;
-  --ink: #064e3b !important;
-  --ink-2: #022c22 !important;
-  --text: #064e3b !important;
-  --muted: #047857 !important;
-  --primary: #15803d !important;
-  --accent: #15803d !important;
-  --accent-hover: #166534 !important;
-  --line: #fde047 !important;
-  --line-strong: #ca8a04 !important;
-  --border: #fde047 !important;
-  background: linear-gradient(135deg, #fefce8 0%, #ecfdf5 100%) !important;
-  color: #064e3b !important;
+body[data-theme="yellow-green"],
+body[data-theme="yellow-green"] #root,
+body[data-theme="yellow-green"] .app-shell,
+body[data-theme="yellow-green"] main,
+body[data-theme="yellow-green"] .main-content,
+body[data-theme="yellow-green"] div[class*="shell"],
+body[data-theme="yellow-green"] div[class*="layout"] {
+  background: linear-gradient(135deg, #064e3b 0%, #15803d 55%, #ca8a04 100%) !important;
+  background-color: #065f46 !important;
+  color: #fefce8 !important;
+}
+body[data-theme="yellow-green"] aside,
+body[data-theme="yellow-green"] .sidebar,
+body[data-theme="yellow-green"] header,
+body[data-theme="yellow-green"] .topbar {
+  background: #022c22 !important;
+  background-color: #022c22 !important;
+  color: #fde047 !important;
+  border-color: #facc15 !important;
+}
+body[data-theme="yellow-green"] aside *,
+body[data-theme="yellow-green"] header * {
+  color: #fef08a !important;
 }
 body[data-theme="yellow-green"] .card {
-  background: #ffffff !important;
-  border: 2px solid #16a34a !important;
-  box-shadow: 0 10px 25px rgba(22, 163, 74, 0.12) !important;
+  background: #065f46 !important;
+  background-color: #065f46 !important;
+  color: #fefce8 !important;
+  border: 2px solid #facc15 !important;
+  box-shadow: 0 14px 34px rgba(234, 179, 8, 0.28) !important;
+}
+body[data-theme="yellow-green"] .card h1,
+body[data-theme="yellow-green"] .card h2,
+body[data-theme="yellow-green"] .card h3,
+body[data-theme="yellow-green"] .card label {
+  color: #fde047 !important;
+}
+body[data-theme="yellow-green"] .card .muted,
+body[data-theme="yellow-green"] .card p {
+  color: #ecfccb !important;
+}
+body[data-theme="yellow-green"] input,
+body[data-theme="yellow-green"] select {
+  background: #022c22 !important;
+  color: #fef08a !important;
+  border: 1px solid #facc15 !important;
 }
 body[data-theme="yellow-green"] .btn-primary {
-  background: linear-gradient(135deg, #15803d 0%, #ca8a04 100%) !important;
-  color: #ffffff !important;
+  background: linear-gradient(135deg, #facc15 0%, #16a34a 100%) !important;
+  color: #022c22 !important;
+  font-weight: 800 !important;
   border: none !important;
 }
-body[data-theme="yellow-green"] .sidebar {
+
+
+/* === THEME ENGINE: html[data-theme] hardening (works even if only <html> carries the attribute) === */
+html[data-theme="white-black"],
+html[data-theme="white-black"] body,
+html[data-theme="white-black"] #root,
+html[data-theme="white-black"] .app-shell,
+html[data-theme="white-black"] main,
+html[data-theme="white-black"] .main-content {
+  background: #09090b !important;
+  background-color: #09090b !important;
+  background-image: none !important;
+  color: #ffffff !important;
+}
+html[data-theme="white-black"] aside,
+html[data-theme="white-black"] .sidebar,
+html[data-theme="white-black"] header,
+html[data-theme="white-black"] .topbar {
+  background: #000000 !important;
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border-color: #3f3f46 !important;
+}
+html[data-theme="white-black"] .card {
   background: #ffffff !important;
-  border-right: 2px solid #fde047 !important;
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border: 2px solid #000000 !important;
+}
+
+html[data-theme="red-blue"],
+html[data-theme="red-blue"] body,
+html[data-theme="red-blue"] #root,
+html[data-theme="red-blue"] .app-shell,
+html[data-theme="red-blue"] main,
+html[data-theme="red-blue"] .main-content {
+  background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 50%, #991b1b 100%) !important;
+  background-color: #1e3a8a !important;
+  color: #ffffff !important;
+}
+html[data-theme="red-blue"] aside,
+html[data-theme="red-blue"] .sidebar,
+html[data-theme="red-blue"] header,
+html[data-theme="red-blue"] .topbar {
+  background: #172554 !important;
+  background-color: #172554 !important;
+  color: #ffffff !important;
+  border-color: #ef4444 !important;
+}
+html[data-theme="red-blue"] .card {
+  background: #1e3a8a !important;
+  background-color: #1e3a8a !important;
+  color: #ffffff !important;
+  border: 2px solid #ef4444 !important;
+}
+
+html[data-theme="yellow-green"],
+html[data-theme="yellow-green"] body,
+html[data-theme="yellow-green"] #root,
+html[data-theme="yellow-green"] .app-shell,
+html[data-theme="yellow-green"] main,
+html[data-theme="yellow-green"] .main-content {
+  background: linear-gradient(135deg, #064e3b 0%, #15803d 55%, #ca8a04 100%) !important;
+  background-color: #065f46 !important;
+  color: #fefce8 !important;
+}
+html[data-theme="yellow-green"] aside,
+html[data-theme="yellow-green"] .sidebar,
+html[data-theme="yellow-green"] header,
+html[data-theme="yellow-green"] .topbar {
+  background: #022c22 !important;
+  background-color: #022c22 !important;
+  color: #fde047 !important;
+  border-color: #facc15 !important;
+}
+html[data-theme="yellow-green"] .card {
+  background: #065f46 !important;
+  background-color: #065f46 !important;
+  color: #fefce8 !important;
+  border: 2px solid #facc15 !important;
 }

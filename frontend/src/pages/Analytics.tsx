@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "../api";
+import { api, historyCacheKey } from "../api";
 import type { Dog } from "../api";
 
 export default function Analytics() {
@@ -14,7 +14,9 @@ export default function Analytics() {
       api<any[]>("/api/recordings").catch(() => []),
       api<any[]>("/api/communicate").catch(() => []),
     ]).then(([d, r, c]) => {
-      const localRecs = JSON.parse(localStorage.getItem("cs_saved_history_v1") || "[]");
+      const cached: any[] = JSON.parse(localStorage.getItem(historyCacheKey()) || "[]");
+      // Backend is authoritative; only explicitly tagged offline fallbacks supplement it.
+      const localRecs = cached.filter((x: any) => x?.unsynced_local_fallback === true);
       const seen = new Set<string>();
       const mergedRecs: any[] = [];
       for (const item of [...(r || []), ...localRecs]) {

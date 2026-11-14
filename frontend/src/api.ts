@@ -41,9 +41,24 @@ export function setSession(token: string, user: User) {
   localStorage.setItem(USER, JSON.stringify(user));
 }
 
+/** Per-user browser cache key so accounts on a shared computer never see each other's history. */
+export function historyCacheKey(): string {
+  let id = "anon";
+  try {
+    id = getUser()?.id || "anon";
+  } catch {}
+  return `cs_saved_history_${id}`;
+}
+
 export function clearSession() {
   localStorage.removeItem(TOKEN);
   localStorage.removeItem(USER);
+  // Purge every cached history bucket (all users + legacy unscoped key) on logout.
+  try {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith("cs_saved_history_")) localStorage.removeItem(k);
+    }
+  } catch {}
 }
 export const clearAuth = clearSession;
 

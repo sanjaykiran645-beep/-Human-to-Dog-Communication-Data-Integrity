@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, getToken, getBackendUrl } from "../api";
+import { api, getToken, getBackendUrl, historyCacheKey } from "../api";
 import type { Dog } from "../api";
 
 async function decodeAudioLocally(file: File | Blob, dog?: Dog | null) {
@@ -35,7 +35,11 @@ async function decodeAudioLocally(file: File | Blob, dog?: Dog | null) {
     f0 = Math.round(Math.min(620, Math.max(135, 145 + zcr * (sr * 0.045))));
     onset = Number(Math.min(5.8, Math.max(1.2, (bursts / durationSec) * 0.35 + rms * 9)).toFixed(1));
   } catch {
-    durationSec = Math.max(1.5, Number((file.size / 24000).toFixed(1)));
+    // Never fabricate features from undecodable audio.
+    try {
+      await ctx.close();
+    } catch {}
+    throw new Error("Audio container could not be decoded to PCM waveform. Please upload a valid WAV, MP3, M4A, OGG, or WebM audio file.");
   } finally {
     try {
       await ctx.close();
@@ -80,12 +84,15 @@ async function decodeAudioLocally(file: File | Blob, dog?: Dog | null) {
     acc = 93;
   }
 
+  const safetyGate = f0 >= 400 || vocal === "whine" || vocal === "howl" || durationSec >= 3 || rms >= 0.12 || onset >= 3.5;
+
   return {
     duration_sec: durationSec,
+    unsynced_local_fallback: true,
     dog_profile: {
       name: dog?.name || "Active Companion",
       breed: breedName,
-      intelligence_tier: "Breed-Calibrated Neural Profile",
+      intelligence_tier: "Breed-Calibrated Heuristic Profile",
     },
     analysis: {
       vocalization: vocal,
@@ -94,10 +101,19 @@ async function decodeAudioLocally(file: File | Blob, dog?: Dog | null) {
       behavior: { arousal_label: f0 > 340 || rms > 0.14 ? "High" : "Moderate" },
       scenario: {
         title,
+        hypothesis_label: "Rule-Based Bioacoustic Hypothesis (Unvalidated Without Visual Context)",
         spoken_meaning: spoken,
         why_purpose: why,
         owner_action: action,
         accuracy_pct: acc,
+        heuristic_rule_match_pct: acc,
+        alternatives: [
+          { title: "High-excitement play / barrier frustration", note: "Excited calls share pitch and burst rate with alerting." },
+          { title: "Acute startle, fear, or pain", note: "Fear and pain vocalizations overlap acoustically and cannot be excluded from audio alone." },
+        ],
+        clinical_safety_notice: safetyGate
+          ? "⚠️ Clinical Safety Notice: Acoustic features alone cannot rule out physical pain, internal discomfort, or medical distress. Never ignore persistent whining or sudden vocal changes—consult a licensed veterinarian if accompanied by lethargy, pacing, or guarding posture."
+          : null,
       },
     },
   };
@@ -106,7 +122,8 @@ async function decodeAudioLocally(file: File | Blob, dog?: Dog | null) {
 
 function persistAnalysisLocally(data: any, fname: string) {
   try {
-    const existing: any[] = JSON.parse(localStorage.getItem("cs_saved_history_v1") || "[]");
+    const key = historyCacheKey();
+    const existing: any[] = JSON.parse(localStorage.getItem(key) || "[]");
     const entry = {
       ...data,
       id: data.id || `local_${Date.now()}`,
@@ -114,7 +131,7 @@ function persistAnalysisLocally(data: any, fname: string) {
       created_at: data.created_at || new Date().toISOString(),
     };
     const filtered = existing.filter((x: any) => x.id !== entry.id);
-    localStorage.setItem("cs_saved_history_v1", JSON.stringify([entry, ...filtered].slice(0, 100)));
+    localStorage.setItem(key, JSON.stringify([entry, ...filtered].slice(0, 100)));
   } catch {}
 }
 
@@ -179,13 +196,23 @@ export default function Analyze() {
         });
         window.clearTimeout(timeoutId);
         if (resp.ok) {
+          // Backend SQLite is authoritative: server results are not duplicated into the local cache.
           const serverData = await resp.json();
-          persistAnalysisLocally(serverData, (file as File).name || 'recording.wav');
           setRecResult(serverData);
           return;
         }
-      } catch {
+        if (resp.status >= 400 && resp.status < 500) {
+          // Rejected by the server (e.g. 400/413/422 undecodable or unsafe file): never fabricate a result.
+          let detail = "Audio could not be analyzed.";
+          try {
+            const j = await resp.json();
+            if (j?.detail) detail = String(j.detail);
+          } catch {}
+          throw new Error(detail);
+        }
+      } catch (e: any) {
         window.clearTimeout(timeoutId);
+        if (e?.name !== "AbortError" && e instanceof Error && !(e instanceof TypeError)) throw e;
       }
 
       const localDecoded = await decodeAudioLocally(file, activeDog);
@@ -245,7 +272,8 @@ export default function Analyze() {
   const scenario = analysis?.scenario || analysis?.behavior?.scenario || null;
   const dogProfile = recResult?.dog_profile;
   const vocal = (analysis?.vocalization || "bark").toUpperCase();
-  const accuracyPct = scenario?.accuracy_pct || 95;
+  const accuracyPct = scenario?.heuristic_rule_match_pct ?? scenario?.accuracy_pct ?? 0;
+  const alternatives: { title: string; note?: string }[] = scenario?.alternatives || [];
 
   return (
     <div className="stack-lg" style={{ maxWidth: 940, margin: "0 auto" }}>
@@ -254,7 +282,7 @@ export default function Analyze() {
           <div>
             <h2 style={{ margin: "0 0 4px 0", fontSize: 24 }}>Dog to Human Meaning Decoder</h2>
             <p className="muted" style={{ margin: 0, fontSize: 14 }}>
-              Record live or upload an audio clip to decode what your dog is saying, why they are barking, and model accuracy.
+              Record live or upload an audio clip to get a rule-based bioacoustic hypothesis of what your dog may be expressing. Results are heuristic and unvalidated without visual context.
             </p>
           </div>
 
@@ -363,7 +391,7 @@ export default function Analyze() {
                   fontWeight: 700,
                 }}
               >
-                {accuracyPct}% MODEL ACCURACY
+                HEURISTIC RULE MATCH: {accuracyPct}%
               </span>
               <span className="badge" style={{ fontSize: 13, fontWeight: 700 }}>
                 VOCALIZATION: {vocal}
@@ -387,12 +415,34 @@ export default function Analyze() {
             }}
           >
             <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#f5d0c5", fontWeight: 700 }}>
-              Decoded Meaning (Dog to Human Translation)
+              Rule-Based Bioacoustic Hypothesis (Unvalidated Without Visual Context)
             </div>
             <div style={{ fontSize: 22, fontWeight: 700, marginTop: 8, lineHeight: 1.4 }}>
               {scenario?.spoken_meaning}
             </div>
           </div>
+
+          {scenario?.clinical_safety_notice && (
+            <div className="alert alert-error" style={{ fontWeight: 600, lineHeight: 1.5 }}>
+              {scenario.clinical_safety_notice}
+            </div>
+          )}
+
+          {alternatives.length > 0 && (
+            <div style={{ padding: 16, borderRadius: 14, background: "rgba(0,0,0,0.03)" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>
+                Alternative Explanations With Overlapping Acoustics
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5, lineHeight: 1.55 }}>
+                {alternatives.map((a, i) => (
+                  <li key={i}>
+                    <strong>{a.title}</strong>
+                    {a.note ? ` — ${a.note}` : ""}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="grid-2" style={{ gap: 16 }}>
             <div style={{ padding: 18, borderRadius: 14, background: "rgba(0,0,0,0.03)" }}>

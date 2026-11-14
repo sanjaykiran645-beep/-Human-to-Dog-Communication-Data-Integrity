@@ -1,5 +1,5 @@
-"""
-Engine B — Parametric DSP Fallback & WAV Validation Utilities.
+﻿"""
+Engine B â€” Parametric DSP Fallback & WAV Validation Utilities.
 
 NOTE: The primary Engine B generation strategy is now Reference-Driven Generation
 (`reference_engine.py`: Method A `reference_direct` and Method B `reference_variation`).
@@ -534,6 +534,54 @@ def synthesize(
     return y_f32, params
 
 
+_SHORT_BURST = {"yip": 0.095, "bark": 0.115, "yelp": 0.10}
+_MID_BURST = {"grunt": 0.20, "soft_attention": 0.21, "groan": 0.24}
+_LONG_BURST = {"growl": 0.52}
+_PINK_B = [0.049922035, -0.095993537, 0.050612699, -0.004408786]
+_PINK_A = [1.0, -2.494956002, 2.017265875, -0.522189400]
+
+
+def _burst_plan(voc: str, sr: int, n_samples: int) -> list[tuple[int, int]]:
+    """Return (start, length) of discrete percussive bursts separated by silence gaps."""
+    if voc in _SHORT_BURST:
+        dur, gap = _SHORT_BURST[voc], 0.075
+    elif voc in _MID_BURST:
+        dur, gap = _MID_BURST[voc], 0.09
+    elif voc in _LONG_BURST:
+        dur, gap = _LONG_BURST[voc], 0.12
+    else:  # whine / howl / whimper / cry / pant: multi-burst contours
+        dur, gap = (0.30 if voc in {"whine", "howl"} else 0.16), 0.055
+    blen = max(16, min(n_samples, int(round(dur * sr))))
+    glen = int(round(gap * sr))
+    plan: list[tuple[int, int]] = []
+    pos = 0
+    while pos + blen <= n_samples:
+        plan.append((pos, blen))
+        pos += blen + glen
+    if not plan:
+        plan.append((0, blen))
+    return plan
+
+
+def _rosenberg_pulse(p: np.ndarray, open_frac: float = 0.58, close_frac: float = 0.14) -> np.ndarray:
+    """Asymmetric Rosenberg glottal pulse: slow raised-cosine opening, rapid closure."""
+    g = np.zeros_like(p)
+    o = p < open_frac
+    g[o] = 0.5 * (1.0 - np.cos(np.pi * p[o] / open_frac))
+    c = (p >= open_frac) & (p < open_frac + close_frac)
+    g[c] = np.cos(0.5 * np.pi * (p[c] - open_frac) / close_frac)
+    return g
+
+
+def _two_pole_resonator(x: np.ndarray, sr: int, freq: float, bw: float) -> np.ndarray:
+    r = float(np.exp(-np.pi * bw / sr))
+    # A pole-only resonator's magnitude peak sits slightly below its pole angle; place the pole so the
+    # |H| peak lands exactly on the target formant: cos(theta) = cos(w_peak) * 2r / (1 + r^2).
+    w_peak = 2.0 * np.pi * freq / sr
+    theta = float(np.arccos(np.clip(np.cos(w_peak) * 2.0 * r / (1.0 + r * r), -1.0, 1.0)))
+    return lfilter([1.0 - r], [1.0, -2.0 * r * np.cos(theta), r * r], x)
+
+
 def _synthesize_single_event(
     n_samples: int,
     sr: int,
@@ -541,86 +589,51 @@ def _synthesize_single_event(
     rng: np.random.Generator,
     event_idx: int = 0,
 ) -> np.ndarray:
-    t = np.arange(n_samples, dtype=np.float64) / sr
-    u = np.linspace(0.0, 1.0, n_samples)
-
+    """Percussive mammalian vocalization: Rosenberg glottal pulse + sub-harmonic + pink
+    aspiration, filtered through pharyngeal (F1) and oral (F2) 2-pole resonators."""
+    out = np.zeros(n_samples, dtype=np.float64)
+    voc = str(params["vocalization"])
     f0_start = float(params["f0_base_hz"]) * (1.0 + 0.03 * (event_idx % 3))
     f0_end = float(params["f0_end_hz"]) * (1.0 + 0.02 * (event_idx % 2))
-    traj = params["f0_trajectory"]
+    # Weight/breed proxy: lower fundamentals imply a larger vocal tract (lower formants)
+    tract_scale = float(np.clip((float(params["f0_base_hz"]) / 360.0) ** 0.25, 0.80, 1.25))
+    f1 = 620.0 * tract_scale
+    f2 = 1450.0 * tract_scale
+    noise_ratio = float(np.clip(float(params["noise_ratio"]) + 0.08, 0.05, 0.30))
 
-    if traj == "stepped_bursts":
-        arch = np.sin(np.pi * np.clip(u * 1.15, 0.0, 1.0))
-        f0 = f0_start + (f0_end - f0_start) * 0.40 * arch
-    elif traj == "rising_arch":
-        f0 = f0_start + (f0_end - f0_start) * (0.70 * u + 0.30 * np.sin(np.pi * u))
-    elif traj == "sustained_arch":
-        ramp = np.sin(np.pi * u) ** 0.65
-        f0 = f0_start + (f0_end - f0_start) * ramp
-    elif traj == "low_modulated":
-        f0 = f0_start + (f0_end - f0_start) * 0.5 * (1.0 + np.sin(2.0 * np.pi * 2.5 * t))
-    elif traj == "rapid_arch":
-        f0 = f0_start + (f0_end - f0_start) * np.sin(np.pi * u)
-    elif traj == "falling_pulse":
-        f0 = f0_start + (f0_end - f0_start) * u
-    else:
-        f0 = f0_start + (f0_end - f0_start) * (0.5 * u + 0.5 * np.sin(np.pi * u))
+    for b_idx, (start, blen) in enumerate(_burst_plan(voc, sr, n_samples)):
+        u = np.linspace(0.0, 1.0, blen)
+        t = np.arange(blen) / sr
+        # Rapid pitch rise then fall across each burst; successive bursts step slightly
+        step = 1.0 + 0.035 * ((b_idx % 3) - 1)
+        arch = np.sin(np.pi * np.clip(u * 1.1, 0.0, 1.0))
+        f0 = (f0_start + (f0_end - f0_start) * u + 0.18 * f0_start * arch) * step
+        f0 = f0 * (1.0 + 0.02 * rng.normal(0.0, 1.0, blen).cumsum() / np.sqrt(np.arange(1, blen + 1)))
+        f0 = np.clip(f0, 45.0, sr * 0.2)
 
-    fm_rate = float(params["fm_rate_hz"])
-    fm_depth = float(params["fm_depth_hz"])
-    if fm_rate > 0 and fm_depth > 0:
-        f0 = f0 + fm_depth * np.sin(2.0 * np.pi * fm_rate * t)
-    f0 = np.clip(f0, 45.0, sr * 0.44)
+        phase = np.cumsum(f0 / sr)
+        main = _rosenberg_pulse(phase % 1.0)
+        sub = _rosenberg_pulse((0.5 * phase) % 1.0)  # half-frequency vocal fold roughness
+        excit = main + 0.45 * sub
+        excit = excit - float(np.mean(excit))
 
-    phase = 2.0 * np.pi * np.cumsum(f0 / sr)
-    n_harm = int(params["harmonics"])
-    rolloff_db = float(params["harmonic_rolloff_db"])
-    nyq = sr / 2.0
-    glottal = np.zeros(n_samples, dtype=np.float64)
-    mean_f0 = float(np.mean(f0))
-    for k in range(1, n_harm + 1):
-        if k * mean_f0 >= nyq * 0.88:
-            break
-        amp = 10.0 ** (-(rolloff_db * np.log2(k)) / 20.0)
-        glottal += amp * np.sin(k * phase + 0.12 * k)
+        pink = lfilter(_PINK_B, _PINK_A, rng.normal(0.0, 1.0, blen))
+        pink = pink / (float(np.std(pink)) + 1e-12)
+        excit = excit / (float(np.std(excit)) + 1e-12)
+        src = (1.0 - noise_ratio) * excit + noise_ratio * pink * (1.0 + 1.5 * np.exp(-t / 0.02))
 
-    if params["vocalization"] in {"growl", "grunt", "groan"} and mean_f0 * 0.5 >= 40.0:
-        glottal += 0.38 * np.sin(0.5 * phase)
+        y = _two_pole_resonator(src, sr, f1, 170.0)
+        y = _two_pole_resonator(y, sr, f2, 260.0) + 0.35 * _two_pole_resonator(src, sr, f1, 170.0)
+        y = y / (float(np.max(np.abs(y))) + 1e-12)
+        y = np.tanh(1.8 * y)
 
-    glottal = glottal / (float(np.std(glottal)) + 1e-12)
-
-    # Low-level aspiration noise gated gently around the onset/attack rather than cracking across the clip
-    nse = rng.normal(0.0, 1.0, size=n_samples)
-    low_hz, high_hz = params["noise_band_hz"]
-    w_low = float(np.clip(low_hz / nyq, 0.01, 0.75))
-    w_high = float(np.clip(high_hz / nyq, w_low + 0.04, 0.88))
-    b, a = butter(2, [w_low, w_high], btype="band")
-    nse = lfilter(b, a, nse)
-    nse = nse / (float(np.std(nse)) + 1e-12)
-    onset_gate = np.exp(-np.linspace(0.0, 3.2, n_samples))
-    nse = nse * onset_gate
-
-    noise_ratio = float(params["noise_ratio"])
-    src = (1.0 - noise_ratio) * glottal + noise_ratio * nse
-
-    # Parallel vocal-tract formant resonators (eliminates series-cascaded metallic pole ringing)
-    y = _parallel_formants(src, sr, params["formants_hz"], params["bandwidths_hz"])
-
-    am_rate = float(params["am_rate_hz"])
-    am_depth = float(params["am_depth"])
-    if am_rate > 0 and am_depth > 0:
-        am = (1.0 - am_depth) + am_depth * (0.5 + 0.5 * np.sin(2.0 * np.pi * am_rate * t))
-        y = y * am
-
-    adsr = params["adsr"]
-    env = _adsr_envelope(
-        n_samples,
-        sr,
-        attack_sec=float(adsr["attack_sec"]),
-        decay_sec=float(adsr["decay_sec"]),
-        sustain_level=float(adsr["sustain_level"]),
-        release_sec=float(adsr["release_sec"]),
-    )
-    return y * env
+        att = max(4, int(0.006 * sr))
+        env = np.exp(-3.2 * u) * (0.35 + 0.65 * (1.0 - u))
+        env[:att] *= 0.5 * (1.0 - np.cos(np.pi * np.arange(att) / att))
+        tail = max(4, int(0.008 * sr))
+        env[-tail:] *= np.linspace(1.0, 0.0, tail)
+        out[start : start + blen] += y * env
+    return out
 
 
 def _parallel_formants(x: np.ndarray, sr: int, formants: list[float], bws: list[float]) -> np.ndarray:
@@ -731,4 +744,128 @@ def validate_generated_wav(path: Path, expected_sr: int = TARGET_SR) -> dict[str
         "file_size_bytes": len(raw_bytes),
         "sha256": sha256,
         "subtype": str(info.subtype),
+    }
+
+
+def _spectral_envelope_and_formants(wave: np.ndarray, sr: int) -> tuple[np.ndarray, float, float]:
+    """Compute smoothed log-spectral envelope (<=4000 Hz) and F1/F2 peaks."""
+    n_fft = 4096
+    x = np.asarray(wave, dtype=np.float64).ravel()
+    if x.size == 0 or float(np.max(np.abs(x))) < 1e-10:
+        freqs = np.fft.rfftfreq(n_fft, d=1.0 / max(int(sr), 1))
+        bins = (freqs >= 60.0) & (freqs <= 4000.0)
+        return np.full(int(np.sum(bins)), 1e-6, dtype=np.float64), 0.0, 0.0
+
+    # Peak-normalize so spectral comparison captures shape invariant to gain
+    x = x / (float(np.max(np.abs(x))) + 1e-12)
+    win = np.hanning(min(len(x), n_fft))
+    if len(x) >= n_fft:
+        # Average power spectra over overlapping segments when longer than n_fft
+        hop = n_fft // 2
+        mags = []
+        for start in range(0, len(x) - n_fft + 1, hop):
+            seg = x[start : start + n_fft] * np.hanning(n_fft)
+            mags.append(np.abs(np.fft.rfft(seg, n=n_fft)))
+        mag = np.mean(mags, axis=0) if mags else np.abs(np.fft.rfft(x[:n_fft], n=n_fft))
+    else:
+        seg = x * win
+        mag = np.abs(np.fft.rfft(seg, n=n_fft))
+
+    freqs = np.fft.rfftfreq(n_fft, d=1.0 / max(int(sr), 1))
+    band_mask = (freqs >= 60.0) & (freqs <= 4000.0)
+    band_freqs = freqs[band_mask]
+    log_mag = np.log10(mag[band_mask] + 1e-7)
+
+    # Moving-average spectral smoothing to extract vocal-tract formant envelope
+    kernel_size = 11
+    kernel = np.ones(kernel_size, dtype=np.float64) / kernel_size
+    pad = kernel_size // 2
+    padded = np.pad(log_mag, (pad, pad), mode="edge")
+    smoothed = np.convolve(padded, kernel, mode="valid")
+    env = smoothed - float(np.min(smoothed)) + 1e-6
+
+    f1_mask = (band_freqs >= 250.0) & (band_freqs <= 1050.0)
+    f2_mask = (band_freqs >= 1050.0) & (band_freqs <= 2800.0)
+    f1_hz = float(band_freqs[f1_mask][int(np.argmax(smoothed[f1_mask]))]) if np.any(f1_mask) else 0.0
+    f2_hz = float(band_freqs[f2_mask][int(np.argmax(smoothed[f2_mask]))]) if np.any(f2_mask) else 0.0
+    return env, f1_hz, f2_hz
+
+
+def _estimate_burst_rate(wave: np.ndarray, sr: int) -> tuple[int, float]:
+    """Estimate discrete vocal burst count and bursts-per-second cadence."""
+    x = np.asarray(wave, dtype=np.float64).ravel()
+    sr_safe = max(int(sr), 1)
+    dur = max(0.2, float(x.size) / sr_safe)
+    if x.size == 0 or float(np.max(np.abs(x))) < 1e-10:
+        return 0, 0.0
+
+    frame_len = max(1, int(0.020 * sr_safe))
+    hop = max(1, frame_len // 2)
+    if x.size < frame_len:
+        return 1, round(1.0 / dur, 4)
+
+    rms_vals = [
+        float(np.sqrt(np.mean(x[i : i + frame_len] ** 2)))
+        for i in range(0, x.size - frame_len + 1, hop)
+    ]
+    rms = np.asarray(rms_vals, dtype=np.float64)
+    thresh = max(float(np.mean(rms)) * 1.25, float(np.max(rms)) * 0.18, 0.01)
+    active = rms >= thresh
+    min_gap_frames = max(1, int(0.050 / (hop / sr_safe)))
+
+    burst_count = 0
+    last_onset = -min_gap_frames - 1
+    for idx in range(len(active)):
+        if active[idx] and (idx == 0 or not active[idx - 1]):
+            if idx - last_onset >= min_gap_frames:
+                burst_count += 1
+                last_onset = idx
+    if burst_count == 0 and float(np.max(rms)) >= 0.01:
+        burst_count = 1
+
+    return burst_count, float(burst_count) / dur
+
+
+def compute_acoustic_similarity_to_reference(
+    synth_wave: np.ndarray,
+    ref_wave: np.ndarray,
+    sr: int = TARGET_SR,
+) -> dict[str, Any]:
+    """Validate synthesized vocalization against a reference waveform via spectral envelope, formants, and cadence."""
+    env_synth, synth_f1, synth_f2 = _spectral_envelope_and_formants(synth_wave, sr)
+    env_ref, ref_f1, ref_f2 = _spectral_envelope_and_formants(ref_wave, sr)
+
+    min_len = min(len(env_synth), len(env_ref))
+    if min_len == 0:
+        cos_sim = 0.0
+    else:
+        es = env_synth[:min_len]
+        er = env_ref[:min_len]
+        denom = float(np.linalg.norm(es) * np.linalg.norm(er))
+        cos_sim = float(np.clip(np.dot(es, er) / (denom + 1e-12), 0.0, 1.0)) if denom > 0 else 0.0
+
+    delta_f1_hz = round(float(abs(synth_f1 - ref_f1)), 2)
+    delta_f2_hz = round(float(abs(synth_f2 - ref_f2)), 2)
+
+    synth_bursts, synth_rate = _estimate_burst_rate(synth_wave, sr)
+    ref_bursts, ref_rate = _estimate_burst_rate(ref_wave, sr)
+    cadence_match = float(
+        np.clip(np.exp(-abs(synth_rate - ref_rate) / max(1.5, ref_rate, synth_rate)), 0.0, 1.0)
+    )
+
+    return {
+        "log_spectral_cosine_similarity": round(cos_sim, 4),
+        "synth_formants_hz": [round(synth_f1, 1), round(synth_f2, 1)],
+        "ref_formants_hz": [round(ref_f1, 1), round(ref_f2, 1)],
+        "delta_f1_hz": delta_f1_hz,
+        "delta_f2_hz": delta_f2_hz,
+        "formant_peak_deviation_hz": {
+            "delta_f1_hz": delta_f1_hz,
+            "delta_f2_hz": delta_f2_hz,
+        },
+        "synth_burst_count": int(synth_bursts),
+        "ref_burst_count": int(ref_bursts),
+        "synth_burst_rate_hz": round(synth_rate, 2),
+        "ref_burst_rate_hz": round(ref_rate, 2),
+        "burst_cadence_match": round(cadence_match, 4),
     }

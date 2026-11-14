@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections import Counter
 
+import numpy as np
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -12,7 +13,9 @@ from sqlalchemy.orm import Session
 from .. import BEHAVIOR_MODEL_VERSION, MODEL_VERSION, SYNTH_MODEL_VERSION, models
 from ..db import get_db
 from ..deps import get_current_user
+from ..ml.evaluate import CANONICAL_6_CLASSES, evaluate_dog_independent_generalization
 from ..services import audit, storage
+from ..services.breed_intelligence import resolve_breed_intelligence
 
 router = APIRouter(prefix="/api", tags=["analytics"])
 
@@ -73,6 +76,120 @@ def summary(user: models.User = Depends(get_current_user), db: Session = Depends
             "synth": SYNTH_MODEL_VERSION,
             "accuracy_target_met": False,
         },
+    }
+
+
+@router.get("/analytics/validation-card")
+def validation_card(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    """Expose 6-class dataset coverage, unique dog ratio, individual dog F0 baselines, and calibration metrics."""
+    dogs = list(db.scalars(select(models.Dog).where(models.Dog.user_id == user.id)))
+    recs = list(db.scalars(select(models.Recording).where(models.Recording.user_id == user.id)))
+    analyses = list(db.scalars(select(models.Analysis).where(models.Analysis.user_id == user.id)))
+
+    class_counts: dict[str, int] = {c: 0 for c in CANONICAL_6_CLASSES}
+    for a in analyses:
+        lbl = "unknown" if a.abstained else str(a.vocalization or "").strip().lower()
+        if lbl not in {"bark", "growl", "whine", "howl", "yip"}:
+            lbl = "unknown"
+        class_counts[lbl] += 1
+
+    unique_dog_ids_recorded = len({r.dog_id for r in recs if r.dog_id})
+    total_recordings = len(recs)
+    unique_dogs_to_recordings_ratio = (
+        round(unique_dog_ids_recorded / total_recordings, 4) if total_recordings > 0 else 0.0
+    )
+
+    dog_baselines: list[dict] = []
+    for dog in dogs:
+        f0s: list[float] = []
+        for a in analyses:
+            if a.dog_id != dog.id:
+                continue
+            try:
+                feats = json.loads(a.features_json or "{}")
+                val = feats.get("f0_mean")
+                if val is not None and np.isfinite(float(val)) and float(val) > 0:
+                    f0s.append(float(val))
+            except Exception:
+                pass
+
+        intel = resolve_breed_intelligence(dog.breed, dog.weight_kg, dog.age_years, sex=dog.sex)
+        prior_f0_range = list(intel["vocalization_profile"]["f0_range_hz"])
+        if len(f0s) >= 1:
+            personal_mean_f0_hz = round(float(np.mean(f0s)), 1)
+            personal_std_f0_hz = round(float(np.std(f0s, ddof=0)), 1) if len(f0s) >= 2 else 25.0
+        else:
+            personal_mean_f0_hz = round((prior_f0_range[0] + prior_f0_range[1]) / 2.0, 1)
+            personal_std_f0_hz = round((prior_f0_range[1] - prior_f0_range[0]) / 2.0, 1)
+
+        dog_baselines.append(
+            {
+                "dog_id": dog.id,
+                "dog_name": dog.name,
+                "breed": dog.breed or "Mixed",
+                "sex": dog.sex or "unknown",
+                "sample_count": len(f0s),
+                "adaptation_active": len(f0s) >= 1,
+                "adaptation_mode": (
+                    "individual_dog_historical_baseline" if len(f0s) >= 1 else "breed_sex_allometric_prior"
+                ),
+                "personal_mean_f0_hz": personal_mean_f0_hz,
+                "personal_std_f0_hz": personal_std_f0_hz,
+                "personal_f0_band_hz": [
+                    round(personal_mean_f0_hz - personal_std_f0_hz, 1),
+                    round(personal_mean_f0_hz + personal_std_f0_hz, 1),
+                ],
+                "static_breed_f0_range_hz": prior_f0_range,
+            }
+        )
+
+    rec_by_id = {r.id: r for r in recs}
+    eval_records: list[dict] = []
+    for a in analyses:
+        r = rec_by_id.get(a.recording_id)
+        q: dict = {}
+        if r and r.quality_json:
+            try:
+                q = json.loads(r.quality_json)
+            except Exception:
+                q = {}
+        cons_lbl = q.get("consensus_label")
+        anns = q.get("independent_annotations") or []
+        human_lbl = (
+            cons_lbl
+            if cons_lbl and cons_lbl != "disputed"
+            else (anns[0].get("vocalization_label") if anns else None)
+        )
+        resolved_path = ""
+        if r and r.processed_path:
+            try:
+                resolved_path = str(storage.resolve_owned(user.id, r.processed_path))
+            except Exception:
+                resolved_path = ""
+        eval_records.append(
+            {
+                "dog_id": a.dog_id or (r.dog_id if r else None) or f"rec_{a.recording_id}",
+                "label": human_lbl or a.vocalization,
+                "pred_label": a.vocalization,
+                "confidence": a.confidence,
+                "abstained": a.abstained,
+                "path": resolved_path,
+                "is_fixture": human_lbl is None,
+            }
+        )
+
+    generalization = evaluate_dog_independent_generalization(eval_records)
+    return {
+        "classes": list(CANONICAL_6_CLASSES),
+        "class_counts": class_counts,
+        "total_recordings": total_recordings,
+        "total_analyses": len(analyses),
+        "unique_dog_count": unique_dog_ids_recorded,
+        "unique_dog_ids_recorded": unique_dog_ids_recorded,
+        "total_dog_profiles": len(dogs),
+        "unique_dogs_to_recordings_ratio": unique_dogs_to_recordings_ratio,
+        "dog_baselines": dog_baselines,
+        "generalization_calibration": generalization,
     }
 
 

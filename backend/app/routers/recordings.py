@@ -10,6 +10,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -95,17 +96,57 @@ def _serialize_analysis(a: models.Analysis) -> dict:
     }
 
 
+def _dog_personal_f0_baseline(db: Session | None, dog: models.Dog | None) -> tuple[float | None, float | None]:
+    """Compute an individual dog's historical mean and std F0 (Hz) across saved analyses."""
+    if db is None or dog is None:
+        return None, None
+    import math
+
+    rows = list(db.scalars(select(models.Analysis).where(models.Analysis.dog_id == dog.id)))
+    f0s: list[float] = []
+    for a in rows:
+        try:
+            feats = json.loads(a.features_json or "{}")
+            val = feats.get("f0_mean")
+            if val is not None:
+                fv = float(val)
+                if math.isfinite(fv) and fv > 0:
+                    f0s.append(fv)
+        except Exception:
+            pass
+    if not f0s:
+        return None, None
+    mean_f0 = sum(f0s) / len(f0s)
+    std_f0 = math.sqrt(sum((x - mean_f0) ** 2 for x in f0s) / len(f0s)) if len(f0s) >= 2 else 25.0
+    return round(mean_f0, 1), round(std_f0, 1)
+
+
 def run_analysis_pipeline(
     y,
     sr: int,
     quality: dict,
     dog: models.Dog | None,
+    db: Session | None = None,
 ) -> dict:
     features = extract_features(y, sr)
     classification = predict_vocalization(features, quality)
     dog_dict = None
     if dog is not None:
-        dog_dict = {"weight_kg": dog.weight_kg, "breed": dog.breed, "name": dog.name, "breed_intelligence": resolve_breed_intelligence(dog.breed, dog.weight_kg, dog.age_years)}
+        personal_mean_f0, personal_std_f0 = _dog_personal_f0_baseline(db, dog)
+        dog_dict = {
+            "weight_kg": dog.weight_kg,
+            "breed": dog.breed,
+            "sex": dog.sex,
+            "name": dog.name,
+            "breed_intelligence": resolve_breed_intelligence(
+                dog.breed,
+                dog.weight_kg,
+                dog.age_years,
+                sex=dog.sex,
+            ),
+            "personal_f0_mean_hz": personal_mean_f0,
+            "personal_f0_std_hz": personal_std_f0,
+        }
     behavior = estimate_behavior(features, classification, dog_dict)
     explanation = explain(features, quality, classification, behavior)
     return {
@@ -162,7 +203,7 @@ def _analyze_impl(upload: UploadFile, dog_id: str | None, source: str, user: mod
     quality = meta["quality"]
     try:
         write_plots(y, sr, wave_path, spec_path)
-        result = run_analysis_pipeline(y, sr, quality, dog)
+        result = run_analysis_pipeline(y, sr, quality, dog, db=db)
     except Exception as exc:
         storage.delete_recording_tree(user.id, rec_id)
         raise HTTPException(status_code=500, detail="Analysis failed. The recording was not saved.") from exc
@@ -246,6 +287,126 @@ def list_recordings(
                 }
         out.append(rec_dict)
     return out
+
+
+class AnnotationIn(BaseModel):
+    reviewer_id: str
+    vocalization_label: str
+    context_label: str = ""
+    notes: str = ""
+
+
+def _compute_cohens_kappa_across_recordings(recs: list[models.Recording]) -> dict:
+    """Compute observed agreement, chance agreement, and Cohen's kappa across dual-annotated recordings."""
+    pairs: list[tuple[str, str]] = []
+    for r in recs:
+        try:
+            q = json.loads(r.quality_json or "{}")
+        except Exception:
+            q = {}
+        raw_anns = q.get("independent_annotations") or []
+        seen_reviewers: set[str] = set()
+        distinct: list[str] = []
+        for a in raw_anns:
+            rid = str(a.get("reviewer_id") or "").strip()
+            lbl = str(a.get("vocalization_label") or "").strip().lower()
+            if rid and lbl and rid not in seen_reviewers:
+                seen_reviewers.add(rid)
+                distinct.append(lbl)
+        if len(distinct) >= 2:
+            pairs.append((distinct[0], distinct[1]))
+
+    n = len(pairs)
+    if n == 0:
+        return {
+            "total_dual_annotated": 0,
+            "observed_agreement": 0.0,
+            "expected_agreement": 0.0,
+            "cohens_kappa": 0.0,
+            "consensus_status": "insufficient_dual_annotations",
+        }
+
+    p_o = sum(1 for y1, y2 in pairs if y1 == y2) / n
+    labels = {y for pair in pairs for y in pair}
+    p_e = sum(
+        (sum(1 for y1, _ in pairs if y1 == c) / n)
+        * (sum(1 for _, y2 in pairs if y2 == c) / n)
+        for c in labels
+    )
+    if 1.0 - p_e < 1e-9:
+        kappa = 1.0 if p_o >= 1.0 - 1e-9 else 0.0
+    else:
+        kappa = (p_o - p_e) / (1.0 - p_e)
+
+    if kappa >= 0.80:
+        consensus_status = "strong_consensus"
+    elif kappa >= 0.60:
+        consensus_status = "moderate_consensus"
+    else:
+        consensus_status = "weak_or_divergent"
+
+    return {
+        "total_dual_annotated": n,
+        "observed_agreement": round(p_o, 4),
+        "expected_agreement": round(p_e, 4),
+        "cohens_kappa": round(kappa, 4),
+        "consensus_status": consensus_status,
+    }
+
+
+@router.get("/recordings/annotations/consensus")
+def get_annotations_consensus(
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    recs = list(db.scalars(select(models.Recording).where(models.Recording.user_id == user.id)))
+    return _compute_cohens_kappa_across_recordings(recs)
+
+
+@router.post("/recordings/{recording_id}/annotations")
+def add_recording_annotation(
+    recording_id: str,
+    payload: AnnotationIn,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    rec = _recording_owned(db, user, recording_id)
+    reviewer_id = payload.reviewer_id.strip()
+    vocal_label = payload.vocalization_label.strip().lower()
+    if not reviewer_id or not vocal_label:
+        raise HTTPException(status_code=400, detail="reviewer_id and vocalization_label are required.")
+
+    q = json.loads(rec.quality_json or "{}")
+    anns: list[dict] = list(q.get("independent_annotations") or [])
+    entry = {
+        "reviewer_id": reviewer_id,
+        "vocalization_label": vocal_label,
+        "context_label": payload.context_label.strip().lower(),
+        "notes": payload.notes.strip(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    anns = [a for a in anns if a.get("reviewer_id") != reviewer_id] + [entry]
+    q["independent_annotations"] = anns
+    if len(anns) >= 2:
+        labels = [a["vocalization_label"] for a in anns]
+        label_pairs = [(labels[i], labels[j]) for i in range(len(labels)) for j in range(i + 1, len(labels))]
+        pairwise_agree = sum(1 for a, b in label_pairs if a == b) / len(label_pairs)
+        q["pairwise_agreement"] = round(pairwise_agree, 4)
+        q["consensus_label"] = labels[0] if pairwise_agree == 1.0 else "disputed"
+
+    rec.quality_json = json.dumps(q)
+    db.add(rec)
+    db.commit()
+
+    all_recs = list(db.scalars(select(models.Recording).where(models.Recording.user_id == user.id)))
+    consensus = _compute_cohens_kappa_across_recordings(all_recs)
+    return {
+        "recording_id": rec.id,
+        "annotations": anns,
+        "pairwise_agreement": q.get("pairwise_agreement"),
+        "consensus_label": q.get("consensus_label"),
+        "corpus_consensus": consensus,
+    }
 
 
 @router.get("/recordings/{recording_id}")
@@ -385,6 +546,85 @@ def _validate_audio_magic_bytes(data: bytes) -> bool:
     return True  # Allow raw PCM streams while stripping non-audio scripts
 
 
+def _compute_real_snr_and_hnr(arr, sr: int) -> tuple[float, float, float]:
+    """Compute empirical frame-percentile SNR (dB), autocorrelation HNR (dB), and clipping ratio from PCM."""
+    import numpy as np
+
+    if arr.size < 32:
+        return 12.0, 6.0, 0.0
+    x = np.asarray(arr, dtype=np.float64)
+    clipping_ratio = round(float(np.mean(np.abs(x) >= 0.99)), 4)
+
+    # Frame RMS (25 ms frames, 12.5 ms hop)
+    frame_len = max(32, int(0.025 * sr))
+    hop = max(16, frame_len // 2)
+    if x.size >= frame_len:
+        n_frames = 1 + (x.size - frame_len) // hop
+        frames = np.lib.stride_tricks.as_strided(
+            x,
+            shape=(n_frames, frame_len),
+            strides=(x.strides[0] * hop, x.strides[0]),
+        )
+        frame_rms = np.sqrt(np.mean(frames ** 2, axis=1))
+        p90 = float(np.percentile(frame_rms, 90))
+        p10 = float(np.percentile(frame_rms, 10))
+    else:
+        rms_all = float(np.sqrt(np.mean(x ** 2)))
+        p90, p10 = rms_all, rms_all * 0.25
+    snr_db = round(float(20.0 * np.log10((p90 + 1e-7) / (p10 + 1e-7))), 1)
+
+    # Normalized autocorrelation peak r_max in lag range [sr/980, sr/80]
+    seg = x[: min(x.size, int(sr * 1.5))]
+    seg = seg - float(np.mean(seg))
+    energy = float(np.dot(seg, seg))
+    min_lag = max(1, int(sr / 980))
+    max_lag = min(seg.size - 1, max(min_lag + 1, int(sr / 80)))
+    if energy > 1e-12 and max_lag > min_lag:
+        n_fft = 1 << (2 * seg.size - 1).bit_length()
+        spec = np.fft.rfft(seg, n=n_fft)
+        acf = np.fft.irfft(spec * np.conj(spec), n=n_fft)[: seg.size] / energy
+        r_max = float(np.max(acf[min_lag : max_lag + 1]))
+        r_max = float(np.clip(r_max, 0.05, 0.99))
+    else:
+        r_max = 0.5
+    hnr_db = round(float(10.0 * np.log10(max(r_max, 0.05) / max(1.0 - r_max, 0.01))), 1)
+    return snr_db, hnr_db, clipping_ratio
+
+
+def _extract_quick_pcm_features(arr, sr: int) -> tuple[dict, float, float, float, float]:
+    """Extract in-memory FFT spectral features, duration, empirical SNR/HNR, and clipping ratio."""
+    import numpy as np
+
+    duration_sec = round(max(0.8, len(arr) / float(sr)), 2)
+    rms = float(np.sqrt(np.mean(arr ** 2))) if len(arr) else 0.14
+    win = arr[: min(len(arr), sr * 3)]
+    spec = np.abs(np.fft.rfft(win))
+    freqs = np.fft.rfftfreq(len(win), 1.0 / sr)
+    band_mask = (freqs >= 95.0) & (freqs <= 980.0)
+    if np.any(band_mask) and np.sum(spec[band_mask]) > 0:
+        dom_f0 = float(freqs[band_mask][np.argmax(spec[band_mask])])
+        centroid = float(np.sum(freqs * spec) / (np.sum(spec) + 1e-9))
+    else:
+        dom_f0 = 330.0
+        centroid = 1420.0
+    env = np.abs(arr)
+    thr = max(0.08, float(np.mean(env) * 1.65))
+    crossings = int(np.sum((env[1:] > thr) & (env[:-1] <= thr)))
+    onset_rate = float(np.clip(crossings / max(duration_sec, 0.8), 1.1, 6.2))
+    snr_db, hnr_db, clipping_ratio = _compute_real_snr_and_hnr(arr, sr)
+    features = {
+        "f0_mean": round(dom_f0, 1),
+        "f0_cv": 0.16,
+        "rms": round(max(0.08, rms), 3),
+        "onset_rate": round(onset_rate, 2),
+        "spectral_centroid": round(centroid, 1),
+        "hnr": hnr_db,
+        "snr_db": snr_db,
+        "duration": duration_sec,
+    }
+    return features, duration_sec, snr_db, hnr_db, clipping_ratio
+
+
 @router.post("/recordings/quick-analyze")
 def quick_analyze_recording(
     request_file: UploadFile = File(..., alias="file"),
@@ -409,12 +649,17 @@ def quick_analyze_recording(
     if not _validate_audio_magic_bytes(raw_bytes) or raw_bytes.startswith(b"MZ") or raw_bytes.startswith(b"#!/") or b"<script" in raw_bytes[:512].lower():
         raise HTTPException(status_code=400, detail="Invalid audio file format rejected by security filter.")
 
-    intel = resolve_breed_intelligence(dog.breed if dog else None, dog.weight_kg if dog else None)
+    intel = resolve_breed_intelligence(
+        dog.breed if dog else None,
+        dog.weight_kg if dog else None,
+        sex=dog.sex if dog else None,
+    )
 
     # Fast in-memory WAV/PCM parser first (zero disk footprint, zero matplotlib lag)
     features = None
     classification = None
     duration_sec = 2.5
+    snr_db, hnr_db, clipping_ratio = 12.0, 6.0, 0.0
 
     if raw_bytes[:4] == b"RIFF" and b"WAVE" in raw_bytes[:12]:
         try:
@@ -423,6 +668,8 @@ def quick_analyze_recording(
                 nframes = wf.getnframes()
                 sampwidth = wf.getsampwidth()
                 nchan = max(1, wf.getnchannels())
+                if nframes <= 0 or nframes * sampwidth * nchan > len(raw_bytes) or len(raw_bytes) < 128:
+                    raise ValueError("Corrupted or truncated WAV header")
                 pcm = wf.readframes(min(nframes, sr * 15))
                 if sampwidth == 2:
                     arr = np.frombuffer(pcm, dtype=np.int16).astype(np.float32) / 32768.0
@@ -432,32 +679,7 @@ def quick_analyze_recording(
                     arr = (np.frombuffer(pcm, dtype=np.uint8).astype(np.float32) - 128.0) / 128.0
                 if nchan > 1:
                     arr = arr[::nchan]
-                duration_sec = round(max(0.8, len(arr) / float(sr)), 2)
-                rms = float(np.sqrt(np.mean(arr ** 2))) if len(arr) else 0.14
-                # Autocorrelation + spectral FFT for true F0 & Spectral Centroid
-                win = arr[: min(len(arr), sr * 3)]
-                spec = np.abs(np.fft.rfft(win))
-                freqs = np.fft.rfftfreq(len(win), 1.0 / sr)
-                band_mask = (freqs >= 95.0) & (freqs <= 980.0)
-                if np.any(band_mask) and np.sum(spec[band_mask]) > 0:
-                    dom_f0 = float(freqs[band_mask][np.argmax(spec[band_mask])])
-                    centroid = float(np.sum(freqs * spec) / (np.sum(spec) + 1e-9))
-                else:
-                    dom_f0 = 330.0
-                    centroid = 1420.0
-                env = np.abs(arr)
-                thr = max(0.08, float(np.mean(env) * 1.65))
-                crossings = int(np.sum((env[1:] > thr) & (env[:-1] <= thr)))
-                onset_rate = float(np.clip(crossings / max(duration_sec, 0.8), 1.1, 6.2))
-                features = {
-                    "f0_mean": round(dom_f0, 1),
-                    "f0_cv": 0.16,
-                    "rms": round(max(0.08, rms), 3),
-                    "onset_rate": round(onset_rate, 2),
-                    "spectral_centroid": round(centroid, 1),
-                    "hnr": 11.2,
-                    "duration": duration_sec,
-                }
+                features, duration_sec, snr_db, hnr_db, clipping_ratio = _extract_quick_pcm_features(arr, int(sr))
         except Exception:
             features = None
 
@@ -468,48 +690,33 @@ def quick_analyze_recording(
             if arr.ndim > 1:
                 arr = arr.mean(axis=1)
             arr = arr.astype(np.float32)
-            duration_sec = round(max(0.8, len(arr) / float(sr)), 2)
-            rms = float(np.sqrt(np.mean(arr ** 2))) if len(arr) else 0.14
-            win = arr[: min(len(arr), sr * 3)]
-            spec = np.abs(np.fft.rfft(win))
-            freqs = np.fft.rfftfreq(len(win), 1.0 / sr)
-            band_mask = (freqs >= 95.0) & (freqs <= 980.0)
-            if np.any(band_mask) and np.sum(spec[band_mask]) > 0:
-                dom_f0 = float(freqs[band_mask][np.argmax(spec[band_mask])])
-                centroid = float(np.sum(freqs * spec) / (np.sum(spec) + 1e-9))
-            else:
-                dom_f0 = 330.0
-                centroid = 1420.0
-            env = np.abs(arr)
-            thr = max(0.08, float(np.mean(env) * 1.65))
-            crossings = int(np.sum((env[1:] > thr) & (env[:-1] <= thr)))
-            onset_rate = float(np.clip(crossings / max(duration_sec, 0.8), 1.1, 6.2))
-            features = {
-                "f0_mean": round(dom_f0, 1),
-                "f0_cv": 0.16,
-                "rms": round(max(0.08, rms), 3),
-                "onset_rate": round(onset_rate, 2),
-                "spectral_centroid": round(centroid, 1),
-                "hnr": 11.2,
-                "duration": duration_sec,
-            }
+            if arr.size < max(64, int(sr * 0.05)):
+                raise ValueError("Truncated or sub-minimum audio payload")
+            features, duration_sec, snr_db, hnr_db, clipping_ratio = _extract_quick_pcm_features(arr, int(sr))
         except Exception:
-            arr = np.frombuffer(raw_bytes[: min(len(raw_bytes), 320000)], dtype=np.uint8).astype(np.float32)
-            arr = (arr - 128.0) / 128.0
-            rms = float(np.sqrt(np.mean(arr ** 2))) if len(arr) else 0.14
-            zc = float(np.mean(np.abs(np.diff(np.sign(arr))))) if len(arr) > 1 else 0.22
-            est_f0 = float(np.clip(180.0 + zc * 920.0, 145.0, 560.0))
-            est_onset = float(np.clip(1.8 + rms * 8.0, 1.4, 5.2))
-            duration_sec = round(max(1.8, min(12.0, len(raw_bytes) / 28000.0)), 1)
-            features = {
-                "f0_mean": round(est_f0, 1),
-                "f0_cv": 0.18,
-                "rms": round(max(0.10, rms), 3),
-                "onset_rate": round(est_onset, 2),
-                "spectral_centroid": round(est_f0 * 3.6, 1),
-                "hnr": 10.4,
-                "duration": duration_sec,
-            }
+            # Compressed containers (MP3/M4A/OGG/WebM): decode to genuine PCM via soundfile/FFmpeg/librosa.
+            # Raw container bytes are NEVER reinterpreted as signal samples. Temp files are deleted immediately.
+            import tempfile
+            from pathlib import Path as _Path
+
+            try:
+                with tempfile.TemporaryDirectory(prefix="cs_qa_") as td:
+                    meta = write_and_decode(
+                        raw_bytes,
+                        _Path(td) / "orig",
+                        _Path(td) / "pcm.wav",
+                        request_file.filename or "clip.wav",
+                    )
+                arr = np.asarray(meta["y"], dtype=np.float32)
+                sr = int(meta["sr"])
+                if arr.size < 16 or not np.isfinite(arr).all():
+                    raise ValueError("no valid PCM samples")
+            except Exception:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Audio container could not be decoded to PCM waveform. Please upload a valid WAV, MP3, M4A, OGG, or WebM audio file.",
+                )
+            features, duration_sec, snr_db, hnr_db, clipping_ratio = _extract_quick_pcm_features(arr, int(sr))
 
     f0_val = float(features.get("f0_mean") or 330.0)
     dur_val = float(features.get("duration") or 2.2)
@@ -526,11 +733,15 @@ def quick_analyze_recording(
         )
         classification = {"vocalization": vocal_guess, "confidence": 0.95, "abstained": False}
 
+    personal_mean_f0, personal_std_f0 = _dog_personal_f0_baseline(db, dog)
     dog_dict = {
         "weight_kg": dog.weight_kg if dog else intel["default_weight_kg"],
         "breed": dog.breed if dog else intel["canonical_breed"],
+        "sex": dog.sex if dog else "unknown",
         "name": dog.name if dog else "Active Companion",
         "breed_intelligence": intel,
+        "personal_f0_mean_hz": personal_mean_f0,
+        "personal_f0_std_hz": personal_std_f0,
     }
 
     scenario = evaluate_acoustic_scenario(features, classification, dog_dict)
@@ -562,8 +773,15 @@ def quick_analyze_recording(
             channels=1,
             sha256=sha_hex,
             file_size=len(raw_bytes),
-            quality_status="good",
-            quality_json=json.dumps({"status": "good", "snr_db": 22.5, "clipping_ratio": 0.0}),
+            quality_status="good" if snr_db >= 8.0 else "low_snr",
+            quality_json=json.dumps(
+                {
+                    "status": "good" if snr_db >= 8.0 else "low_snr",
+                    "snr_db": snr_db,
+                    "hnr_db": hnr_db,
+                    "clipping_ratio": clipping_ratio,
+                }
+            ),
             source=source or "upload",
         )
         db.add(rec_row)

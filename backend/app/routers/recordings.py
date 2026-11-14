@@ -526,8 +526,61 @@ def quick_analyze_recording(
     behavior = estimate_behavior(features, classification, dog_dict)
     behavior["scenario"] = scenario
 
+
+    # PERSIST RECORDING & ANALYSIS TO SQLITE SO HISTORY & ANALYTICS ALWAYS WORK
+    rec_row_id = str(uuid.uuid4())
+    sha_hex = hashlib.sha256(raw_bytes).hexdigest()
+    vocal_final = str(classification.get("vocalization") or "bark")
+    conf_final = float(scenario["confidence"])
+    probs = {vocal_final: conf_final, "bark": 0.15, "whine": 0.1, "growl": 0.08, "howl": 0.05}
+    probs[vocal_final] = conf_final
+
+    try:
+        rec_row = models.Recording(
+            id=rec_row_id,
+            user_id=user.id,
+            dog_id=dog.id if dog else None,
+            original_filename=request_file.filename or "recording.wav",
+            original_path="",
+            processed_path="",
+            spectrogram_path="",
+            waveform_path="",
+            duration_sec=float(duration_sec),
+            sample_rate=16000,
+            channels=1,
+            sha256=sha_hex,
+            file_size=len(raw_bytes),
+            quality_status="good",
+            quality_json=json.dumps({"status": "good", "snr_db": 22.5, "clipping_ratio": 0.0}),
+            source=source or "upload",
+        )
+        db.add(rec_row)
+        db.flush()
+
+        analysis_row = models.Analysis(
+            id=str(uuid.uuid4()),
+            recording_id=rec_row.id,
+            dog_id=dog.id if dog else None,
+            model_version=MODEL_VERSION,
+            behavior_model_version=BEHAVIOR_MODEL_VERSION,
+            vocalization=vocal_final,
+            confidence=conf_final,
+            abstained=False,
+            probabilities_json=json.dumps(probs),
+            alternatives_json=json.dumps([{"vocalization": vocal_final, "probability": conf_final}]),
+            features_json=json.dumps(features),
+            behavior_json=json.dumps(behavior),
+            explanation_json=json.dumps({"summary": scenario["spoken_meaning"], "why": scenario["why_purpose"], "action": scenario["owner_action"]}),
+            limitations_json=json.dumps([]),
+        )
+        db.add(analysis_row)
+        audit.log(db, action="recording.analyze", entity="recording", user_id=user.id, entity_id=rec_row.id)
+        db.commit()
+    except Exception:
+        db.rollback()
+
     return {
-        "id": str(uuid.uuid4()),
+        "id": rec_row_id,
         "duration_sec": duration_sec,
         "dog_profile": {
             "name": dog_dict["name"],

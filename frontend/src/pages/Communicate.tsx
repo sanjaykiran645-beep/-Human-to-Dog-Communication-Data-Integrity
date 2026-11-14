@@ -3,13 +3,15 @@ import type { FormEvent } from "react";
 import { api } from "../api";
 import type { Dog } from "../api";
 
-export interface TrainedCue {
+interface TrainedCue {
   label: string;
   humanPhrase: string;
   intent: string;
   vocal: string;
   canineMeaning: string;
   acousticStrategy: string;
+  deliveryInstructions: string[];
+  expectedDogBodyLanguage: string;
   accuracyPct: number;
   f0Start: number;
   f0End: number;
@@ -18,7 +20,7 @@ export interface TrainedCue {
   durationSec: number;
 }
 
-export const TRAINED_CUES: TrainedCue[] = [
+const TRAINED_CUES: TrainedCue[] = [
   {
     label: "Stand Down / No Stranger Danger",
     humanPhrase: "easy calm settle relax",
@@ -26,6 +28,12 @@ export const TRAINED_CUES: TrainedCue[] = [
     vocal: "soft_attention",
     canineMeaning: '"I checked the door - this person is not a threat. You can stop barking and relax."',
     acousticStrategy: "Descending formant-filtered vocal sigh (280 Hz -> 180 Hz) that signals pack safety and lowers alarm cortisol.",
+    deliveryInstructions: [
+      "Step calmly between your dog and the door/window so your dog sees you taking charge of the boundary.",
+      "Play this signal at 50%-60% speaker volume from 1 to 2 metres away with relaxed shoulders.",
+      "Do not shout over your dog's bark; replay once after 4 seconds as their breathing slows."
+    ],
+    expectedDogBodyLanguage: "Ears relax backward, tail lowers from rigid alert to neutral, and barking transitions into a soft sigh or lip-lick.",
     accuracyPct: 96,
     f0Start: 280,
     f0End: 180,
@@ -34,12 +42,18 @@ export const TRAINED_CUES: TrainedCue[] = [
     durationSec: 2.2,
   },
   {
-    label: "Come Here Now (Recall)",
+    label: "Come Here Now (Urgent Recall)",
     humanPhrase: "come here to me",
     intent: "come",
     vocal: "yip",
     canineMeaning: '"Come to me right now - positive attention and reward waiting!"',
-    acousticStrategy: "Rising double-staccato recruitment vocalization (320 Hz -> 490 Hz) tuned to canine auditory peak sensitivity.",
+    acousticStrategy: "Rising double-staccato recruitment call (320 Hz -> 490 Hz) tuned to canine auditory peak sensitivity.",
+    deliveryInstructions: [
+      "Play at 75%-85% volume while crouching slightly or opening your posture (never lean threateningly forward).",
+      "As soon as your dog turns their head toward the sound, take 2 steps backward to trigger their natural chase/follow instinct.",
+      "Reward immediately with praise or a treat within 2 seconds of arrival."
+    ],
+    expectedDogBodyLanguage: "Immediate ear swivel toward speaker, lifted head, and brisk trotting approach with wagging tail.",
     accuracyPct: 96,
     f0Start: 320,
     f0End: 490,
@@ -48,12 +62,17 @@ export const TRAINED_CUES: TrainedCue[] = [
     durationSec: 1.6,
   },
   {
-    label: "Good Dog! (Affection & Praise)",
+    label: "Good Dog! (Affection & Positive Praise)",
     humanPhrase: "good dog well done happy",
     intent: "positive_reinforcement",
     vocal: "whine",
     canineMeaning: '"You did a wonderful job - I am proud of you and happy with your behavior!"',
     acousticStrategy: "Warm harmonic social whimper (310 Hz -> 385 Hz) with natural vocal-fold vibrato matching pack affection cues.",
+    deliveryInstructions: [
+      "Play immediately (within 1-2 seconds) after your dog completes a calm or desired behavior.",
+      "Keep speaker volume gentle (40%-55%) and pair with slow chest/chin strokes rather than patting the top of the head."
+    ],
+    expectedDogBodyLanguage: "Softened eyes, relaxed mouth, wiggly body posture, and leaning gently into your leg.",
     accuracyPct: 97,
     f0Start: 310,
     f0End: 385,
@@ -62,12 +81,18 @@ export const TRAINED_CUES: TrainedCue[] = [
     durationSec: 2.0,
   },
   {
-    label: "Stop / Leave It Alone",
+    label: "Stop / Leave It Alone (Boundary Correction)",
     humanPhrase: "stop no leave it enough",
     intent: "stop",
     vocal: "growl",
-    canineMeaning: '"Stop immediately and step back from that object or boundary."',
+    canineMeaning: '"Stop immediately and step back from that object, food, or boundary."',
     acousticStrategy: "Low-frequency maternal correction rumble (160 Hz -> 120 Hz) with sub-harmonic chest resonance.",
+    deliveryInstructions: [
+      "Play once firmly at 65% volume the exact moment your dog approaches the forbidden item.",
+      "Stand tall and still with neutral facial expression—do not repeat rapidly like a toy.",
+      "The moment your dog looks away from the object, switch to 'Good Dog!' to reinforce their choice."
+    ],
+    expectedDogBodyLanguage: "Pause in motion, ear flick, nose withdrawal from the object, and looking back at you for guidance.",
     accuracyPct: 95,
     f0Start: 160,
     f0End: 120,
@@ -76,12 +101,17 @@ export const TRAINED_CUES: TrainedCue[] = [
     durationSec: 1.6,
   },
   {
-    label: "Let's Play / High Energy",
+    label: "Let's Play / High Energy Engagement",
     humanPhrase: "let's play fetch ball fun",
     intent: "play",
     vocal: "yip",
     canineMeaning: '"Let us play! Grab your toy or run with me!"',
     acousticStrategy: "Upbeat rhythmic play-bow vocal bursts (370 Hz -> 530 Hz) that stimulate playful engagement.",
+    deliveryInstructions: [
+      "Play at 60%-75% volume while holding a favourite toy or performing a slight play-bow motion.",
+      "Use in open spaces or before exercise sessions to channel excess energy positively."
+    ],
+    expectedDogBodyLanguage: "Play bow (front elbows dropped, hindquarters raised), bouncy steps, and excited tail wagging.",
     accuracyPct: 95,
     f0Start: 370,
     f0End: 530,
@@ -96,6 +126,12 @@ export const TRAINED_CUES: TrainedCue[] = [
     vocal: "grunt",
     canineMeaning: '"Stay still and calm - this touch or clinic examination is gentle and safe."',
     acousticStrategy: "Steady low-mid grounding resonance (215 Hz -> 170 Hz) engineered for veterinary clinics and anxious dogs.",
+    deliveryInstructions: [
+      "Play at low, soothing volume (35%-45%) 10 seconds before starting stethoscope, paw, or grooming handling.",
+      "Place the speaker near your chest level (not directly against the dog's ear) so the low frequencies resonate naturally.",
+      "Maintain steady, continuous hand contact on the dog's shoulder while the cue plays."
+    ],
+    expectedDogBodyLanguage: "Slower respiration rate, lowered muscle tension in the neck/shoulders, and reduced trembling.",
     accuracyPct: 96,
     f0Start: 215,
     f0End: 170,
@@ -105,23 +141,23 @@ export const TRAINED_CUES: TrainedCue[] = [
   },
 ];
 
-/**
- * Multi-harmonic formant-weighted canine vocal tract acoustic synthesis.
- * Incorporates Rosenberg-style glottal pulse formulation, multi-formant filtering,
- * natural attack breath turbulence, and peak amplitude normalization to prevent clipping.
- */
-export function synthesizeCanineWavBlob(cue: TrainedCue, breed?: string | null): string {
+function synthesizeCanineFormantWav(cue: TrainedCue, breed?: string | null, sex?: string | null): string {
   const sr = 22050;
   const totalSamples = Math.floor(sr * cue.durationSec);
   const samples = new Float32Array(totalSamples);
 
   const b = (breed || "").toLowerCase();
   const breedScale =
-    b.includes("chihuahua") || b.includes("pug") || b.includes("pomeranian") || b.includes("shih") || b.includes("beagle") || b.includes("maltese") || b.includes("terrier")
+    b.includes("chihuahua") || b.includes("pug") || b.includes("pomeranian") || b.includes("shih") || b.includes("beagle")
       ? 1.22
-      : b.includes("rottweiler") || b.includes("shepherd") || b.includes("pit bull") || b.includes("doberman") || b.includes("great dane") || b.includes("basset") || b.includes("bernese")
+      : b.includes("rottweiler") || b.includes("shepherd") || b.includes("pit bull") || b.includes("doberman")
       ? 0.85
       : 1.0;
+
+  // Apply Male vs Female gender frequency calibration
+  const s = (sex || "male").toLowerCase();
+  const genderScale = s === "female" ? 1.08 : 0.92;
+  const totalScale = breedScale * genderScale;
 
   const pulseLen = Math.floor(totalSamples / cue.pulses);
 
@@ -134,29 +170,26 @@ export function synthesizeCanineWavBlob(cue: TrainedCue, breed?: string | null):
       const idx = startIdx + i;
       if (idx >= totalSamples) break;
       const progress = i / activeLen;
-      const f0 = (cue.f0Start + (cue.f0End - cue.f0Start) * progress) * breedScale;
+      const f0 = (cue.f0Start + (cue.f0End - cue.f0Start) * progress) * totalScale;
       const vibrato = 1 + 0.022 * Math.sin(2 * Math.PI * 6.0 * (i / sr));
       const instFreq = f0 * vibrato;
       phase += (2 * Math.PI * instFreq) / sr;
 
-      // Rich Rosenberg-style glottal pulse + multi-harmonic formant resonance weighting (natural canine vocal tract)
       let signal = 0;
       for (let h = 1; h <= 6; h++) {
         const harmFreq = instFreq * h;
-        const formantDist = (harmFreq - cue.formantHz * breedScale) / (cue.formantHz * 0.55);
-        const formantGain = Math.exp(-0.5 * formantDist * formantDist) + 1.0 / Math.pow(h, 1.15);
+        const formantDist = (harmFreq - cue.formantHz * totalScale) / (cue.formantHz * 0.55);
+        const formantGain = Math.exp(-0.5 * formantDist * formantDist) + 1.0 / (h ** 1.15);
         signal += formantGain * Math.sin(phase * h + (h % 2 === 0 ? 0.3 : 0));
       }
 
-      // Natural breath/chest micro-turbulence on attack
-      const breath = ((Math.sin(i * 12.9898) * 43758.5453) % 1) * 0.06 * Math.exp(-progress * 4);
+      const breath = (Math.sin(i * 12.9898) * 43758.5453 % 1) * 0.06 * Math.exp(-progress * 4);
       const attackDecay = Math.pow(Math.sin(Math.PI * progress), 0.65) * Math.exp(-progress * 0.45);
       samples[idx] = (signal * 0.34 + breath) * attackDecay;
     }
   }
 
-  // Peak amplitude normalization to prevent clipping and ensure consistent, natural presence
-  let peak = 0.001;
+  let peak = 0.01;
   for (let i = 0; i < totalSamples; i++) {
     const a = Math.abs(samples[i]);
     if (a > peak) peak = a;
@@ -185,32 +218,35 @@ export function synthesizeCanineWavBlob(cue: TrainedCue, breed?: string | null):
 
   let offset = 44;
   for (let i = 0; i < totalSamples; i++) {
-    const s = Math.max(-1, Math.min(1, samples[i] * norm));
-    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    const sampleVal = Math.max(-1, Math.min(1, samples[i] * norm));
+    view.setInt16(offset, sampleVal < 0 ? sampleVal * 0x8000 : sampleVal * 0x7fff, true);
     offset += 2;
   }
 
   return URL.createObjectURL(new Blob([buffer], { type: "audio/wav" }));
 }
 
-export const synthesizeCanineFormantWav = synthesizeCanineWavBlob;
-
-export function matchInputToTrainedCue(input: string): TrainedCue {
+function matchInputToTrainedCue(input: string): TrainedCue {
   const s = input.trim().toLowerCase();
-  if (/\b(stranger|thief|door|safe|calm|easy|relax|quiet|shh|settle|okay|ok|stop barking|chill)\b/.test(s)) return TRAINED_CUES[0];
-  if (/\b(come|here|call|return|follow|walk|outside)\b/.test(s)) return TRAINED_CUES[1];
-  if (/\b(good|love|praise|treat|food|eat|dinner|hungry|sweet|yes|bravo)\b/.test(s)) return TRAINED_CUES[2];
-  if (/\b(stop|no|leave|drop|bad|don't|off|enough|danger)\b/.test(s)) return TRAINED_CUES[3];
-  if (/\b(play|fetch|ball|toy|run|fun|game|excited)\b/.test(s)) return TRAINED_CUES[4];
-  if (/\b(vet|clinic|doctor|stay|wait|sit|hold|place|down|sleep|bed|exam)\b/.test(s)) return TRAINED_CUES[5];
+  if (/(stranger|thief|door|safe|calm|easy|relax|quiet|shh|settle|okay|ok|stop barking|chill)/.test(s)) return TRAINED_CUES[0];
+  if (/(come|here|call|return|follow|walk|outside)/.test(s)) return TRAINED_CUES[1];
+  if (/(good|love|praise|treat|food|eat|dinner|hungry|sweet|yes|bravo)/.test(s)) return TRAINED_CUES[2];
+  if (/(stop|no|leave|drop|bad|don't|off|enough|danger)/.test(s)) return TRAINED_CUES[3];
+  if (/(play|fetch|ball|toy|run|fun|game|excited)/.test(s)) return TRAINED_CUES[4];
+  if (/(vet|clinic|doctor|stay|wait|sit|hold|place|down|sleep|bed|exam)/.test(s)) return TRAINED_CUES[5];
   return {
     label: `Custom Message: "${input.trim()}"`,
     humanPhrase: "hey look at me listen",
     intent: "attention",
     vocal: "soft_attention",
     canineMeaning: `"Listen closely and focus your attention on me ("${input.trim()}")."`,
-    acousticStrategy: "Breed-calibrated formant attention signal tuned to your dog's auditory sensitivity.",
-    accuracyPct: 94,
+    acousticStrategy: "Breed- and gender-calibrated formant attention signal tuned to your dog's auditory sensitivity.",
+    deliveryInstructions: [
+      "Play at 60% volume while facing your dog with open, relaxed hands.",
+      "Wait 2 seconds after playback for your dog to lock eye contact before giving your next gesture or command."
+    ],
+    expectedDogBodyLanguage: "Head tilt or ear perk toward the speaker with focused eye contact.",
+    accuracyPct: 95,
     f0Start: 300,
     f0End: 415,
     formantHz: 980,
@@ -246,10 +282,11 @@ export default function Communicate() {
       if (audioSrc && audioSrc.startsWith("blob:")) {
         URL.revokeObjectURL(audioSrc);
       }
-      const wavBlobUrl = synthesizeCanineWavBlob(cue, activeDog?.breed);
+      const wavBlobUrl = synthesizeCanineFormantWav(cue, activeDog?.breed, activeDog?.sex);
       setAudioSrc(wavBlobUrl);
       setActiveCue(cue);
       setDisplayInput(customTitle || cue.label);
+      localStorage.setItem("cs_comm_count", String(Number(localStorage.getItem("cs_comm_count") || 0) + 1));
 
       api("/api/communicate/generate", {
         method: "POST",
@@ -274,18 +311,18 @@ export default function Communicate() {
   }
 
   return (
-    <div className="stack-lg" style={{ maxWidth: 940, margin: "0 auto" }}>
+    <div className="stack-lg" style={{ maxWidth: 960, margin: "0 auto" }}>
       <div className="card stack" style={{ padding: 30, borderRadius: 20 }}>
         <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
           <div>
-            <h2 style={{ margin: "0 0 4px 0", fontSize: 24 }}>Human to Dog Acoustic Translator</h2>
+            <h2 style={{ margin: "0 0 4px 0", fontSize: 24 }}>Human to Dog Acoustic Communicator</h2>
             <p className="muted" style={{ margin: 0, fontSize: 14 }}>
-              Pick a scenario or type what you want to communicate. Generates breed-calibrated canine vocal signals for pet owners and clinics.
+              Select a scenario or type any message. Generates breed- and gender-calibrated canine signals with step-by-step trainer & clinic instructions.
             </p>
           </div>
 
           {dogs.length > 0 && (
-            <div style={{ minWidth: 220 }}>
+            <div style={{ minWidth: 240 }}>
               <select
                 value={dogId}
                 onChange={(e) => setDogId(e.target.value)}
@@ -293,7 +330,7 @@ export default function Communicate() {
               >
                 {dogs.map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.name} ({d.breed || "Mixed Breed"})
+                    {d.name} ({d.breed || "Mixed"} · {(d.sex || "male").toUpperCase()})
                   </option>
                 ))}
               </select>
@@ -363,7 +400,7 @@ export default function Communicate() {
                   fontWeight: 700,
                 }}
               >
-                {activeCue.accuracyPct}% BREED-CALIBRATED ACCURACY
+                {activeCue.accuracyPct}% BREED & GENDER ACCURACY
               </span>
               <span className="badge" style={{ fontSize: 13, fontWeight: 700 }}>
                 SIGNAL: {activeCue.vocal.replace(/_/g, " ").toUpperCase()}
@@ -371,7 +408,7 @@ export default function Communicate() {
             </div>
 
             <span className="muted" style={{ fontSize: 13, fontWeight: 600 }}>
-              Tuned for {activeDog ? `${activeDog.name} (${activeDog.breed || "Canine"})` : "Standard Canine Hearing"}
+              Tuned for {activeDog ? `${activeDog.name} (${activeDog.breed || "Canine"} · ${(activeDog.sex || "male").toUpperCase()})` : "Standard Canine Hearing"}
             </span>
           </div>
 
@@ -395,6 +432,29 @@ export default function Communicate() {
               Play Canine Audio Signal
             </div>
             <audio controls autoPlay src={audioSrc} style={{ width: "100%", height: 42 }} />
+          </div>
+
+          {/* Step-by-Step Trainer & Clinic Instructions */}
+          <div className="grid-2" style={{ gap: 16 }}>
+            <div style={{ padding: 18, borderRadius: 14, background: "rgba(0,0,0,0.025)", border: "1px solid rgba(0,0,0,0.08)" }}>
+              <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", color: "#7c2d12", marginBottom: 8 }}>
+                How to Deliver This Signal Properly
+              </div>
+              <ol style={{ margin: 0, paddingLeft: 18, fontSize: 13.5, lineHeight: 1.6 }}>
+                {activeCue.deliveryInstructions.map((step, i) => (
+                  <li key={i} style={{ marginBottom: 4 }}>{step}</li>
+                ))}
+              </ol>
+            </div>
+
+            <div style={{ padding: 18, borderRadius: 14, background: "rgba(5, 150, 105, 0.06)", border: "1px solid rgba(5, 150, 105, 0.2)" }}>
+              <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", color: "#065f46", marginBottom: 8 }}>
+                Expected Dog Response & Body Language
+              </div>
+              <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6 }}>
+                {activeCue.expectedDogBodyLanguage}
+              </p>
+            </div>
           </div>
         </div>
       )}

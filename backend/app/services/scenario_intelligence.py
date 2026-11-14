@@ -19,7 +19,8 @@ def evaluate_acoustic_scenario(
 
     breed_name = (dog or {}).get("breed") if dog else None
     weight_kg = (dog or {}).get("weight_kg") if dog else None
-    intel = resolve_breed_intelligence(breed_name, weight_kg)
+    sex = (dog or {}).get("sex") if dog else "unknown"
+    intel = resolve_breed_intelligence(breed_name, weight_kg, sex=sex)
     f0_min, f0_max = intel["vocalization_profile"]["f0_range_hz"]
     f0_mid = (f0_min + f0_max) / 2.0
     pitch_ratio = f0 / max(f0_mid, 120.0)
@@ -112,7 +113,8 @@ def evaluate_acoustic_scenario(
         "owner_action": owner_action,
         "accuracy_pct": accuracy_pct,
         "confidence": round(accuracy_pct / 100.0, 2),
-        "breed_calibrated_for": intel["canonical_breed"],
+        "breed_calibrated_for": f"{intel['canonical_breed']} ({str(sex or 'unknown').title()})",
+        "gender_profile": intel["vocalization_profile"].get("gender_acoustic_profile", ""),
         "expected_f0_range_hz": intel["vocalization_profile"]["f0_range_hz"],
         "measured_f0_hz": round(f0, 1),
     }

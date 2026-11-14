@@ -1621,3 +1621,76 @@ html, body, #root, .app {
     animation: none;
   }
 }
+
+
+/* === DYNAMIC COLOR THEME ENGINE === */
+html[data-theme="white-black"] body,
+body[data-theme="white-black"] {
+  --bg: #ffffff !important;
+  --bg-elev: #f4f4f5 !important;
+  --surface: #ffffff !important;
+  --text: #000000 !important;
+  --muted: #3f3f46 !important;
+  --primary: #000000 !important;
+  --accent: #18181b !important;
+  --border: #000000 !important;
+  background: #ffffff !important;
+  color: #000000 !important;
+}
+body[data-theme="white-black"] .card {
+  background: #ffffff !important;
+  color: #000000 !important;
+  border: 2px solid #000000 !important;
+  box-shadow: 4px 4px 0px #000000 !important;
+}
+body[data-theme="white-black"] .btn-primary {
+  background: #000000 !important;
+  color: #ffffff !important;
+  border: 2px solid #000000 !important;
+}
+
+html[data-theme="red-blue"] body,
+body[data-theme="red-blue"] {
+  --bg: #eff6ff !important;
+  --surface: #ffffff !important;
+  --text: #1e3a8a !important;
+  --muted: #1d4ed8 !important;
+  --primary: #dc2626 !important;
+  --accent: #2563eb !important;
+  --border: #93c5fd !important;
+  background: linear-gradient(135deg, #eff6ff 0%, #fef2f2 100%) !important;
+  color: #1e3a8a !important;
+}
+body[data-theme="red-blue"] .card {
+  background: #ffffff !important;
+  border: 2px solid #2563eb !important;
+  box-shadow: 0 10px 25px rgba(37, 99, 235, 0.12) !important;
+}
+body[data-theme="red-blue"] .btn-primary {
+  background: linear-gradient(135deg, #dc2626 0%, #2563eb 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+
+html[data-theme="yellow-green"] body,
+body[data-theme="yellow-green"] {
+  --bg: #fefce8 !important;
+  --surface: #ffffff !important;
+  --text: #064e3b !important;
+  --muted: #047857 !important;
+  --primary: #15803d !important;
+  --accent: #eab308 !important;
+  --border: #fde047 !important;
+  background: linear-gradient(135deg, #fefce8 0%, #ecfdf5 100%) !important;
+  color: #064e3b !important;
+}
+body[data-theme="yellow-green"] .card {
+  background: #ffffff !important;
+  border: 2px solid #16a34a !important;
+  box-shadow: 0 10px 25px rgba(22, 163, 74, 0.12) !important;
+}
+body[data-theme="yellow-green"] .btn-primary {
+  background: linear-gradient(135deg, #15803d 0%, #ca8a04 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+}

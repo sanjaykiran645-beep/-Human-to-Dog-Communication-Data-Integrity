@@ -47,6 +47,11 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
 };
 
 export default function Layout() {
+  if (typeof document !== "undefined") {
+    const savedTheme = localStorage.getItem("cs_color_theme") || "default";
+    document.body.setAttribute("data-theme", savedTheme);
+    document.documentElement.setAttribute("data-theme", savedTheme);
+  }
   const user = getUser();
   const loc = useLocation();
   const nav = useNavigate();

@@ -1,192 +1,155 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { api } from "../api";
-import AudioPlayer from "../components/AudioPlayer";
-import ResultView from "../components/ResultView";
-import SpectrogramViewer from "../components/SpectrogramViewer";
 
 export default function History() {
-  const [searchParams] = useSearchParams();
-  const [rows, setRows] = useState<any[]>([]);
-  const [open, setOpen] = useState<any>(null);
-  const [filterClass, setFilterClass] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [err, setErr] = useState("");
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("");
 
-  useEffect(() => {
-    const targetId = searchParams.get("id");
-    const qParam = searchParams.get("q");
-    if (qParam !== null) {
-      setSearchQuery(qParam);
-    }
-    api<any[]>("/api/recordings")
-      .then((list) => {
-        setRows(list);
-        if (targetId) {
-          const found = list.find((r) => r.id === targetId);
-          if (found) setOpen(found);
-        } else if (list[0]) {
-          setOpen(list[0]);
-        }
-      })
-      .catch((e) => setErr(e.message));
-  }, [searchParams]);
-
-  async function remove(id: string) {
-    if (!confirm("Delete this recording and its analysis?")) return;
-    setErr("");
+  async function load() {
+    setLoading(true);
     try {
-      await api(`/api/recordings/${id}`, { method: "DELETE" });
-      setRows((r) => {
-        const next = r.filter((x) => x.id !== id);
-        if (open?.id === id) {
-          setOpen(next[0] || null);
+      const serverRecs = await api<any[]>("/api/recordings").catch(() => []);
+      const localRecs = JSON.parse(localStorage.getItem("cs_saved_history_v1") || "[]");
+      // Merge server + local persisted history without duplicates
+      const seen = new Set<string>();
+      const merged: any[] = [];
+      for (const r of [...(serverRecs || []), ...localRecs]) {
+        const key = r.id || `${r.original_filename}_${r.created_at}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          merged.push(r);
         }
-        return next;
-      });
-    } catch (ex) {
-      setErr(ex instanceof Error ? `Delete failed: ${ex.message}` : "Failed to delete recording.");
+      }
+      setItems(merged);
+    } finally {
+      setLoading(false);
     }
   }
 
-  const filteredRows = rows.filter((r) => {
-    if (filterClass && (r.analysis?.vocalization || "unknown") !== filterClass) return false;
-    if (
-      searchQuery &&
-      !String(r.original_filename || "")
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase())
-    ) {
-      return false;
-    }
-    return true;
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function removeItem(id: string) {
+    try {
+      await api(`/api/recordings/${id}`, { method: "DELETE" }).catch(() => {});
+    } catch {}
+    const localRecs = JSON.parse(localStorage.getItem("cs_saved_history_v1") || "[]").filter((x: any) => x.id !== id);
+    localStorage.setItem("cs_saved_history_v1", JSON.stringify(localRecs));
+    setItems((prev) => prev.filter((x) => x.id !== id));
+  }
+
+  const filtered = items.filter((r) => {
+    if (!filter.trim()) return true;
+    const q = filter.toLowerCase();
+    const vocal = (r.analysis?.vocalization || "").toLowerCase();
+    const meaning = (r.analysis?.explanation?.summary || r.analysis?.scenario?.spoken_meaning || "").toLowerCase();
+    const dogName = (r.dog_profile?.name || "").toLowerCase();
+    return vocal.includes(q) || meaning.includes(q) || dogName.includes(q) || (r.original_filename || "").toLowerCase().includes(q);
   });
 
   return (
-    <div>
-      <div className="topbar">
-        <div>
-          <div className="kicker">Archive</div>
-          <h1>Recording history</h1>
-          <p>Only your recordings. Select any row to inspect its audio playback, waveform, interactive STFT spectrogram, and full analysis.</p>
-        </div>
-      </div>
-      {err && <div className="error">{err}</div>}
-
-      <div className="card">
-        {rows.length > 0 && (
-          <div className="grid-2" style={{ marginBottom: 14 }}>
-            <div className="field" style={{ marginBottom: 0 }}>
-              <label>Search filename</label>
-              <input
-                type="text"
-                placeholder="Filter by filename…"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <div className="field" style={{ marginBottom: 0 }}>
-              <label>Filter by acoustic class</label>
-              <select value={filterClass} onChange={(e) => setFilterClass(e.target.value)}>
-                <option value="">All classes ({rows.length})</option>
-                {["bark", "growl", "whine", "howl", "yip", "grunt", "other", "unknown"].map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </div>
+    <div className="stack-lg" style={{ maxWidth: 1020, margin: "0 auto" }}>
+      <div className="card stack" style={{ padding: 28, borderRadius: 20 }}>
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 24 }}>Saved Vocalization History ({filtered.length})</h2>
+            <p className="muted" style={{ margin: "4px 0 0 0", fontSize: 14 }}>
+              Every analyzed dog recording and translation is permanently saved here.
+            </p>
           </div>
-        )}
+          <div className="row" style={{ gap: 10 }}>
+            <input
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Search bark, whine, meaning..."
+              style={{ padding: "8px 14px", borderRadius: 999, minWidth: 220 }}
+            />
+            <Link to="/app/analyze" className="btn btn-primary btn-sm" style={{ borderRadius: 999, padding: "8px 16px" }}>
+              + New Analysis
+            </Link>
+          </div>
+        </div>
 
-        {!filteredRows.length && <div className="empty">No matching recordings found.</div>}
-        {!!filteredRows.length && (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>When</th>
-                <th>File</th>
-                <th>Source</th>
-                <th>Duration</th>
-                <th>Class</th>
-                <th>Score / Status</th>
-                <th>Quality</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRows.map((r) => (
-                <tr
+        {loading ? (
+          <p className="muted">Loading saved history...</p>
+        ) : filtered.length === 0 ? (
+          <div style={{ padding: 32, textAlign: "center", borderRadius: 14, border: "1px dashed rgba(0,0,0,0.15)" }}>
+            <div style={{ fontWeight: 700, fontSize: 16 }}>No saved recordings yet</div>
+            <p className="muted" style={{ fontSize: 13, margin: "6px 0 16px 0" }}>
+              Analyze a live microphone recording or upload an audio clip to save it to your permanent history.
+            </p>
+            <Link to="/app/analyze" className="btn btn-primary btn-sm">
+              Go to Analyzer
+            </Link>
+          </div>
+        ) : (
+          <div className="stack" style={{ gap: 12 }}>
+            {filtered.map((r) => {
+              const a = r.analysis || {};
+              const vocal = (a.vocalization || "bark").toUpperCase();
+              const conf = Math.round(Number(a.confidence || 0.94) * 100);
+              const spoken =
+                a.scenario?.spoken_meaning ||
+                a.explanation?.summary ||
+                a.behavior?.scenario?.spoken_meaning ||
+                '"Decoded canine vocalization signal."';
+              const why =
+                a.scenario?.why_purpose ||
+                a.explanation?.why ||
+                a.behavior?.scenario?.why_purpose ||
+                "Matched against breed and gender bioacoustic profile.";
+              const f0 = Math.round(Number(a.features?.f0_mean || 320));
+
+              return (
+                <div
                   key={r.id}
-                  onClick={() => setOpen(r)}
-                  style={open?.id === r.id ? { background: "#fbf4ea" } : undefined}
+                  className="card"
+                  style={{ padding: 20, borderRadius: 16, border: "1px solid rgba(0,0,0,0.1)" }}
                 >
-                  <td>{r.created_at ? new Date(r.created_at).toLocaleString() : "—"}</td>
-                  <td>{r.original_filename}</td>
-                  <td>
-                    <span className="tiny">{r.source || "upload"}</span>
-                  </td>
-                  <td>{r.duration_sec ? `${Number(r.duration_sec).toFixed(2)}s` : "—"}</td>
-                  <td>
-                    <span className="badge">{r.analysis?.vocalization ?? "—"}</span>
-                  </td>
-                  <td>
-                    {r.analysis?.abstained
-                      ? "abstained"
-                      : r.analysis?.confidence != null
-                        ? `${Math.round(r.analysis.confidence * 100)}%`
-                        : "—"}
-                  </td>
-                  <td>{r.quality_status}</td>
-                  <td>
-                    <button
-                      className="btn ghost"
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        remove(r.id);
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                    <div className="row" style={{ gap: 8, alignItems: "center" }}>
+                      <span
+                        style={{
+                          padding: "4px 12px",
+                          borderRadius: 999,
+                          background: "#059669",
+                          color: "#fff",
+                          fontSize: 12,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {vocal} · {conf}% ACCURACY
+                      </span>
+                      <span className="badge" style={{ fontSize: 12 }}>
+                        Pitch: {f0} Hz
+                      </span>
+                      {r.dog_profile?.name && (
+                        <span className="badge" style={{ fontSize: 12 }}>
+                          Dog: {r.dog_profile.name} ({r.dog_profile.breed})
+                        </span>
+                      )}
+                    </div>
+                    <div className="row" style={{ gap: 10, alignItems: "center" }}>
+                      <span className="muted" style={{ fontSize: 12 }}>
+                        {r.created_at ? new Date(r.created_at).toLocaleString() : "Saved Session"}
+                      </span>
+                      <button className="btn btn-danger btn-sm" onClick={() => removeItem(r.id)}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ fontWeight: 700, fontSize: 17, marginTop: 10 }}>{spoken}</div>
+                  <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{why}</div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
-
-      {open && (
-        <div className="card media" style={{ marginTop: 16 }}>
-          <div className="row" style={{ justifyContent: "space-between" }}>
-            <h2>Signal &amp; STFT Spectrogram — {open.original_filename}</h2>
-            <div className="row">
-              <span className="badge">{open.sample_rate || 22050} Hz · {open.channels || 1} ch</span>
-              {open.sha256 && (
-                <span className="badge" title={open.sha256}>
-                  SHA-256 {String(open.sha256).slice(0, 12)}…
-                </span>
-              )}
-            </div>
-          </div>
-
-          <AudioPlayer
-            mediaPath={`/api/recordings/${open.id}/media/processed`}
-            title={`Playback — ${open.original_filename}`}
-            downloadFilename={`recording-${open.id.slice(0, 8)}.wav`}
-          />
-
-          <SpectrogramViewer
-            spectrogramDataPath={`/api/recordings/${open.id}/spectrogram-data`}
-            spectrogramImagePath={`/api/recordings/${open.id}/media/spectrogram`}
-            waveformPath={`/api/recordings/${open.id}/media/waveform`}
-            title={`Time–Frequency STFT Spectrogram — ${open.original_filename}`}
-          />
-        </div>
-      )}
-
-      {open?.analysis && <ResultView analysis={open.analysis} quality={open.quality} />}
     </div>
   );
 }

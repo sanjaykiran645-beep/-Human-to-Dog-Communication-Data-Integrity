@@ -1,175 +1,175 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { api, clearAuth, getUser } from "../api";
 import { useNavigate } from "react-router-dom";
-import { api, clearSession, getBackendUrl, getUser, setBackendUrl } from "../api";
+
+const COLOR_THEMES = [
+  {
+    id: "default",
+    name: "Studio Warm (Default)",
+    desc: "Balanced warm acoustic studio palette",
+    previewBg: "#f8f5f0",
+    previewAccent: "#7c2d12",
+  },
+  {
+    id: "white-black",
+    name: "White & Black (Stark High-Contrast)",
+    desc: "Pure white surfaces with crisp black typography & borders",
+    previewBg: "#ffffff",
+    previewAccent: "#000000",
+  },
+  {
+    id: "red-blue",
+    name: "Red & Blue (Crimson & Cobalt)",
+    desc: "Vibrant crimson primary actions with royal cobalt cards",
+    previewBg: "#eff6ff",
+    previewAccent: "#dc2626",
+  },
+  {
+    id: "yellow-green",
+    name: "Yellow & Green (Solar & Emerald)",
+    desc: "Bright solar yellow highlights with deep emerald green cards",
+    previewBg: "#fefce8",
+    previewAccent: "#15803d",
+  },
+];
 
 export default function Settings() {
   const user = getUser();
   const nav = useNavigate();
-  const [current, setCurrent] = useState("");
-  const [next, setNext] = useState("");
-  const [backendUrlInput, setBackendUrlInput] = useState(getBackendUrl());
-  const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
+  const [theme, setTheme] = useState<string>(() => localStorage.getItem("cs_color_theme") || "default");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
-  function handleSaveBackendUrl() {
-    setErr("");
-    setMsg("");
-    try {
-      setBackendUrl(backendUrlInput);
-      setMsg("Backend service URL saved successfully.");
-      setTimeout(() => setMsg(""), 4000);
-    } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : "Security warning: Untrusted backend origin blocked.");
-    }
-  }
+  useEffect(() => {
+    localStorage.setItem("cs_color_theme", theme);
+    document.body.setAttribute("data-theme", theme);
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
 
-  function handleClearBackendUrl() {
-    setBackendUrl("");
-    setBackendUrlInput("");
-    setMsg("Backend URL reset to default relative origin.");
-    setTimeout(() => setMsg(""), 4000);
-  }
-
-  async function changePassword(e: FormEvent) {
+  async function updatePassword(e: FormEvent) {
     e.preventDefault();
-    setErr("");
-    setMsg("");
+    setMsg(null);
+    setErr(null);
     try {
       await api("/api/auth/change-password", {
         method: "POST",
-        body: JSON.stringify({ current_password: current, new_password: next }),
+        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
       });
-      setMsg("Password updated.");
-      setCurrent("");
-      setNext("");
-    } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : "Failed");
+      setCurrentPassword("");
+      setNewPassword("");
+      setMsg("Password updated successfully.");
+    } catch (e: any) {
+      setErr(e.message || "Could not update password.");
     }
-  }
-
-  async function logout() {
-    try {
-      await api("/api/auth/logout", { method: "POST" });
-    } catch {
-      /* still leave */
-    }
-    clearSession();
-    nav("/login");
-  }
-
-  async function exportData() {
-    setErr("");
-    try {
-      const data = await api<unknown>("/api/account/export");
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "caninesense-export.json";
-      a.click();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setMsg("Account research archive exported successfully as JSON.");
-      setTimeout(() => setMsg(""), 5000);
-    } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : "Failed to export data");
-    }
-  }
-
-  async function destroy() {
-    if (!confirm("Permanently delete your account, recordings, and analyses?")) return;
-    await api("/api/account", { method: "DELETE" });
-    clearSession();
-    nav("/login");
   }
 
   return (
-    <div>
-      <div className="topbar">
+    <div className="stack-lg" style={{ maxWidth: 960, margin: "0 auto" }}>
+      {/* Dynamic Color Theme Studio */}
+      <div className="card stack" style={{ padding: 28, borderRadius: 20 }}>
         <div>
-          <div className="kicker">Account</div>
-          <h1>Settings</h1>
-          <p>Recordings never leave this server to a third-party AI provider.</p>
+          <h2 style={{ margin: "0 0 4px 0", fontSize: 24 }}>Appearance & Color Theme Studio</h2>
+          <p className="muted" style={{ margin: 0, fontSize: 14 }}>
+            Switch your workspace color scheme instantly. Your selected palette is saved automatically.
+          </p>
         </div>
-        <button className="btn ghost" onClick={logout}>
-          Log out
-        </button>
-      </div>
-      <div className="card">
-        <h2>Profile</h2>
-        <p>
-          {user?.name} · {user?.email}
-        </p>
-      </div>
-      <div className="card">
-        <h2>Change password</h2>
-        {err && (
-          <div className="error" role="alert" style={{ marginBottom: 12 }}>
-            {err}
-          </div>
-        )}
-        {msg && (
-          <div
-            className="badge ok"
-            role="status"
-            style={{ padding: "8px 14px", marginBottom: 12, display: "block" }}
-          >
-            {msg}
-          </div>
-        )}
-        <form onSubmit={changePassword}>
-          <div className="field">
-            <label>Current</label>
-            <input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} required />
-          </div>
-          <div className="field">
-            <label>New (8+ characters)</label>
-            <input type="password" minLength={8} value={next} onChange={(e) => setNext(e.target.value)} required />
-          </div>
-          <button className="btn">Update password</button>
-        </form>
-      </div>
-      <div className="card">
-        <h2>Backend API Service</h2>
-        <p className="tiny" style={{ color: "var(--muted)", lineHeight: 1.5 }}>
-          Connected FastAPI bioacoustic service URL. When hosting the frontend statically (e.g. GitHub Pages), enter your deployed backend server URL below to enable real database accounts, full PyTorch/scikit-learn ML inference, and 134-clip reference audio streaming. Leave blank for relative proxying.
-        </p>
-        <div className="field">
-          <label htmlFor="backend-url-input">FastAPI Backend Origin URL</label>
-          <input
-            id="backend-url-input"
-            type="url"
-            placeholder="e.g. https://caninesense-backend.onrender.com"
-            value={backendUrlInput}
-            onChange={(e) => setBackendUrlInput(e.target.value)}
-          />
-        </div>
-        <div className="row" style={{ gap: 10 }}>
-          <button className="btn" type="button" onClick={handleSaveBackendUrl}>
-            Save Backend URL
-          </button>
-          {backendUrlInput && (
-            <button className="btn ghost" type="button" onClick={handleClearBackendUrl}>
-              Reset to Default
-            </button>
-          )}
+
+        <div className="grid-2" style={{ gap: 14, marginTop: 8 }}>
+          {COLOR_THEMES.map((t) => {
+            const active = theme === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTheme(t.id)}
+                style={{
+                  textAlign: "left",
+                  padding: 18,
+                  borderRadius: 16,
+                  border: active ? `3px solid ${t.previewAccent}` : "1px solid rgba(0,0,0,0.15)",
+                  background: t.previewBg,
+                  cursor: "pointer",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 16, color: "#0f172a" }}>
+                    {t.name} {active ? "✓" : ""}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "#475569", marginTop: 4 }}>{t.desc}</div>
+                </div>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 999,
+                    background: t.previewAccent,
+                    border: "2px solid #fff",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+                  }}
+                />
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      <div className="card">
-        <h2>Privacy</h2>
-        <p className="tiny">
-          Audio is stored under your user id, served only with your token, and excluded from other accounts by server-side
-          ownership checks. Engine B is experimental. Do not use this product as a veterinary diagnostic.
-        </p>
-        <div className="row">
-          <button className="btn ghost" type="button" onClick={exportData}>
-            Export my data
-          </button>
-          <button className="btn danger" type="button" onClick={destroy}>
-            Delete account
-          </button>
+      <div className="grid-2" style={{ gap: 20 }}>
+        {/* Account & Data Management */}
+        <div className="card stack" style={{ padding: 28, borderRadius: 20 }}>
+          <h3 style={{ margin: 0, fontSize: 20 }}>Account & Workspace Data</h3>
+          <div style={{ fontSize: 14 }}>
+            <div><strong>Name:</strong> {user?.name || "Active User"}</div>
+            <div style={{ marginTop: 6 }}><strong>Email:</strong> {user?.email || "local@caninesense.ai"}</div>
+            <div style={{ marginTop: 6 }}><strong>Profile Limit Rule:</strong> Max 10 dogs (auto-deletes oldest 3 at 11+)</div>
+          </div>
+
+          <div className="row" style={{ gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => {
+                localStorage.removeItem("cs_saved_history_v1");
+                setMsg("Local cached history cleared.");
+              }}
+            >
+              Reset Local Cache
+            </button>
+            <button
+              type="button"
+              className="btn btn-danger btn-sm"
+              onClick={() => {
+                clearAuth();
+                nav("/login");
+              }}
+            >
+              Sign Out
+            </button>
+          </div>
         </div>
+
+        {/* Security & Password */}
+        <form className="card stack" onSubmit={updatePassword} style={{ padding: 28, borderRadius: 20 }}>
+          <h3 style={{ margin: 0, fontSize: 20 }}>Change Password</h3>
+          {msg && <div className="alert" style={{ background: "#ecfdf5", color: "#065f46" }}>{msg}</div>}
+          {err && <div className="alert alert-error">{err}</div>}
+          <div className="field">
+            <label>Current Password</label>
+            <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required />
+          </div>
+          <div className="field">
+            <label>New Password (8+ chars)</label>
+            <input type="password" minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
+          </div>
+          <button className="btn btn-primary btn-sm" type="submit" style={{ borderRadius: 999, padding: "10px 20px" }}>
+            Update Password
+          </button>
+        </form>
       </div>
     </div>
   );

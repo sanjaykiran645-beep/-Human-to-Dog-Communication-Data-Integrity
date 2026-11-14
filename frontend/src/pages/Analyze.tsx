@@ -103,6 +103,20 @@ async function decodeAudioLocally(file: File | Blob, dog?: Dog | null) {
   };
 }
 
+
+function persistAnalysisLocally(data: any, fname: string) {
+  try {
+    const existing = JSON.parse(localStorage.getItem("cs_saved_history_v1") || "[]");
+    const entry = {
+      ...data,
+      id: data.id || `local_${Date.now()}`,
+      original_filename: fname,
+      created_at: new Date().toISOString(),
+    };
+    localStorage.setItem("cs_saved_history_v1", JSON.stringify([entry, ...existing].slice(0, 100)));
+  } catch {}
+}
+
 export default function Analyze() {
   const [dogs, setDogs] = useState<Dog[]>([]);
   const [dogId, setDogId] = useState<string>("");
@@ -165,6 +179,7 @@ export default function Analyze() {
         window.clearTimeout(timeoutId);
         if (resp.ok) {
           const serverData = await resp.json();
+          persistAnalysisLocally(serverData, (file as File).name || 'recording.wav');
           setRecResult(serverData);
           return;
         }
@@ -173,6 +188,7 @@ export default function Analyze() {
       }
 
       const localDecoded = await decodeAudioLocally(file, activeDog);
+      persistAnalysisLocally(localDecoded, (file as File).name || 'recording.wav');
       setRecResult(localDecoded);
     } catch (e: any) {
       setErr(String(e?.message || "Could not analyze audio."));

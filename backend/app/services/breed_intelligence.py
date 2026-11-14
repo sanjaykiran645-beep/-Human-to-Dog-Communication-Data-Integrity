@@ -596,16 +596,19 @@ def resolve_breed_intelligence(
     norm_sex = (sex or "unknown").strip().lower()
     vp = dict(matched.get("vocalization_profile", {}))
     f0_r = list(vp.get("f0_range_hz", [170, 480]))
+    base_formants = list(vp.get("formants_hz", [600, 1500, 2700]))
     if norm_sex == "male":
-        # Male canines: ~10% deeper vocal fold resonance (lower F0) & higher territorial vigilance
-        f0_r = [ max(80, int(f0_r[0] * 0.90)), int(f0_r[1] * 0.92) ]
-        vp["optimal_synth_pitch_hz"] = round(float(vp.get("optimal_synth_pitch_hz", 280.0)) * 0.90, 1)
-        vp["gender_acoustic_profile"] = "Male Canine: Deeper vocal-fold resonance (-10% F0 Hz), stronger territorial boundary projection."
+        # Male canines: -8% to -10% deeper vocal-fold resonance & formant scale
+        f0_r = [ max(80, int(f0_r[0] * 0.91)), int(f0_r[1] * 0.91) ]
+        vp["optimal_synth_pitch_hz"] = round(float(vp.get("optimal_synth_pitch_hz", 280.0)) * 0.91, 1)
+        vp["formants_hz"] = [round(float(f) * 0.91, 1) for f in base_formants]
+        vp["gender_acoustic_profile"] = "Male Canine: Deeper vocal-fold resonance (-9% F0 Hz), deeper formant synthesis resonance."
     elif norm_sex == "female":
-        # Female canines: ~9% higher fundamental pitch (F0) & heightened social/maternal harmonic clarity
-        f0_r = [ int(f0_r[0] * 1.08), int(f0_r[1] * 1.09) ]
+        # Female canines: +8% higher harmonic pitch & formant scale
+        f0_r = [ int(f0_r[0] * 1.08), int(f0_r[1] * 1.08) ]
         vp["optimal_synth_pitch_hz"] = round(float(vp.get("optimal_synth_pitch_hz", 280.0)) * 1.08, 1)
-        vp["gender_acoustic_profile"] = "Female Canine: Higher harmonic pitch (+8% F0 Hz), rapid social/protective alert responsiveness."
+        vp["formants_hz"] = [round(float(f) * 1.08, 1) for f in base_formants]
+        vp["gender_acoustic_profile"] = "Female Canine: Higher harmonic pitch (+8% F0 Hz), heightened formant clarity."
     else:
         vp["gender_acoustic_profile"] = "Standard Canine Baseline"
     vp["f0_range_hz"] = f0_r

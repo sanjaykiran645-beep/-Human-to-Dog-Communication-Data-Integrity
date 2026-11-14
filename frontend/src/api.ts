@@ -45,6 +45,7 @@ export function clearSession() {
   localStorage.removeItem(TOKEN);
   localStorage.removeItem(USER);
 }
+export const clearAuth = clearSession;
 
 export function startDemoSession() {
   const demoUser: User = {

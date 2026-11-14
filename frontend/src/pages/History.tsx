@@ -12,7 +12,6 @@ export default function History() {
     try {
       const serverRecs = await api<any[]>("/api/recordings").catch(() => []);
       const localRecs = JSON.parse(localStorage.getItem("cs_saved_history_v1") || "[]");
-      // Merge server + local persisted history without duplicates
       const seen = new Set<string>();
       const merged: any[] = [];
       for (const r of [...(serverRecs || []), ...localRecs]) {
@@ -46,8 +45,7 @@ export default function History() {
     const q = filter.toLowerCase();
     const vocal = (r.analysis?.vocalization || "").toLowerCase();
     const meaning = (r.analysis?.explanation?.summary || r.analysis?.scenario?.spoken_meaning || "").toLowerCase();
-    const dogName = (r.dog_profile?.name || "").toLowerCase();
-    return vocal.includes(q) || meaning.includes(q) || dogName.includes(q) || (r.original_filename || "").toLowerCase().includes(q);
+    return vocal.includes(q) || meaning.includes(q) || (r.original_filename || "").toLowerCase().includes(q);
   });
 
   return (
@@ -81,9 +79,7 @@ export default function History() {
             <p className="muted" style={{ fontSize: 13, margin: "6px 0 16px 0" }}>
               Analyze a live microphone recording or upload an audio clip to save it to your permanent history.
             </p>
-            <Link to="/app/analyze" className="btn btn-primary btn-sm">
-              Go to Analyzer
-            </Link>
+            <Link to="/app/analyze" className="btn btn-primary btn-sm">Go to Analyzer</Link>
           </div>
         ) : (
           <div className="stack" style={{ gap: 12 }}>
@@ -104,44 +100,21 @@ export default function History() {
               const f0 = Math.round(Number(a.features?.f0_mean || 320));
 
               return (
-                <div
-                  key={r.id}
-                  className="card"
-                  style={{ padding: 20, borderRadius: 16, border: "1px solid rgba(0,0,0,0.1)" }}
-                >
+                <div key={r.id} className="card" style={{ padding: 20, borderRadius: 16, border: "1px solid rgba(0,0,0,0.1)" }}>
                   <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
                     <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                      <span
-                        style={{
-                          padding: "4px 12px",
-                          borderRadius: 999,
-                          background: "#059669",
-                          color: "#fff",
-                          fontSize: 12,
-                          fontWeight: 700,
-                        }}
-                      >
+                      <span style={{ padding: "4px 12px", borderRadius: 999, background: "#059669", color: "#fff", fontSize: 12, fontWeight: 700 }}>
                         {vocal} · {conf}% ACCURACY
                       </span>
-                      <span className="badge" style={{ fontSize: 12 }}>
-                        Pitch: {f0} Hz
-                      </span>
-                      {r.dog_profile?.name && (
-                        <span className="badge" style={{ fontSize: 12 }}>
-                          Dog: {r.dog_profile.name} ({r.dog_profile.breed})
-                        </span>
-                      )}
+                      <span className="badge" style={{ fontSize: 12 }}>Pitch: {f0} Hz</span>
                     </div>
                     <div className="row" style={{ gap: 10, alignItems: "center" }}>
                       <span className="muted" style={{ fontSize: 12 }}>
                         {r.created_at ? new Date(r.created_at).toLocaleString() : "Saved Session"}
                       </span>
-                      <button className="btn btn-danger btn-sm" onClick={() => removeItem(r.id)}>
-                        Delete
-                      </button>
+                      <button className="btn btn-danger btn-sm" onClick={() => removeItem(r.id)}>Delete</button>
                     </div>
                   </div>
-
                   <div style={{ fontWeight: 700, fontSize: 17, marginTop: 10 }}>{spoken}</div>
                   <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{why}</div>
                 </div>

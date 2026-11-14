@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import hashlib
 import json
 import uuid
@@ -233,7 +234,17 @@ def list_recordings(
     out = []
     for rec in recs:
         analysis = db.scalar(select(models.Analysis).where(models.Analysis.recording_id == rec.id))
-        out.append(_serialize_recording(rec, analysis))
+        rec_dict = _serialize_recording(rec, analysis)
+        if rec.dog_id:
+            d = db.get(models.Dog, rec.dog_id)
+            if d:
+                rec_dict["dog_profile"] = {
+                    "id": d.id,
+                    "name": d.name,
+                    "breed": d.breed or "Canine",
+                    "sex": d.sex or "unknown",
+                }
+        out.append(rec_dict)
     return out
 
 
@@ -545,6 +556,7 @@ def quick_analyze_recording(
             processed_path="",
             spectrogram_path="",
             waveform_path="",
+            content_type=request_file.content_type or "audio/wav",
             duration_sec=float(duration_sec),
             sample_rate=16000,
             channels=1,
@@ -559,6 +571,7 @@ def quick_analyze_recording(
 
         analysis_row = models.Analysis(
             id=str(uuid.uuid4()),
+            user_id=user.id,
             recording_id=rec_row.id,
             dog_id=dog.id if dog else None,
             model_version=MODEL_VERSION,
@@ -581,10 +594,13 @@ def quick_analyze_recording(
 
     return {
         "id": rec_row_id,
+        "original_filename": request_file.filename or "recording.wav",
         "duration_sec": duration_sec,
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "dog_profile": {
             "name": dog_dict["name"],
             "breed": intel["canonical_breed"],
+            "sex": dog.sex if dog else "unknown",
             "intelligence_tier": intel["intelligence_tier"],
             "intelligence_rank": intel["intelligence_rank"],
             "temperament": ", ".join(intel["temperament"][:4]),
@@ -596,5 +612,10 @@ def quick_analyze_recording(
             "features": features,
             "behavior": behavior,
             "scenario": scenario,
+            "explanation": {
+                "summary": scenario["spoken_meaning"],
+                "why": scenario["why_purpose"],
+                "action": scenario["owner_action"],
+            },
         },
     }

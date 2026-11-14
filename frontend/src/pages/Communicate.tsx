@@ -33,7 +33,7 @@ const TRAINED_CUES: TrainedCue[] = [
       "Play this signal at 50%-60% speaker volume from 1 to 2 metres away with relaxed shoulders.",
       "Do not shout over your dog's bark; replay once after 4 seconds as their breathing slows."
     ],
-    expectedDogBodyLanguage: "Ears relax backward, tail lowers from rigid alert to neutral, and barking transitions into a soft sigh or lip-lick.",
+    expectedDogBodyLanguage: "Ears relax backward, tail lowers from rigid alert to neutral, and barking transitions into a soft sigh.",
     accuracyPct: 96,
     f0Start: 280,
     f0End: 180,
@@ -49,8 +49,8 @@ const TRAINED_CUES: TrainedCue[] = [
     canineMeaning: '"Come to me right now - positive attention and reward waiting!"',
     acousticStrategy: "Rising double-staccato recruitment call (320 Hz -> 490 Hz) tuned to canine auditory peak sensitivity.",
     deliveryInstructions: [
-      "Play at 75%-85% volume while crouching slightly or opening your posture (never lean threateningly forward).",
-      "As soon as your dog turns their head toward the sound, take 2 steps backward to trigger their natural chase/follow instinct.",
+      "Play at 75%-85% volume while crouching slightly or opening your posture.",
+      "As soon as your dog turns their head toward the sound, take 2 steps backward to trigger their natural follow instinct.",
       "Reward immediately with praise or a treat within 2 seconds of arrival."
     ],
     expectedDogBodyLanguage: "Immediate ear swivel toward speaker, lifted head, and brisk trotting approach with wagging tail.",
@@ -70,7 +70,7 @@ const TRAINED_CUES: TrainedCue[] = [
     acousticStrategy: "Warm harmonic social whimper (310 Hz -> 385 Hz) with natural vocal-fold vibrato matching pack affection cues.",
     deliveryInstructions: [
       "Play immediately (within 1-2 seconds) after your dog completes a calm or desired behavior.",
-      "Keep speaker volume gentle (40%-55%) and pair with slow chest/chin strokes rather than patting the top of the head."
+      "Keep speaker volume gentle (40%-55%) and pair with slow chest/chin strokes."
     ],
     expectedDogBodyLanguage: "Softened eyes, relaxed mouth, wiggly body posture, and leaning gently into your leg.",
     accuracyPct: 97,
@@ -89,7 +89,7 @@ const TRAINED_CUES: TrainedCue[] = [
     acousticStrategy: "Low-frequency maternal correction rumble (160 Hz -> 120 Hz) with sub-harmonic chest resonance.",
     deliveryInstructions: [
       "Play once firmly at 65% volume the exact moment your dog approaches the forbidden item.",
-      "Stand tall and still with neutral facial expression—do not repeat rapidly like a toy.",
+      "Stand tall and still with neutral facial expression—do not repeat rapidly.",
       "The moment your dog looks away from the object, switch to 'Good Dog!' to reinforce their choice."
     ],
     expectedDogBodyLanguage: "Pause in motion, ear flick, nose withdrawal from the object, and looking back at you for guidance.",
@@ -128,7 +128,7 @@ const TRAINED_CUES: TrainedCue[] = [
     acousticStrategy: "Steady low-mid grounding resonance (215 Hz -> 170 Hz) engineered for veterinary clinics and anxious dogs.",
     deliveryInstructions: [
       "Play at low, soothing volume (35%-45%) 10 seconds before starting stethoscope, paw, or grooming handling.",
-      "Place the speaker near your chest level (not directly against the dog's ear) so the low frequencies resonate naturally.",
+      "Place the speaker near your chest level so the low frequencies resonate naturally.",
       "Maintain steady, continuous hand contact on the dog's shoulder while the cue plays."
     ],
     expectedDogBodyLanguage: "Slower respiration rate, lowered muscle tension in the neck/shoulders, and reduced trembling.",
@@ -154,11 +154,9 @@ function synthesizeCanineFormantWav(cue: TrainedCue, breed?: string | null, sex?
       ? 0.85
       : 1.0;
 
-  // Apply Male vs Female gender frequency calibration
   const s = (sex || "male").toLowerCase();
-  const genderScale = s === "female" ? 1.08 : 0.92;
+  const genderScale = s === "female" ? 1.08 : 0.91;
   const totalScale = breedScale * genderScale;
-
   const pulseLen = Math.floor(totalSamples / cue.pulses);
 
   for (let p = 0; p < cue.pulses; p++) {
@@ -243,7 +241,7 @@ function matchInputToTrainedCue(input: string): TrainedCue {
     acousticStrategy: "Breed- and gender-calibrated formant attention signal tuned to your dog's auditory sensitivity.",
     deliveryInstructions: [
       "Play at 60% volume while facing your dog with open, relaxed hands.",
-      "Wait 2 seconds after playback for your dog to lock eye contact before giving your next gesture or command."
+      "Wait 2 seconds after playback for your dog to lock eye contact before giving your next gesture."
     ],
     expectedDogBodyLanguage: "Head tilt or ear perk toward the speaker with focused eye contact.",
     accuracyPct: 95,
@@ -361,9 +359,7 @@ export default function Communicate() {
                 <span style={{ fontWeight: 700, fontSize: 15, color: "#1e1b18" }}>{c.label}</span>
                 <span style={{ fontSize: 12, fontWeight: 700, color: "#059669" }}>{c.accuracyPct}% Accuracy</span>
               </div>
-              <div className="muted" style={{ fontSize: 12, marginTop: 6, lineHeight: 1.45 }}>
-                {c.canineMeaning}
-              </div>
+              <div className="muted" style={{ fontSize: 12, marginTop: 6, lineHeight: 1.45 }}>{c.canineMeaning}</div>
             </button>
           ))}
         </div>
@@ -390,16 +386,7 @@ export default function Communicate() {
         <div className="card stack" style={{ padding: 30, borderRadius: 20, border: "2px solid #7c2d12" }}>
           <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
             <div className="row" style={{ gap: 10, alignItems: "center" }}>
-              <span
-                style={{
-                  padding: "6px 14px",
-                  borderRadius: 999,
-                  background: "#059669",
-                  color: "#fff",
-                  fontSize: 13,
-                  fontWeight: 700,
-                }}
-              >
+              <span style={{ padding: "6px 14px", borderRadius: 999, background: "#059669", color: "#fff", fontSize: 13, fontWeight: 700 }}>
                 {activeCue.accuracyPct}% BREED & GENDER ACCURACY
               </span>
               <span className="badge" style={{ fontSize: 13, fontWeight: 700 }}>
@@ -412,14 +399,7 @@ export default function Communicate() {
             </span>
           </div>
 
-          <div
-            style={{
-              padding: "22px 24px",
-              borderRadius: 16,
-              background: "linear-gradient(135deg, #1e1b18 0%, #3a2321 100%)",
-              color: "#fff",
-            }}
-          >
+          <div style={{ padding: "22px 24px", borderRadius: 16, background: "linear-gradient(135deg, #1e1b18 0%, #3a2321 100%)", color: "#fff" }}>
             <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#f5d0c5", fontWeight: 700 }}>
               Translated Canine Signal ({displayInput})
             </div>
@@ -428,13 +408,10 @@ export default function Communicate() {
           </div>
 
           <div style={{ padding: "16px 20px", borderRadius: 14, background: "rgba(0,0,0,0.03)" }}>
-            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>
-              Play Canine Audio Signal
-            </div>
+            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Play Canine Audio Signal</div>
             <audio controls autoPlay src={audioSrc} style={{ width: "100%", height: 42 }} />
           </div>
 
-          {/* Step-by-Step Trainer & Clinic Instructions */}
           <div className="grid-2" style={{ gap: 16 }}>
             <div style={{ padding: 18, borderRadius: 14, background: "rgba(0,0,0,0.025)", border: "1px solid rgba(0,0,0,0.08)" }}>
               <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", color: "#7c2d12", marginBottom: 8 }}>
@@ -451,9 +428,7 @@ export default function Communicate() {
               <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", color: "#065f46", marginBottom: 8 }}>
                 Expected Dog Response & Body Language
               </div>
-              <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6 }}>
-                {activeCue.expectedDogBodyLanguage}
-              </p>
+              <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6 }}>{activeCue.expectedDogBodyLanguage}</p>
             </div>
           </div>
         </div>

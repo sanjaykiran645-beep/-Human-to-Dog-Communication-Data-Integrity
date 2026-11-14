@@ -1624,15 +1624,50 @@ html, body, #root, .app {
 
 
 /* === DYNAMIC COLOR THEME ENGINE === */
+html[data-theme="default"] body,
+body[data-theme="default"],
+html[data-theme="studio-warm"] body,
+body[data-theme="studio-warm"] {
+  --bg: #F7F2E8 !important;
+  --bg-2: #E8DDC8 !important;
+  --paper: #FFFDF8 !important;
+  --surface: #FFFDF8 !important;
+  --surface-soft: #FBF7EF !important;
+  --surface-tint: #F3EBDC !important;
+  --ink: #382820 !important;
+  --ink-2: #443A34 !important;
+  --text: #382820 !important;
+  --muted: #6E6256 !important;
+  --accent: #762F3D !important;
+  --accent-hover: #5E2330 !important;
+  --line: #E8DFD2 !important;
+  --line-strong: #D8C9A7 !important;
+  --border: #E8DFD2 !important;
+  background:
+    radial-gradient(1100px 580px at 8% -8%, rgba(216, 201, 167, 0.35) 0%, transparent 55%),
+    radial-gradient(900px 520px at 102% 6%, rgba(232, 221, 200, 0.45) 0%, transparent 50%),
+    #F7F2E8 !important;
+  color: #382820 !important;
+}
+
 html[data-theme="white-black"] body,
 body[data-theme="white-black"] {
   --bg: #ffffff !important;
+  --bg-2: #f4f4f5 !important;
   --bg-elev: #f4f4f5 !important;
   --surface: #ffffff !important;
+  --paper: #ffffff !important;
+  --surface-soft: #fafafa !important;
+  --surface-tint: #f4f4f5 !important;
+  --ink: #000000 !important;
+  --ink-2: #18181b !important;
   --text: #000000 !important;
-  --muted: #3f3f46 !important;
+  --muted: #52525b !important;
   --primary: #000000 !important;
-  --accent: #18181b !important;
+  --accent: #000000 !important;
+  --accent-hover: #27272a !important;
+  --line: #000000 !important;
+  --line-strong: #000000 !important;
   --border: #000000 !important;
   background: #ffffff !important;
   color: #000000 !important;
@@ -1648,15 +1683,28 @@ body[data-theme="white-black"] .btn-primary {
   color: #ffffff !important;
   border: 2px solid #000000 !important;
 }
+body[data-theme="white-black"] .sidebar {
+  background: #ffffff !important;
+  border-right: 2px solid #000000 !important;
+}
 
 html[data-theme="red-blue"] body,
 body[data-theme="red-blue"] {
   --bg: #eff6ff !important;
+  --bg-2: #dbeafe !important;
   --surface: #ffffff !important;
+  --paper: #ffffff !important;
+  --surface-soft: #f8fafc !important;
+  --surface-tint: #eff6ff !important;
+  --ink: #1e3a8a !important;
+  --ink-2: #172554 !important;
   --text: #1e3a8a !important;
-  --muted: #1d4ed8 !important;
+  --muted: #2563eb !important;
   --primary: #dc2626 !important;
-  --accent: #2563eb !important;
+  --accent: #dc2626 !important;
+  --accent-hover: #b91c1c !important;
+  --line: #93c5fd !important;
+  --line-strong: #3b82f6 !important;
   --border: #93c5fd !important;
   background: linear-gradient(135deg, #eff6ff 0%, #fef2f2 100%) !important;
   color: #1e3a8a !important;
@@ -1671,15 +1719,28 @@ body[data-theme="red-blue"] .btn-primary {
   color: #ffffff !important;
   border: none !important;
 }
+body[data-theme="red-blue"] .sidebar {
+  background: #ffffff !important;
+  border-right: 2px solid #93c5fd !important;
+}
 
 html[data-theme="yellow-green"] body,
 body[data-theme="yellow-green"] {
   --bg: #fefce8 !important;
+  --bg-2: #fef08a !important;
   --surface: #ffffff !important;
+  --paper: #ffffff !important;
+  --surface-soft: #f0fdf4 !important;
+  --surface-tint: #fefce8 !important;
+  --ink: #064e3b !important;
+  --ink-2: #022c22 !important;
   --text: #064e3b !important;
   --muted: #047857 !important;
   --primary: #15803d !important;
-  --accent: #eab308 !important;
+  --accent: #15803d !important;
+  --accent-hover: #166534 !important;
+  --line: #fde047 !important;
+  --line-strong: #ca8a04 !important;
   --border: #fde047 !important;
   background: linear-gradient(135deg, #fefce8 0%, #ecfdf5 100%) !important;
   color: #064e3b !important;
@@ -1693,4 +1754,8 @@ body[data-theme="yellow-green"] .btn-primary {
   background: linear-gradient(135deg, #15803d 0%, #ca8a04 100%) !important;
   color: #ffffff !important;
   border: none !important;
+}
+body[data-theme="yellow-green"] .sidebar {
+  background: #ffffff !important;
+  border-right: 2px solid #fde047 !important;
 }

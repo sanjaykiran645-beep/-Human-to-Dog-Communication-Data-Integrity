@@ -69,7 +69,7 @@ export default function Analytics() {
               <div style={{ padding: 18, borderRadius: 14, background: "rgba(0,0,0,0.03)" }}>
                 <div className="muted" style={{ fontSize: 12 }}>Active Dog Profiles</div>
                 <div style={{ fontSize: 28, fontWeight: 800, marginTop: 4 }}>
-                  {dogs.length} <span style={{ fontSize: 13, fontWeight: 600 }}>({maleCount}♂ / {femaleCount}♀)</span>
+                  {dogs.length} <span style={{ fontSize: 13, fontWeight: 600 }}>({maleCount}M / {femaleCount}F)</span>
                 </div>
               </div>
               <div style={{ padding: 18, borderRadius: 14, background: "rgba(0,0,0,0.03)" }}>

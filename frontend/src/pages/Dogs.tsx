@@ -61,11 +61,11 @@ export default function Dogs() {
       setAge("");
       if (prevCount >= 10) {
         setSavedMsg(
-          `Profile saved with ${sex.toUpperCase()} acoustic calibration! Since your profiles exceeded 10, the oldest 3 profiles were automatically removed.`
+          `Profile saved with ${sex.toUpperCase()} acoustic calibration! Since your profiles exceeded 10, the starting 3 (oldest) profiles were automatically deleted.`
         );
       } else {
         setSavedMsg(
-          `Profile saved! ${sex === "male" ? "Male (-10% deeper vocal fold pitch)" : "Female (+8% harmonic pitch)"} & breed intelligence synced in backend.`
+          `Profile saved! ${sex === "male" ? "Male (-10% deeper vocal fold pitch)" : "Female (+8% harmonic pitch)"} & breed intelligence synced.`
         );
       }
       await load();
@@ -91,7 +91,7 @@ export default function Dogs() {
         <div>
           <h2 style={{ margin: "0 0 6px 0", fontSize: 22 }}>Add Canine Profile</h2>
           <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-            Select your dog's name, breed, and sex (Male/Female). Our backend calibrates vocal-fold pitch dimorphism and automatically trims the oldest 3 profiles whenever your list exceeds 10 dogs.
+            Select your dog's name, sex (Male/Female), and breed. Automatically deletes the oldest 3 profiles whenever your list exceeds 10 profiles.
           </p>
         </div>
 
@@ -104,15 +104,9 @@ export default function Dogs() {
 
         <div className="field">
           <label>Dog's Name *</label>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            placeholder="e.g. Max, Bella, Bruno, Luna"
-          />
+          <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. Max, Bella, Bruno, Luna" />
         </div>
 
-        {/* Gender Differentiation Selector */}
         <div className="field">
           <label>Canine Sex / Gender Differentiation *</label>
           <div className="grid-2" style={{ gap: 10 }}>
@@ -129,7 +123,7 @@ export default function Dogs() {
                 cursor: "pointer",
               }}
             >
-              ♂ Male Dog (Deeper F0 Pitch)
+              Male Dog (Deeper F0 Pitch)
             </button>
             <button
               type="button"
@@ -144,18 +138,14 @@ export default function Dogs() {
                 cursor: "pointer",
               }}
             >
-              ♀ Female Dog (Higher F0 Pitch)
+              Female Dog (Higher F0 Pitch)
             </button>
           </div>
         </div>
 
         <div className="field">
           <label>Breed (Auto-Syncs Vocal & Behavioral Intelligence)</label>
-          <input
-            value={breed}
-            onChange={(e) => setBreed(e.target.value)}
-            placeholder="e.g. Golden Retriever, American Pit Bull..."
-          />
+          <input value={breed} onChange={(e) => setBreed(e.target.value)} placeholder="e.g. Golden Retriever, American Pit Bull..." />
           <div className="row" style={{ gap: 6, flexWrap: "wrap", marginTop: 8 }}>
             {POPULAR_BREEDS.map((b) => (
               <button
@@ -173,15 +163,7 @@ export default function Dogs() {
 
         <div className="field">
           <label>Age in Years (Optional)</label>
-          <input
-            type="number"
-            step="0.5"
-            min="0"
-            max="30"
-            value={age}
-            onChange={(e) => setAge(e.target.value)}
-            placeholder="e.g. 3"
-          />
+          <input type="number" step="0.5" min="0" max="30" value={age} onChange={(e) => setAge(e.target.value)} placeholder="e.g. 3" />
         </div>
 
         <button className="btn btn-primary" disabled={busy} style={{ borderRadius: 999, padding: "12px 24px", fontWeight: 700 }}>
@@ -192,15 +174,11 @@ export default function Dogs() {
       <div className="card stack" style={{ padding: 28, borderRadius: 18 }}>
         <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0, fontSize: 22 }}>Your Dogs ({dogs.length} / 10 Max)</h2>
-          <span className="badge" style={{ fontSize: 11 }}>
-            Auto-Prunes Oldest 3 at 11+
-          </span>
+          <span className="badge" style={{ fontSize: 11 }}>Auto-Deletes Oldest 3 at 11+</span>
         </div>
 
         {dogs.length === 0 ? (
-          <p className="muted" style={{ fontSize: 14 }}>
-            No dogs added yet. Add a Male or Female profile on the left to calibrate analysis and communication.
-          </p>
+          <p className="muted" style={{ fontSize: 14 }}>No dogs added yet. Add a Male or Female profile on the left.</p>
         ) : (
           <div className="stack" style={{ gap: 12 }}>
             {dogs.map((d) => {
@@ -231,16 +209,14 @@ export default function Dogs() {
                           color: isFemale ? "#be185d" : "#1d4ed8",
                         }}
                       >
-                        {isFemale ? "♀ FEMALE" : "♂ MALE"}
+                        {isFemale ? "FEMALE" : "MALE"}
                       </span>
                     </div>
                     <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
                       {d.breed || "Mixed Breed"} {d.age_years ? `· ${d.age_years} yrs` : ""} {d.weight_kg ? `· ${d.weight_kg} kg` : ""}
                     </div>
                   </div>
-                  <button className="btn btn-danger btn-sm" onClick={() => remove(d.id)}>
-                    Delete
-                  </button>
+                  <button className="btn btn-danger btn-sm" onClick={() => remove(d.id)}>Delete</button>
                 </div>
               );
             })}

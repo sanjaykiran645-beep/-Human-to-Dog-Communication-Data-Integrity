@@ -106,14 +106,15 @@ async function decodeAudioLocally(file: File | Blob, dog?: Dog | null) {
 
 function persistAnalysisLocally(data: any, fname: string) {
   try {
-    const existing = JSON.parse(localStorage.getItem("cs_saved_history_v1") || "[]");
+    const existing: any[] = JSON.parse(localStorage.getItem("cs_saved_history_v1") || "[]");
     const entry = {
       ...data,
       id: data.id || `local_${Date.now()}`,
-      original_filename: fname,
-      created_at: new Date().toISOString(),
+      original_filename: data.original_filename || fname,
+      created_at: data.created_at || new Date().toISOString(),
     };
-    localStorage.setItem("cs_saved_history_v1", JSON.stringify([entry, ...existing].slice(0, 100)));
+    const filtered = existing.filter((x: any) => x.id !== entry.id);
+    localStorage.setItem("cs_saved_history_v1", JSON.stringify([entry, ...filtered].slice(0, 100)));
   } catch {}
 }
 

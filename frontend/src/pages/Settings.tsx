@@ -4,34 +4,10 @@ import { api, clearAuth, getUser } from "../api";
 import { useNavigate } from "react-router-dom";
 
 const COLOR_THEMES = [
-  {
-    id: "default",
-    name: "Studio Warm (Default)",
-    desc: "Balanced warm acoustic studio palette",
-    previewBg: "#f8f5f0",
-    previewAccent: "#7c2d12",
-  },
-  {
-    id: "white-black",
-    name: "White & Black (Stark High-Contrast)",
-    desc: "Pure white surfaces with crisp black typography & borders",
-    previewBg: "#ffffff",
-    previewAccent: "#000000",
-  },
-  {
-    id: "red-blue",
-    name: "Red & Blue (Crimson & Cobalt)",
-    desc: "Vibrant crimson primary actions with royal cobalt cards",
-    previewBg: "#eff6ff",
-    previewAccent: "#dc2626",
-  },
-  {
-    id: "yellow-green",
-    name: "Yellow & Green (Solar & Emerald)",
-    desc: "Bright solar yellow highlights with deep emerald green cards",
-    previewBg: "#fefce8",
-    previewAccent: "#15803d",
-  },
+  { id: "default", name: "Studio Warm (Default)", desc: "Balanced warm acoustic studio palette", previewBg: "#f8f5f0", previewAccent: "#7c2d12" },
+  { id: "white-black", name: "White & Black (Stark Monochrome)", desc: "Pure white surfaces with crisp black typography & borders", previewBg: "#ffffff", previewAccent: "#000000" },
+  { id: "red-blue", name: "Red & Blue (Crimson & Cobalt)", desc: "Vibrant crimson primary actions with royal cobalt cards", previewBg: "#eff6ff", previewAccent: "#dc2626" },
+  { id: "yellow-green", name: "Yellow & Green (Solar & Emerald)", desc: "Bright solar yellow highlights with deep emerald green cards", previewBg: "#fefce8", previewAccent: "#15803d" },
 ];
 
 export default function Settings() {
@@ -68,12 +44,11 @@ export default function Settings() {
 
   return (
     <div className="stack-lg" style={{ maxWidth: 960, margin: "0 auto" }}>
-      {/* Dynamic Color Theme Studio */}
       <div className="card stack" style={{ padding: 28, borderRadius: 20 }}>
         <div>
           <h2 style={{ margin: "0 0 4px 0", fontSize: 24 }}>Appearance & Color Theme Studio</h2>
           <p className="muted" style={{ margin: 0, fontSize: 14 }}>
-            Switch your workspace color scheme instantly. Your selected palette is saved automatically.
+            Switch your workspace color scheme instantly (White & Black, Red & Blue, Yellow & Green).
           </p>
         </div>
 
@@ -99,20 +74,11 @@ export default function Settings() {
               >
                 <div>
                   <div style={{ fontWeight: 800, fontSize: 16, color: "#0f172a" }}>
-                    {t.name} {active ? "✓" : ""}
+                    {t.name} {active ? "[ACTIVE]" : ""}
                   </div>
                   <div style={{ fontSize: 12.5, color: "#475569", marginTop: 4 }}>{t.desc}</div>
                 </div>
-                <div
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 999,
-                    background: t.previewAccent,
-                    border: "2px solid #fff",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-                  }}
-                />
+                <div style={{ width: 34, height: 34, borderRadius: 999, background: t.previewAccent, border: "2px solid #fff" }} />
               </button>
             );
           })}
@@ -120,40 +86,20 @@ export default function Settings() {
       </div>
 
       <div className="grid-2" style={{ gap: 20 }}>
-        {/* Account & Data Management */}
         <div className="card stack" style={{ padding: 28, borderRadius: 20 }}>
-          <h3 style={{ margin: 0, fontSize: 20 }}>Account & Workspace Data</h3>
+          <h3 style={{ margin: 0, fontSize: 20 }}>Account & Profile Rules</h3>
           <div style={{ fontSize: 14 }}>
             <div><strong>Name:</strong> {user?.name || "Active User"}</div>
             <div style={{ marginTop: 6 }}><strong>Email:</strong> {user?.email || "local@caninesense.ai"}</div>
-            <div style={{ marginTop: 6 }}><strong>Profile Limit Rule:</strong> Max 10 dogs (auto-deletes oldest 3 at 11+)</div>
+            <div style={{ marginTop: 6 }}><strong>Auto-Prune Rule:</strong> Max 10 dogs (deletes starting 3 profiles at 11+)</div>
           </div>
-
-          <div className="row" style={{ gap: 10, marginTop: 12, flexWrap: "wrap" }}>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => {
-                localStorage.removeItem("cs_saved_history_v1");
-                setMsg("Local cached history cleared.");
-              }}
-            >
-              Reset Local Cache
-            </button>
-            <button
-              type="button"
-              className="btn btn-danger btn-sm"
-              onClick={() => {
-                clearAuth();
-                nav("/login");
-              }}
-            >
+          <div className="row" style={{ gap: 10, marginTop: 12 }}>
+            <button type="button" className="btn btn-danger btn-sm" onClick={() => { clearAuth(); nav("/login"); }}>
               Sign Out
             </button>
           </div>
         </div>
 
-        {/* Security & Password */}
         <form className="card stack" onSubmit={updatePassword} style={{ padding: 28, borderRadius: 20 }}>
           <h3 style={{ margin: 0, fontSize: 20 }}>Change Password</h3>
           {msg && <div className="alert" style={{ background: "#ecfdf5", color: "#065f46" }}>{msg}</div>}

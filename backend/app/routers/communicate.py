@@ -43,7 +43,7 @@ from ..services.reference_library import (
     update_reference_asset_annotation,
 )
 from ..services.spectrogram import SpectrogramError, compute_spectrogram_from_file
-from ..services.synthesis import compute_acoustic_similarity_to_reference, synthesize, validate_generated_wav
+from ..services.synthesis import calculate_synthesis_parameters, compute_acoustic_similarity_to_reference, synthesize, validate_generated_wav
 from ..services.viz import ensure_plots, write_plots
 from .recordings import _dog_or_none, _serialize_recording, run_analysis_pipeline
 
@@ -571,6 +571,33 @@ def generate(
         raise HTTPException(status_code=400, detail="No vocalization target mapped for this intent")
 
     gen_method = (payload.generation_method or "reference_direct").strip().lower()
+
+    # Optional heuristic dog-profile pitch personalization (never claimed as empirical calibration)
+    eff_pitch_hz = payload.pitch_hz
+    dog_pitch_note: dict | None = None
+    if dog is not None and eff_pitch_hz is None and gen_method == "experimental_dsp":
+        scale = 1.0
+        if dog.weight_kg and dog.weight_kg > 0:
+            w_clamped = max(3.0, min(65.0, float(dog.weight_kg)))
+            scale *= (20.0 / w_clamped) ** 0.14
+        if dog.sex:
+            sex_l = dog.sex.strip().lower()
+            if sex_l.startswith("f"):
+                scale *= 1.04
+            elif sex_l.startswith("m"):
+                scale *= 0.97
+        base_calc = calculate_synthesis_parameters(vocalization=target, intent=intent)
+        eff_pitch_hz = float(max(60.0, min(2000.0, round(float(base_calc["f0_base_hz"]) * scale, 2))))
+        dog_pitch_note = {
+            "applied": True,
+            "calibration_type": "heuristic_morphology_estimate",
+            "dog_id": dog.id,
+            "weight_kg": dog.weight_kg,
+            "sex": dog.sex,
+            "pitch_scale": round(scale, 4),
+            "effective_pitch_hz": eff_pitch_hz,
+        }
+
     try:
         y, params = generate_reference_driven_audio(
             vocalization=target,
@@ -579,12 +606,14 @@ def generate(
             reference_asset_id=payload.reference_asset_id,
             intensity=payload.intensity,
             duration_sec=payload.duration_sec,
-            pitch_hz=payload.pitch_hz,
+            pitch_hz=eff_pitch_hz,
             pitch_shift_semitones=payload.pitch_shift_semitones,
             time_stretch_rate=payload.time_stretch_rate,
             variation_index=payload.variation_index,
             user_id=user.id,
         )
+        if dog_pitch_note is not None:
+            params["dog_profile_pitch_scaling"] = dog_pitch_note
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -924,6 +953,12 @@ def _compute_arousal_delta(
         safety_warning = (
             "Safety Warning: Post-cue vocal arousal increased (elevated energy, F0 pitch, or burst rate) "
             "following a calming cue. Discontinue audio playback immediately, give the dog space, and check for stress or discomfort."
+        )
+    elif arousal_outcome == "decreased_arousal":
+        safety_warning = (
+            "Animal Welfare Caution: Reduced vocalization or silence can reflect behavioral inhibition, "
+            "acute fear freezing, or stress shutdown rather than calm. Confirm relaxation through loose body posture, "
+            "soft eyes, and normal breathing before assuming the dog is calm."
         )
 
     return {

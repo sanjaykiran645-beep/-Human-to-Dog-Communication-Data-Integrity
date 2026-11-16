@@ -9,6 +9,105 @@ export type Dog = {
   notes?: string | null;
 };
 
+export type StudyParticipant = {
+  id: string;
+  pseudonym: string;
+  breed?: string | null;
+  sex?: string | null;
+  age_years?: number | null;
+  familiarity_with_target_action: string;
+  owner_consent_confirmed: boolean;
+  welfare_review_confirmed: boolean;
+  created_at: string;
+};
+
+export type ExperimentalCue = {
+  id: string;
+  cue_label: string;
+  target_intention: string;
+  action_category: string;
+  target_action_description: string;
+  f0_hz: number;
+  peak_spl_dba: number;
+  sha256: string;
+  cue_version: number;
+  is_active: boolean;
+  created_at: string;
+};
+
+export type TrialSchedule = {
+  id: string;
+  participant_pseudonym: string;
+  cue_label: string;
+  session_number: number;
+  randomization_seed: number;
+  planned_conditions: string[];
+  total_trials: number;
+};
+
+export type BehaviouralTrial = {
+  id: string;
+  participant_id: string;
+  session_id: string;
+  trial_order: number;
+  experimental_condition: string;
+  outcome_category: string;
+  latency_to_orient_ms?: number | null;
+  latency_to_action_ms?: number | null;
+  measured_spl_dba: number;
+  freezing_observed: boolean;
+  abort_triggered: boolean;
+  is_valid: boolean;
+  created_at: string;
+};
+
+export type ExperimentalMetrics = {
+  status: string;
+  sample_size_assessment: {
+    total_trials_recorded: number;
+    valid_evaluated_trials: number;
+    excluded_confounded_trials: number;
+    exclusion_rate: number;
+    distinct_participants_evaluated: number;
+    pilot_minimum_met: boolean;
+  };
+  target_cue_metrics: {
+    target_presentations: number;
+    correct_action_rate: number;
+    attention_only_rate: number;
+    incorrect_action_rate: number;
+    no_response_rate: number;
+    latency_to_orient: { median_ms: number | null; q25_ms: number | null; q75_ms: number | null };
+    latency_to_action: { median_ms: number | null; q25_ms: number | null; q75_ms: number | null };
+  };
+  discrimination_and_controls: {
+    acoustic_discrimination_ratio: number;
+    target_response_rate: number;
+    control_response_rate: number;
+    control_breakdown: Record<string, any>;
+  };
+  learning_and_habituation: {
+    session_learning_trajectory: Array<{
+      session_id: string;
+      correct_action_rate: number;
+      correct_actions: number;
+      target_trials: number;
+      date: string;
+    }>;
+    mean_habituation_index: number | null;
+    habituation_interpretation: string;
+  };
+  animal_welfare_and_safety: {
+    volume_cap_strictly_enforced: boolean;
+    max_volume_cap_dba: number;
+    welfare_aborts_count: number;
+    welfare_abort_rate: number;
+    freezing_episodes_count: number;
+    freezing_rate: number;
+    safety_assessment: string;
+  };
+};
+
 const TOKEN = "cs_token";
 const USER = "cs_user";
 const BACKEND_URL_KEY = "cs_backend_url";

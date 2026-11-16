@@ -1,0 +1,50 @@
+{
+  "metric_definitions_version": "2.0.0",
+  "domain": "Canine Bioacoustics and Experimental Ethology",
+  "metrics": {
+    "habituation_index": {
+      "symbol": "H_idx",
+      "formula": "1 - (latency_trial_N / latency_trial_1)",
+      "description": "Quantifies the attenuation of orienting or motor response across repeated cue presentations within a session without positive reinforcement.",
+      "range": "[0.0, 1.0]",
+      "interpretation": "Values > 0.60 indicate rapid sensory habituation, requiring variable reinforcement schedules."
+    },
+    "acoustic_discrimination_ratio": {
+      "symbol": "D_ratio",
+      "formula": "(Responses_target - Responses_control) / (Responses_target + Responses_control)",
+      "description": "Measures whether the dog distinguishes the canine-inspired cue from acoustically matched control sounds (pure tones or spectrally shaped noise).",
+      "range": "[-1.0, 1.0]",
+      "target_threshold": 0.50,
+      "interpretation": "Values > 0.50 confirm cue-specific discrimination above general auditory arousal."
+    },
+    "response_latency_median_ms": {
+      "symbol": "RT_median",
+      "formula": "median(t_orient_detected - t_cue_onset)",
+      "description": "Median time in milliseconds from acoustic cue onset to unequivocal motor orientation toward speaker or owner.",
+      "unit": "milliseconds",
+      "valid_range": "[150, 4000]"
+    },
+    "intention_congruence_rate": {
+      "symbol": "CR_pct",
+      "formula": "(N_congruent_actions / N_total_cue_presentations) * 100",
+      "description": "Percentage of trials where the dog executes the target intention (e.g. recall approach, sit/stay, play bow) without supplementary human gestures.",
+      "unit": "percent",
+      "target_threshold_pct": 75.0
+    },
+    "association_retention_rate": {
+      "symbol": "ARR_7d",
+      "formula": "CR_day7 / CR_day1",
+      "description": "Retention ratio of learned cue-to-action association after a 7-day non-exposure retention interval.",
+      "range": "[0.0, 1.0]",
+      "target_threshold": 0.70
+    },
+    "freezing_quiescence_rate": {
+      "symbol": "FQR",
+      "formula": "(N_freezing_episodes / N_total_trials) * 100",
+      "description": "Percentage of presentations resulting in immobility or inhibition; critical safety metric distinguishing genuine calmness from behavioral inhibition or fear.",
+      "unit": "percent",
+      "welfare_threshold_pct": 5.0,
+      "interpretation": "Any trial with FQR > 5% triggers immediate veterinary review and volume attenuation."
+    }
+  }
+}

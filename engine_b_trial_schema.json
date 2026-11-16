@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EngineBTrialLog",
+  "description": "Standardized schema for recording empirical behavioural trials evaluating canine responses to Engine B acoustic cues.",
+  "type": "object",
+  "required": [
+    "trial_id",
+    "protocol_version",
+    "timestamp_utc",
+    "dog_id",
+    "owner_id",
+    "session_number",
+    "trial_number_in_session",
+    "experimental_condition",
+    "acoustic_stimulus",
+    "environmental_context",
+    "pre_cue_baseline",
+    "post_cue_response",
+    "welfare_assessment"
+  ],
+  "properties": {
+    "trial_id": { "type": "string", "format": "uuid" },
+    "protocol_version": { "type": "string", "enum": ["2.0.0-csai-ethology"] },
+    "timestamp_utc": { "type": "string", "format": "date-time" },
+    "dog_id": { "type": "string" },
+    "owner_id": { "type": "string" },
+    "session_number": { "type": "integer", "minimum": 1 },
+    "trial_number_in_session": { "type": "integer", "minimum": 1, "maximum": 12 },
+    "experimental_condition": {
+      "type": "string",
+      "enum": [
+        "target_engine_b_cue",
+        "control_silent_baseline",
+        "control_neutral_pure_tone",
+        "control_spectrally_matched_noise",
+        "control_familiar_human_verbal_command"
+      ]
+    },
+    "acoustic_stimulus": {
+      "type": "object",
+      "required": ["cue_id", "synthesis_method", "duration_sec", "peak_spl_dba", "f0_hz"],
+      "properties": {
+        "cue_id": { "type": "string" },
+        "synthesis_method": {
+          "type": "string",
+          "enum": ["method_a_reference_playback", "method_b_reference_variation", "method_d_parametric_glottal"]
+        },
+        "target_intention": {
+          "type": "string",
+          "enum": ["attention", "come", "stay", "stop", "play", "positive_reinforcement", "calm"]
+        },
+        "duration_sec": { "type": "number", "minimum": 0.1, "maximum": 10.0 },
+        "peak_spl_dba": { "type": "number", "minimum": 40.0, "maximum": 80.0 },
+        "f0_hz": { "type": "number", "minimum": 80.0, "maximum": 1200.0 }
+      }
+    },
+    "environmental_context": {
+      "type": "object",
+      "required": ["location_type", "ambient_spl_dba", "visual_distractions_present", "owner_distance_meters"],
+      "properties": {
+        "location_type": { "type": "string", "enum": ["home_living_room", "fenced_yard", "quiet_training_facility"] },
+        "ambient_spl_dba": { "type": "number", "minimum": 25.0, "maximum": 65.0 },
+        "visual_distractions_present": { "type": "boolean" },
+        "owner_distance_meters": { "type": "number", "minimum": 0.5, "maximum": 20.0 }
+      }
+    },
+    "pre_cue_baseline": {
+      "type": "object",
+      "required": ["duration_seconds", "behavioural_state", "head_orientation_to_speaker"],
+      "properties": {
+        "duration_seconds": { "type": "number", "minimum": 5.0 },
+        "behavioural_state": { "type": "string", "enum": ["resting", "exploring", "standing_relaxed", "attentive"] },
+        "head_orientation_to_speaker": { "type": "string", "enum": ["facing_away", "perpendicular", "facing_towards"] }
+      }
+    },
+    "post_cue_response": {
+      "type": "object",
+      "required": [
+        "latency_to_orient_ms",
+        "latency_to_action_ms",
+        "observed_behavioural_category",
+        "intention_congruence",
+        "response_duration_sec"
+      ],
+      "properties": {
+        "latency_to_orient_ms": { "type": ["number", "null"] },
+        "latency_to_action_ms": { "type": ["number", "null"] },
+        "observed_behavioural_category": {
+          "type": "string",
+          "enum": [
+            "head_turn_orient",
+            "approach_speaker",
+            "approach_owner",
+            "sit_or_stay",
+            "play_bow_or_solicitation",
+            "freezing_quiescence",
+            "retreat_avoidance",
+            "vocalization",
+            "no_observable_change"
+          ]
+        },
+        "intention_congruence": {
+          "type": "string",
+          "enum": ["fully_congruent", "partially_congruent", "neutral_no_effect", "incongruent_contradictory"]
+        },
+        "response_duration_sec": { "type": "number" },
+        "blind_video_reviewer_id": { "type": "string" },
+        "inter_observer_agreement_confirmed": { "type": "boolean" }
+      }
+    },
+    "welfare_assessment": {
+      "type": "object",
+      "required": ["stress_indicators_observed", "freezing_detected", "abort_triggered"],
+      "properties": {
+        "stress_indicators_observed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "lip_licking",
+              "yawning",
+              "paw_lifting",
+              "body_shake_off",
+              "lowered_tail",
+              "whale_eye",
+              "crouching",
+              "none"
+            ]
+          }
+        },
+        "freezing_detected": { "type": "boolean" },
+        "abort_triggered": { "type": "boolean" },
+        "abort_reason": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

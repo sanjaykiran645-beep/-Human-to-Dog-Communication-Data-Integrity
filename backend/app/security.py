@@ -11,7 +11,7 @@ from fastapi import HTTPException, status
 from .config import ACCESS_TOKEN_MINUTES, SECRET_KEY
 
 ALGORITHM = "HS256"
-TOKEN_DENYLIST: set[str] = set()
+TOKEN_DENYLIST: dict[str, float] = {}
 
 
 def hash_password(password: str) -> str:
@@ -48,6 +48,15 @@ def decode_token(token: str) -> dict:
 
 
 def revoke_token(token: str) -> None:
-    TOKEN_DENYLIST.add(token)
-    if len(TOKEN_DENYLIST) > 10000:
-        TOKEN_DENYLIST.clear()
+    now = datetime.now(timezone.utc).timestamp()
+    exp = now + (ACCESS_TOKEN_MINUTES * 60)
+    try:
+        payload = jwt.decode(token, options={"verify_signature": False})
+        exp = float(payload.get("exp", exp))
+    except Exception:
+        pass
+    TOKEN_DENYLIST[token] = exp
+    if len(TOKEN_DENYLIST) > 5000:
+        expired = [t for t, ex in list(TOKEN_DENYLIST.items()) if ex < now]
+        for t in expired:
+            TOKEN_DENYLIST.pop(t, None)

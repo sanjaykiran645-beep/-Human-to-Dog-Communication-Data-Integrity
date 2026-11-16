@@ -1,0 +1,53 @@
+{
+  "audit_version": "2.0.0",
+  "audit_timestamp": "2026-11-15T21:30:00Z",
+  "auditor": "Independent Scientific Data and Evaluation Auditor",
+  "database_inspected": "CanineSense_AI/data/caninesense.sqlite3",
+  "findings": {
+    "historical_production_annotations": {
+      "total_recordings_in_db": 1,
+      "total_dual_annotated_in_db": 0,
+      "empirical_consensus_available": false,
+      "status": "No historical dual-reviewer ground-truth annotations exist in the production database. Previous simulated annotations were ephemeral test fixtures."
+    },
+    "governance_audit": {
+      "vulnerability_prior_state": "The previous POST /api/recordings/{id}/annotations accepted an arbitrary client-supplied reviewer_id string without verifying independent identity or account separation, allowing a single user to forge consensus.",
+      "remediation_status": "Implemented in v2.0 governance",
+      "authenticated_identity_binding": true,
+      "cross_reviewer_overwrite_protection": true,
+      "audit_trail_metadata": [
+        "annotation_id (UUIDv4)",
+        "annotation_version (2.0)",
+        "reviewer_id (display string)",
+        "reviewer_user_id (authenticated UUID)",
+        "reviewer_email",
+        "is_owner_authored (boolean)",
+        "created_at (ISO 8601 UTC)"
+      ],
+      "supported_canonical_classes": ["bark", "growl", "whine", "howl", "yip", "unknown"],
+      "supported_ethological_flags": [
+        "uncertain_classification",
+        "multiple_vocalizations",
+        "non_canine_sound",
+        "poor_recording_quality",
+        "context_unavailable",
+        "insufficient_evidence"
+      ]
+    },
+    "inter_rater_reliability_framework": {
+      "cohens_kappa_formula": "kappa = (P_o - P_e) / (1 - P_e)",
+      "pabak_formula": "pabak = 2 * P_o - 1",
+      "standard_error_formula": "SE = sqrt((P_o * (1 - P_o)) / (N * (1 - P_e)^2))",
+      "confidence_interval_95": "[kappa - 1.96*SE, kappa + 1.96*SE]",
+      "minimum_sample_size_threshold": 30,
+      "small_sample_warning_enforced": true,
+      "prevalence_warning_enforced": true,
+      "disagreement_visibility": "Disagreements are explicitly labeled as 'disputed' and individual reviewer decisions are preserved."
+    }
+  },
+  "recommended_protocol_for_ground_truth": {
+    "minimum_reviewers_per_sample": 2,
+    "independence_requirement": "Reviewers must access the system from distinct authenticated accounts with no access to system predictions or peer annotations prior to submission.",
+    "qualification": "Certified veterinary behaviorists or animal ethologists with demonstrated inter-rater kappa >= 0.75 on calibration sets."
+  }
+}

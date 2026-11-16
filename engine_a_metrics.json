@@ -1,0 +1,264 @@
+{
+  "validation_status": "empirical_held_out_dog_split",
+  "classes": [
+    "bark",
+    "growl",
+    "whine",
+    "howl",
+    "yip",
+    "unknown"
+  ],
+  "dog_independent_verified": true,
+  "train_dog_ids": [
+    "field-0685e05a",
+    "field-0f788714",
+    "field-17ff784c",
+    "field-2562fe7c",
+    "field-2f77416f",
+    "field-33249f91",
+    "field-4069fe00",
+    "field-49c7c633",
+    "field-51bfac40",
+    "field-60ada91c",
+    "field-66e54164",
+    "field-77e6907a",
+    "field-7d27972b",
+    "field-7d994c88",
+    "field-7f9a1759",
+    "field-82bb0f38",
+    "field-842bfe39",
+    "field-86b23770",
+    "field-86b4f5cc",
+    "field-88965913",
+    "field-95456470",
+    "field-99334cb8",
+    "field-ab611603",
+    "field-ae70881f",
+    "field-b1195be4",
+    "field-b91798b8",
+    "field-c39aa924",
+    "field-c412d2ca",
+    "field-c6da1c4b",
+    "field-c7916ad8",
+    "field-c8f8df77",
+    "field-c98b3b5d",
+    "field-cb211c67",
+    "field-cd57de1c",
+    "field-d1db0571",
+    "field-d24c4573",
+    "field-d5164944",
+    "field-e14ba30a",
+    "field-eee20859",
+    "field-f086cfe5",
+    "field-f4c5ff2d",
+    "field-f6017f45",
+    "field-f863fc8c",
+    "noncanine-fountain",
+    "noncanine-toy"
+  ],
+  "test_dog_ids": [
+    "curated_reference",
+    "dog-0112",
+    "dog-0288",
+    "dog-0612",
+    "dog-0682",
+    "dog-0868",
+    "dog-0916",
+    "dog-1547",
+    "dog-3537",
+    "dog-crying-1544",
+    "dog-old-2352",
+    "dog-pack-2953",
+    "dog-singing-2450",
+    "dog-small-growl-1060",
+    "field-03ba6d96",
+    "field-06463c19",
+    "field-0a7d5d56",
+    "field-18d66d51",
+    "field-1e77e6f0",
+    "field-4708bb9c",
+    "field-47ad20f1",
+    "field-5395611d",
+    "field-54804c2f",
+    "field-5d507e89",
+    "field-6e039eca",
+    "field-7ba86faf"
+  ],
+  "dog_overlap": [],
+  "n_total_records": 169,
+  "n_test_records": 91,
+  "accuracy": 0.8681,
+  "balanced_accuracy": 0.8546,
+  "macro_precision": 0.8018,
+  "macro_recall": 0.8546,
+  "macro_f1": 0.7877,
+  "abstention_rate": 0.0,
+  "ece": 0.144,
+  "brier_score": 0.1481,
+  "reliability_diagram": [
+    {
+      "bin_range": [
+        0.0,
+        0.2
+      ],
+      "count": 0,
+      "mean_confidence": 0.0,
+      "empirical_accuracy": 0.0,
+      "calibration_gap": 0.0
+    },
+    {
+      "bin_range": [
+        0.2,
+        0.4
+      ],
+      "count": 0,
+      "mean_confidence": 0.0,
+      "empirical_accuracy": 0.0,
+      "calibration_gap": 0.0
+    },
+    {
+      "bin_range": [
+        0.4,
+        0.6
+      ],
+      "count": 18,
+      "mean_confidence": 0.522,
+      "empirical_accuracy": 0.8333,
+      "calibration_gap": 0.3114
+    },
+    {
+      "bin_range": [
+        0.6,
+        0.8
+      ],
+      "count": 17,
+      "mean_confidence": 0.7308,
+      "empirical_accuracy": 0.9412,
+      "calibration_gap": 0.2103
+    },
+    {
+      "bin_range": [
+        0.8,
+        1.0
+      ],
+      "count": 56,
+      "mean_confidence": 0.9272,
+      "empirical_accuracy": 0.8571,
+      "calibration_gap": 0.0701
+    }
+  ],
+  "per_class": {
+    "bark": {
+      "precision": 0.9643,
+      "recall": 0.9818,
+      "f1": 0.973,
+      "support": 55
+    },
+    "growl": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 2
+    },
+    "whine": {
+      "precision": 0.4,
+      "recall": 1.0,
+      "f1": 0.5714,
+      "support": 4
+    },
+    "howl": {
+      "precision": 0.875,
+      "recall": 0.875,
+      "f1": 0.875,
+      "support": 8
+    },
+    "yip": {
+      "precision": 0.5714,
+      "recall": 0.8,
+      "f1": 0.6666,
+      "support": 5
+    },
+    "unknown": {
+      "precision": 1.0,
+      "recall": 0.4706,
+      "f1": 0.64,
+      "support": 17
+    }
+  },
+  "confusion_matrix": {
+    "labels": [
+      "bark",
+      "growl",
+      "whine",
+      "howl",
+      "yip",
+      "unknown"
+    ],
+    "matrix": [
+      [
+        54,
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      [
+        0,
+        2,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        4,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        1,
+        7,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        0,
+        0,
+        4,
+        0
+      ],
+      [
+        1,
+        0,
+        5,
+        0,
+        3,
+        8
+      ]
+    ]
+  },
+  "baseline_comparison": {
+    "baseline_name": "Majority Class Predictor (Always 'bark')",
+    "baseline_accuracy": 0.6044,
+    "baseline_balanced_accuracy": 0.1667,
+    "engine_a_accuracy": 0.8681,
+    "engine_a_balanced_accuracy": 0.8546,
+    "accuracy_gain_over_baseline": 0.2637,
+    "balanced_accuracy_gain": 0.6879
+  },
+  "scientific_assessment": {
+    "production_target_balanced_acc": 0.9,
+    "achieved_balanced_accuracy": 0.8546,
+    "target_met": false,
+    "target_gap": 0.0454,
+    "limitation_summary": "Engine A fails to achieve the 90.0% balanced accuracy target (achieved: 85.46%). High precision on barks is offset by confusion between whines, howls, and ambient unknowns due to high acoustic overlap."
+  }
+}

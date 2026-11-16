@@ -8,6 +8,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Analyze from "./pages/Analyze";
 import Communicate from "./pages/Communicate";
+import ValidationLab from "./pages/ValidationLab";
 import Dogs from "./pages/Dogs";
 import History from "./pages/History";
 import Analytics from "./pages/Analytics";
@@ -51,6 +52,10 @@ const ROUTE_TITLES: Record<string, { title: string; desc: string }> = {
   "/app/communicate": {
     title: "Engine B · Canine Vocalization Lab · CanineSense AI",
     desc: "Explore authentic canine vocalization reference retrieval and controlled bioacoustic synthesis.",
+  },
+  "/app/experiments": {
+    title: "Engine B · Behavioural Validation Lab · CanineSense AI",
+    desc: "Rigorous scientific trials, Latin square randomized counterbalanced schedules, and double-blind video review for canine communication validation.",
   },
   "/app/dogs": {
     title: "Canine Profiles · CanineSense AI",
@@ -144,6 +149,7 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="analyze" element={<Analyze />} />
           <Route path="communicate" element={<Communicate />} />
+          <Route path="experiments" element={<ValidationLab />} />
           <Route path="dogs" element={<Dogs />} />
           <Route path="history" element={<History />} />
           <Route path="analytics" element={<Analytics />} />

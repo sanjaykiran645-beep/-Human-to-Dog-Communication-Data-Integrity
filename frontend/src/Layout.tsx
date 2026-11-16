@@ -9,6 +9,7 @@ const links = [
   { to: "/app", label: "Dashboard", icon: IconHome, end: true, group: "core" },
   { to: "/app/analyze", label: "Analyze", icon: IconWave, end: false, group: "core" },
   { to: "/app/communicate", label: "Communicate", icon: IconSpeak, end: false, group: "core" },
+  { to: "/app/experiments", label: "Validation Lab", icon: IconFlask, end: false, group: "core" },
   { to: "/app/dogs", label: "Dog profiles", icon: IconDog, end: false, group: "library" },
   { to: "/app/history", label: "History", icon: IconClock, end: false, group: "library" },
   { to: "/app/analytics", label: "Analytics", icon: IconChart, end: false, group: "library" },
@@ -27,6 +28,10 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   "/app/communicate": {
     title: "Engine B · Vocalization Lab",
     subtitle: "Reference-driven canine audio retrieval, controlled variation & comparison",
+  },
+  "/app/experiments": {
+    title: "Engine B · Behavioural Validation Lab",
+    subtitle: "Controlled empirical trials, counterbalanced schedules, and double-blind scoring",
   },
   "/app/dogs": {
     title: "Canine Profiles",
@@ -463,6 +468,14 @@ function IconSpeak() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <path d="M4 8h8v8H4l-2 3V8h2zM14 9c1.5 1 1.5 5 0 6M17 7c2.5 2 2.5 8 0 10" />
+    </svg>
+  );
+}
+function IconFlask() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M10 2v7.31L4.1 19.34A2 2 0 0 0 5.8 22h12.4a2 2 0 0 0 1.7-2.66L14 9.31V2" />
+      <path d="M8.5 2h7M7 16h10" />
     </svg>
   );
 }

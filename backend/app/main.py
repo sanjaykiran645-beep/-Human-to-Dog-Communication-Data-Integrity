@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from . import SYNTH_MODEL_VERSION, BEHAVIOR_MODEL_VERSION, MODEL_VERSION, __version__
 from .db import init_db
-from .routers import analytics, auth, communicate, dogs, recordings
+from .routers import analytics, auth, communicate, dogs, experiments, recordings
 from .services.audio import decoder_status, find_ffmpeg
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -77,6 +77,7 @@ app.include_router(dogs.router)
 app.include_router(recordings.router)
 app.include_router(communicate.router)
 app.include_router(analytics.router)
+app.include_router(experiments.router)
 
 
 @app.get("/api/health")

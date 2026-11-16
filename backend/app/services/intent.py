@@ -12,7 +12,7 @@ import re
 from typing import Any
 
 from .. import INTENT_MODEL_VERSION
-from .synthesis import SUPPORTED_PROFILES, calculate_synthesis_parameters
+from .synthesis import SUPPORTED_PROFILES, _PROFILE_ALIASES, calculate_synthesis_parameters, resolve_profile_alias
 
 INTENTS = (
     "attention",
@@ -97,6 +97,8 @@ def interpret(
         vt = vocalization_target.strip().lower()
         if vt == "mixed":
             vt = "bark"
+        if vt in _PROFILE_ALIASES:
+            vt, _, _ = resolve_profile_alias(vt)
         if vt not in VOCAL_FAMILIES:
             return _result(
                 intent="unsupported",

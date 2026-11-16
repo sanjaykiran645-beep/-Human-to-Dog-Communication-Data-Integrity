@@ -36,6 +36,14 @@ def client() -> TestClient:
     return TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limits():
+    from app import deps
+    deps._hits.clear()
+    yield
+    deps._hits.clear()
+
+
 @pytest.fixture
 def user_a(client: TestClient) -> dict:
     email = f"a-{os.urandom(4).hex()}@example.com"

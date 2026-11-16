@@ -144,3 +144,118 @@ class AuditEvent(Base):
     entity_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     detail: Mapped[str | None] = mapped_column(String(400), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class StudyParticipant(Base):
+    __tablename__ = "study_participants"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    dog_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("dogs.id", ondelete="SET NULL"), nullable=True)
+    pseudonym: Mapped[str] = mapped_column(String(80), nullable=False)
+    owner_consent_confirmed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    age_years: Mapped[float | None] = mapped_column(Float, nullable=True)
+    breed: Mapped[str | None] = mapped_column(String(80), nullable=True, default="unknown")
+    sex: Mapped[str | None] = mapped_column(String(16), nullable=True, default="unknown")
+    hearing_limitations: Mapped[str | None] = mapped_column(String(120), nullable=True, default="none_reported")
+    mobility_limitations: Mapped[str | None] = mapped_column(String(120), nullable=True, default="none_reported")
+    familiarity_with_target_action: Mapped[str] = mapped_column(String(40), default="unknown", nullable=False)
+    previous_cue_exposure: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    training_history_notes: Mapped[str | None] = mapped_column(Text, nullable=True, default="")
+    baseline_behavioural_notes: Mapped[str | None] = mapped_column(Text, nullable=True, default="")
+    welfare_review_confirmed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class ExperimentalCue(Base):
+    __tablename__ = "experimental_cues"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    cue_label: Mapped[str] = mapped_column(String(120), nullable=False)
+    target_intention: Mapped[str] = mapped_column(String(40), nullable=False)
+    target_action_description: Mapped[str] = mapped_column(Text, nullable=False)
+    action_category: Mapped[str] = mapped_column(String(40), nullable=False)
+    synthesis_method: Mapped[str] = mapped_column(String(60), nullable=False)
+    synthesis_params_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    audio_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    duration_sec: Mapped[float] = mapped_column(Float, nullable=False)
+    peak_spl_dba: Mapped[float] = mapped_column(Float, nullable=False)
+    f0_hz: Mapped[float] = mapped_column(Float, nullable=False)
+    spectral_summary_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    synth_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    cue_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class TrialSchedule(Base):
+    __tablename__ = "trial_schedules"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    participant_id: Mapped[str] = mapped_column(String(36), ForeignKey("study_participants.id", ondelete="CASCADE"), index=True)
+    cue_id: Mapped[str] = mapped_column(String(36), ForeignKey("experimental_cues.id", ondelete="CASCADE"), index=True)
+    session_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    randomization_seed: Mapped[int] = mapped_column(Integer, nullable=False)
+    schedule_type: Mapped[str] = mapped_column(String(60), default="latin_square_counterbalanced", nullable=False)
+    planned_conditions_json: Mapped[str] = mapped_column(Text, nullable=False)
+    is_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class BehaviouralTrial(Base):
+    __tablename__ = "behavioural_trials"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    participant_id: Mapped[str] = mapped_column(String(36), ForeignKey("study_participants.id", ondelete="CASCADE"), index=True)
+    schedule_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("trial_schedules.id", ondelete="SET NULL"), nullable=True)
+    session_id: Mapped[str] = mapped_column(String(60), nullable=False)
+    trial_order_in_session: Mapped[int] = mapped_column(Integer, nullable=False)
+    experimental_condition: Mapped[str] = mapped_column(String(60), nullable=False)
+    cue_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("experimental_cues.id", ondelete="SET NULL"), nullable=True)
+    pre_cue_state: Mapped[str] = mapped_column(String(40), nullable=False, default="resting")
+    playback_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    measured_spl_dba: Mapped[float] = mapped_column(Float, nullable=False)
+    handler_behaviour: Mapped[str] = mapped_column(String(60), default="neutral_standing_still", nullable=False)
+    first_response: Mapped[str] = mapped_column(String(60), default="none", nullable=False)
+    latency_to_orient_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    latency_to_action_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    outcome_category: Mapped[str] = mapped_column(String(40), nullable=False)
+    alternative_behaviour_notes: Mapped[str | None] = mapped_column(Text, nullable=True, default="")
+    reinforcement_provided: Mapped[str] = mapped_column(String(40), default="none", nullable=False)
+    environmental_distractions: Mapped[str] = mapped_column(String(60), default="none", nullable=False)
+    ambient_spl_dba: Mapped[float | None] = mapped_column(Float, nullable=True)
+    video_reference_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    welfare_flags_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    freezing_observed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    abort_triggered: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    abort_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_valid: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    exclusion_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    observer_user_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    correction_audit_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class TrialIndependentReview(Base):
+    __tablename__ = "trial_independent_reviews"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    trial_id: Mapped[str] = mapped_column(String(36), ForeignKey("behavioural_trials.id", ondelete="CASCADE"), index=True)
+    reviewer_user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    reviewer_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    is_blind_to_condition: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    scored_outcome_category: Mapped[str] = mapped_column(String(40), nullable=False)
+    scored_latency_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    reviewer_confidence: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
+    review_notes: Mapped[str | None] = mapped_column(Text, nullable=True, default="")
+    disagreement_with_primary: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    adjudicated_category: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    adjudicator_user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+

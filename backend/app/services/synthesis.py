@@ -41,6 +41,33 @@ SUPPORTED_PROFILES: tuple[str, ...] = (
     "soft_attention",
 )
 
+# Maps Communicator UI vocal-pattern identifiers to canonical DSP profiles + optional default intent
+_PROFILE_ALIASES: dict[str, tuple[str, str | None]] = {
+    "correction_grumble": ("growl", "stop"),
+    "warning_growl": ("growl", None),
+    "attention_whine": ("whine", "attention"),
+    "play_yip": ("yip", "play"),
+    "calming_chuff": ("soft_attention", "calm"),
+    "recall_bark": ("bark", "come"),
+    "affection_whimper": ("whimper", "positive_reinforcement"),
+    "guard_bark": ("bark", "stay"),
+    "separation_howl": ("howl", None),
+    "custom_sequence": ("bark", None),
+}
+
+
+def resolve_profile_alias(vocalization: str | None, intent: str | None = None) -> tuple[str, str | None, str]:
+    """Resolve UI vocal pattern aliases cleanly to a canonical template and intent."""
+    raw = (vocalization or "bark").strip().lower()
+    if raw == "mixed":
+        raw = "bark"
+    if raw in _PROFILE_ALIASES:
+        canon, default_intent = _PROFILE_ALIASES[raw]
+        return canon, (intent if intent is not None else default_intent), raw
+    if raw in _PROFILE_TEMPLATES:
+        return raw, intent, raw
+    return "bark", intent, raw
+
 # Repaired acoustic templates with natural formant bandwidths and low onset-only aspiration
 _PROFILE_TEMPLATES: dict[str, dict[str, Any]] = {
     "bark": {
@@ -337,7 +364,7 @@ _INTENT_MODIFIERS: dict[str, dict[str, Any]] = {
     "come": {"n_events": 3, "f0_scale": 1.06, "duration_scale": 0.95},
     "attention": {"n_events": 2, "f0_scale": 1.04, "duration_scale": 0.90},
     "stay": {"n_events": 1, "f0_scale": 0.96, "duration_scale": 1.05},
-    "stop": {"n_events": 1, "f0_scale": 0.94, "duration_scale": 1.0},
+    "stop": {"n_events": 2, "gap_sec": 0.11, "f0_scale": 1.02, "duration_scale": 0.72},
     "play": {"n_events": 2, "f0_scale": 1.05, "duration_scale": 1.35},
     "positive_reinforcement": {"n_events": 1, "f0_scale": 1.03, "duration_scale": 1.0},
     "calm": {"n_events": 1, "f0_scale": 0.95, "duration_scale": 1.05},
@@ -353,16 +380,14 @@ def calculate_synthesis_parameters(
     pitch_hz: float | None = None,
 ) -> dict[str, Any]:
     """Deterministically calculate and validate parameters for Engine B."""
-    voc = (vocalization or "bark").strip().lower()
-    if voc not in _PROFILE_TEMPLATES:
-        voc = "bark"
+    voc, eff_intent, requested_voc = resolve_profile_alias(vocalization, intent)
 
     if not isinstance(sr, (int, float)) or int(sr) < 8000 or int(sr) > 48000:
         raise ValueError(f"Sample rate must be between 8000 and 48000 Hz (got {sr}).")
     sr = int(sr)
 
     tpl = dict(_PROFILE_TEMPLATES[voc])
-    mod = _INTENT_MODIFIERS.get(intent or "", {})
+    mod = _INTENT_MODIFIERS.get(eff_intent or "", {})
 
     base_dur = float(tpl["duration"]) * float(mod.get("duration_scale", 1.0))
     if duration_sec is not None:
@@ -405,14 +430,16 @@ def calculate_synthesis_parameters(
         unit = 0.32 if voc == "bark" else 0.24 if voc in {"yip", "yelp"} else 0.36
         n_events = max(1, min(14, int(round(target_dur / unit))))
 
-    seed_key = f"{voc}:{intent or 'none'}:{sr}:{target_dur:.4f}:{base_f0:.2f}:{target_intensity:.3f}"
+    seed_key = f"{voc}:{eff_intent or 'none'}:{sr}:{target_dur:.4f}:{base_f0:.2f}:{target_intensity:.3f}"
     seed = int.from_bytes(hashlib.sha256(seed_key.encode("utf-8")).digest()[:4], "little")
+    eff_gap_sec = float(mod.get("gap_sec", tpl["gap_sec"]))
 
     return {
-        "profile_id": f"{voc}_{intent}" if intent else voc,
+        "profile_id": f"{voc}_{eff_intent}" if eff_intent else voc,
+        "requested_profile": requested_voc,
         "vocalization": voc,
         "description": tpl["description"],
-        "intent": intent,
+        "intent": eff_intent,
         "sr": sr,
         "duration": round(target_dur, 4),
         "f0": round(base_f0, 2),
@@ -438,7 +465,7 @@ def calculate_synthesis_parameters(
             "release_sec": float(tpl["release_sec"]),
         },
         "n_events": n_events,
-        "gap_sec": float(tpl["gap_sec"]),
+        "gap_sec": eff_gap_sec,
         "intensity": round(target_intensity, 3),
         "requested_duration_sec": duration_sec,
         "requested_pitch_hz": pitch_hz,
@@ -466,7 +493,8 @@ def synthesize(
     eff_pitch = pitch_hz
     eff_dur = duration_sec
     if variation_index > 0:
-        tpl = _PROFILE_TEMPLATES.get((vocalization or "bark").strip().lower(), _PROFILE_TEMPLATES["bark"])
+        canon_voc, _, _ = resolve_profile_alias(vocalization, intent)
+        tpl = _PROFILE_TEMPLATES.get(canon_voc, _PROFILE_TEMPLATES["bark"])
         f0_offsets = [1.0, 1.045, 0.96, 1.07, 0.935]
         dur_offsets = [1.0, 0.95, 1.06, 0.92, 1.08]
         if eff_pitch is None:
@@ -574,12 +602,57 @@ def _rosenberg_pulse(p: np.ndarray, open_frac: float = 0.58, close_frac: float =
 
 
 def _two_pole_resonator(x: np.ndarray, sr: int, freq: float, bw: float) -> np.ndarray:
+    """Constant-peak-gain 2-pole bandpass formant resonator with zero DC gain."""
     r = float(np.exp(-np.pi * bw / sr))
-    # A pole-only resonator's magnitude peak sits slightly below its pole angle; place the pole so the
-    # |H| peak lands exactly on the target formant: cos(theta) = cos(w_peak) * 2r / (1 + r^2).
-    w_peak = 2.0 * np.pi * freq / sr
-    theta = float(np.arccos(np.clip(np.cos(w_peak) * 2.0 * r / (1.0 + r * r), -1.0, 1.0)))
-    return lfilter([1.0 - r], [1.0, -2.0 * r * np.cos(theta), r * r], x)
+    theta = 2.0 * np.pi * float(np.clip(freq, 40.0, sr * 0.45)) / sr
+    gain = 0.5 * (1.0 - r * r)
+    b = [gain, 0.0, -gain]
+    a = [1.0, -2.0 * r * np.cos(theta), r * r]
+    return lfilter(b, a, x)
+
+
+def _contour_f0(
+    u: np.ndarray,
+    t: np.ndarray,
+    f0_start: float,
+    f0_end: float,
+    trajectory: str,
+    fm_rate_hz: float,
+    fm_depth_hz: float,
+    rng: np.random.Generator,
+    sr: int,
+) -> np.ndarray:
+    """Compute smooth, physically plausible F0 contour without sample-rate white FM noise."""
+    n = u.size
+    if trajectory == "low_modulated":
+        rise = 0.5 * (1.0 - np.cos(np.pi * np.clip(u / 0.45, 0.0, 1.0)))
+        tail = 1.0 - 0.14 * np.clip((u - 0.65) / 0.35, 0.0, 1.0)
+        f0 = (f0_start + (f0_end - f0_start) * rise) * tail
+    elif trajectory in {"stepped_bursts", "rapid_arch"}:
+        arch = np.sin(np.pi * np.power(np.clip(u, 0.0, 1.0), 0.78))
+        f0 = f0_start + (f0_end - f0_start) * arch - 0.06 * f0_start * (u * u)
+    elif trajectory in {"rising_arch", "sustained_arch"}:
+        arch = np.sin(np.pi * np.clip(u * 0.86, 0.0, 1.0))
+        f0 = f0_start + (f0_end - f0_start) * arch
+    elif trajectory == "gentle_doublet":
+        f0 = f0_start + (f0_end - f0_start) * (0.5 - 0.5 * np.cos(np.pi * u))
+    else:  # falling_pulse
+        f0 = f0_start + (f0_end - f0_start) * np.power(np.clip(u, 0.0, 1.0), 0.75)
+
+    if fm_rate_hz > 0.0 and fm_depth_hz > 0.0:
+        vib_fade = np.sin(np.pi * u)
+        f0 = f0 + fm_depth_hz * vib_fade * np.sin(2.0 * np.pi * fm_rate_hz * t)
+
+    # Cycle-rate organic pitch micro-jitter (~24 Hz control knots, smoothly interpolated)
+    if n >= 8:
+        dur_sec = max(1e-3, n / float(sr))
+        n_knots = max(4, min(n, int(round(dur_sec * 24.0)) + 2))
+        knots = rng.normal(0.0, 0.0085, n_knots)
+        knot_x = np.linspace(0.0, 1.0, n_knots)
+        smooth_jitter = np.interp(u, knot_x, knots)
+        f0 = f0 * (1.0 + smooth_jitter)
+
+    return np.clip(f0, 45.0, sr * 0.42)
 
 
 def _synthesize_single_event(
@@ -589,64 +662,109 @@ def _synthesize_single_event(
     rng: np.random.Generator,
     event_idx: int = 0,
 ) -> np.ndarray:
-    """Percussive mammalian vocalization: Rosenberg glottal pulse + sub-harmonic + pink
-    aspiration, filtered through pharyngeal (F1) and oral (F2) 2-pole resonators."""
-    out = np.zeros(n_samples, dtype=np.float64)
+    """Coherent mammalian vocalization event: smooth Rosenberg glottal pulse + chest harmonics
+    + controlled breath aspiration + constant-gain parallel formant resonators + smooth ADSR."""
+    n = max(16, int(n_samples))
     voc = str(params["vocalization"])
-    f0_start = float(params["f0_base_hz"]) * (1.0 + 0.03 * (event_idx % 3))
-    f0_end = float(params["f0_end_hz"]) * (1.0 + 0.02 * (event_idx % 2))
-    # Weight/breed proxy: lower fundamentals imply a larger vocal tract (lower formants)
-    tract_scale = float(np.clip((float(params["f0_base_hz"]) / 360.0) ** 0.25, 0.80, 1.25))
-    f1 = 620.0 * tract_scale
-    f2 = 1450.0 * tract_scale
-    noise_ratio = float(np.clip(float(params["noise_ratio"]) + 0.08, 0.05, 0.30))
+    u = np.linspace(0.0, 1.0, n)
+    t = np.arange(n, dtype=np.float64) / float(sr)
 
-    for b_idx, (start, blen) in enumerate(_burst_plan(voc, sr, n_samples)):
-        u = np.linspace(0.0, 1.0, blen)
-        t = np.arange(blen) / sr
-        # Rapid pitch rise then fall across each burst; successive bursts step slightly
-        step = 1.0 + 0.035 * ((b_idx % 3) - 1)
-        arch = np.sin(np.pi * np.clip(u * 1.1, 0.0, 1.0))
-        f0 = (f0_start + (f0_end - f0_start) * u + 0.18 * f0_start * arch) * step
-        f0 = f0 * (1.0 + 0.02 * rng.normal(0.0, 1.0, blen).cumsum() / np.sqrt(np.arange(1, blen + 1)))
-        f0 = np.clip(f0, 45.0, sr * 0.2)
+    burst_step = 1.0 + (0.032 if (event_idx % 2 == 1) else 0.0) - 0.015 * min(event_idx, 3)
+    if voc == "growl":
+        burst_step = 1.0 + 0.035 * (event_idx % 2)
+    f0_start = float(params["f0_base_hz"]) * burst_step
+    f0_end = float(params["f0_end_hz"]) * burst_step
 
-        phase = np.cumsum(f0 / sr)
-        main = _rosenberg_pulse(phase % 1.0)
-        sub = _rosenberg_pulse((0.5 * phase) % 1.0)  # half-frequency vocal fold roughness
-        excit = main + 0.45 * sub
-        excit = excit - float(np.mean(excit))
+    f0 = _contour_f0(
+        u=u,
+        t=t,
+        f0_start=f0_start,
+        f0_end=f0_end,
+        trajectory=str(params.get("f0_trajectory", "falling_pulse")),
+        fm_rate_hz=float(params.get("fm_rate_hz", 3.0)),
+        fm_depth_hz=float(params.get("fm_depth_hz", 5.0)),
+        rng=rng,
+        sr=sr,
+    )
 
-        pink = lfilter(_PINK_B, _PINK_A, rng.normal(0.0, 1.0, blen))
-        pink = pink / (float(np.std(pink)) + 1e-12)
-        excit = excit / (float(np.std(excit)) + 1e-12)
-        src = (1.0 - noise_ratio) * excit + noise_ratio * pink * (1.0 + 1.5 * np.exp(-t / 0.02))
+    phase = np.cumsum(f0 / float(sr))
+    main_glottal = _rosenberg_pulse(phase % 1.0, open_frac=0.58, close_frac=0.14)
+    chest_f0 = np.sin(2.0 * np.pi * phase)
+    chest_h2 = np.sin(4.0 * np.pi * phase)
 
-        y = _two_pole_resonator(src, sr, f1, 170.0)
-        y = _two_pole_resonator(y, sr, f2, 260.0) + 0.35 * _two_pole_resonator(src, sr, f1, 170.0)
-        y = y / (float(np.max(np.abs(y))) + 1e-12)
-        y = np.tanh(1.8 * y)
+    if voc in {"growl", "grunt", "groan"}:
+        sub_glottal = _rosenberg_pulse((0.5 * phase) % 1.0, open_frac=0.62, close_frac=0.16)
+        sub_sine = np.sin(np.pi * phase)
+        excit = main_glottal + 0.34 * sub_glottal + 0.28 * chest_f0 + 0.14 * chest_h2 + 0.14 * sub_sine
+    elif voc == "pant":
+        excit = 0.24 * main_glottal + 0.20 * chest_f0
+    elif voc == "bark":
+        sub_glottal = _rosenberg_pulse((0.5 * phase) % 1.0, open_frac=0.58, close_frac=0.15)
+        excit = main_glottal + 0.14 * sub_glottal + 0.26 * chest_f0 + 0.12 * chest_h2
+    else:  # whine, howl, yip, yelp, whimper, cry, soft_attention
+        excit = main_glottal + 0.30 * chest_f0 + 0.10 * chest_h2
 
-        att = max(4, int(0.006 * sr))
-        env = np.exp(-3.2 * u) * (0.35 + 0.65 * (1.0 - u))
-        env[:att] *= 0.5 * (1.0 - np.cos(np.pi * np.arange(att) / att))
-        tail = max(4, int(0.008 * sr))
-        env[-tail:] *= np.linspace(1.0, 0.0, tail)
-        out[start : start + blen] += y * env
-    return out
+    excit = excit - float(np.mean(excit))
+    excit = excit / (float(np.std(excit)) + 1e-12)
+
+    pink = lfilter(_PINK_B, _PINK_A, rng.normal(0.0, 1.0, n))
+    nband = params.get("noise_band_hz") or [180.0, 1800.0]
+    lo_hz = float(np.clip(nband[0], 50.0, sr * 0.40))
+    hi_hz = float(np.clip(nband[1], lo_hz + 60.0, sr * 0.45))
+    bp_b, bp_a = butter(2, [lo_hz / (sr * 0.5), hi_hz / (sr * 0.5)], btype="bandpass")
+    breath = lfilter(bp_b, bp_a, pink)
+    breath = breath / (float(np.std(breath)) + 1e-12)
+
+    nr = float(np.clip(params.get("noise_ratio", 0.05), 0.0, 0.35))
+    if voc == "pant":
+        breath_gate = 0.65 + 0.75 * np.sin(np.pi * u)
+        src = (1.0 - max(nr, 0.45)) * excit + max(nr, 0.45) * breath * breath_gate
+    elif voc in {"whine", "howl", "whimper", "cry"}:
+        src = (1.0 - nr * 0.5) * excit + (nr * 0.5) * breath * (0.4 + 0.6 * np.exp(-t / 0.03))
+    elif voc == "growl":
+        src = (1.0 - nr) * excit + nr * breath * 0.72
+    else:
+        src = (1.0 - nr) * excit + nr * breath * (0.35 + 0.95 * np.exp(-t / 0.025))
+
+    formants = [float(x) for x in (params.get("formants_hz") or [620.0, 1420.0, 2450.0])]
+    bws = [float(x) for x in (params.get("bandwidths_hz") or [180.0, 260.0, 380.0])]
+    formed = _parallel_formants(src, sr, formants, bws)
+
+    if voc in {"growl", "grunt", "groan"}:
+        lp_b, lp_a = butter(2, min(420.0, sr * 0.35) / (sr * 0.5), btype="lowpass")
+        chest_body = lfilter(lp_b, lp_a, src)
+        formed = 0.72 * formed + 0.28 * chest_body
+
+    # Zero-DC blocker + gentle headroom rounding (no square-wave saturation)
+    y = lfilter([1.0, -1.0], [1.0, -0.995], formed)
+    y = y / (float(np.max(np.abs(y))) + 1e-12)
+    y = np.tanh(0.92 * y)
+
+    am_rate = float(params.get("am_rate_hz", 0.0))
+    am_depth = float(np.clip(params.get("am_depth", 0.0), 0.0, 0.65))
+    if am_rate > 0.0 and am_depth > 0.0:
+        am_mod = 1.0 - 0.5 * am_depth * (1.0 - np.cos(2.0 * np.pi * am_rate * t))
+        y = y * am_mod
+
+    adsr = params.get("adsr") or {}
+    env = _adsr_envelope(
+        n=n,
+        sr=sr,
+        attack_sec=float(adsr.get("attack_sec", 0.035)),
+        decay_sec=float(adsr.get("decay_sec", 0.10)),
+        sustain_level=float(adsr.get("sustain_level", 0.72)),
+        release_sec=float(adsr.get("release_sec", 0.09)),
+    )
+    return y * env
 
 
 def _parallel_formants(x: np.ndarray, sr: int, formants: list[float], bws: list[float]) -> np.ndarray:
-    weights = [1.0, 0.65, 0.32]
+    weights = [1.0, 0.58, 0.28]
     out = np.zeros_like(x, dtype=np.float64)
     for idx, (f, bw) in enumerate(zip(formants, bws)):
-        w = weights[idx] if idx < len(weights) else 0.2
-        r = float(np.exp(-np.pi * bw / sr))
-        theta = 2.0 * np.pi * f / sr
-        a = [1.0, -2.0 * r * np.cos(theta), r * r]
-        b = [1.0 - r, 0.0, -(1.0 - r)]
-        out += w * lfilter(b, a, x)
-    return 0.75 * out + 0.25 * x
+        w = weights[idx] if idx < len(weights) else 0.18
+        out += w * _two_pole_resonator(x, sr, f, bw)
+    return 0.78 * out + 0.22 * x
 
 
 def _adsr_envelope(
@@ -715,11 +833,14 @@ def validate_generated_wav(path: Path, expected_sr: int = TARGET_SR) -> dict[str
 
     rms = float(np.sqrt(np.mean(y**2)))
     peak = float(np.max(np.abs(y)))
+    dc_offset = float(np.mean(y))
     clipping_ratio = float(np.mean(np.abs(y) > 0.99))
     if rms < 1e-4 or peak < 1e-3:
         raise ValueError("Generated WAV is accidentally silent.")
     if clipping_ratio > 0.02:
         raise ValueError(f"Generated WAV exceeds clipping limit ({clipping_ratio:.4f}).")
+    if abs(dc_offset) > 0.05:
+        raise ValueError(f"Generated WAV has excessive DC offset ({dc_offset:.5f}).")
 
     # Discontinuity and unnatural crackle transient detection
     diffs = np.abs(np.diff(y)) if y.size >= 2 else np.zeros(1, dtype=np.float32)
@@ -737,6 +858,7 @@ def validate_generated_wav(path: Path, expected_sr: int = TARGET_SR) -> dict[str
         "non_silent": True,
         "rms": round(rms, 5),
         "peak": round(peak, 5),
+        "dc_offset": round(dc_offset, 6),
         "clipping_ratio": round(clipping_ratio, 6),
         "max_sample_step": round(max_step, 5),
         "abrupt_discontinuity_count": abrupt_jumps,

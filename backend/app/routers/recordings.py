@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from collections import defaultdict
 import hashlib
 import json
 import uuid
@@ -290,15 +291,34 @@ def list_recordings(
 
 
 class AnnotationIn(BaseModel):
-    reviewer_id: str
+    reviewer_id: str | None = None
     vocalization_label: str
     context_label: str = ""
+    uncertain_classification: bool = False
+    multiple_vocalizations: bool = False
+    non_canine_sound: bool = False
+    poor_recording_quality: bool = False
+    context_unavailable: bool = False
+    insufficient_evidence: bool = False
     notes: str = ""
 
 
+CANONICAL_6_CLASSES = ("bark", "growl", "whine", "howl", "yip", "unknown")
+
+
 def _compute_cohens_kappa_across_recordings(recs: list[models.Recording]) -> dict:
-    """Compute observed agreement, chance agreement, and Cohen's kappa across dual-annotated recordings."""
+    """
+    Compute observed agreement, chance agreement, and Cohen's kappa across dual-annotated recordings
+    with 95% confidence intervals, sample size auditing, PABAK, and explicit disagreement reporting.
+    """
+    import math
+
     pairs: list[tuple[str, str]] = []
+    pair_details: list[dict] = []
+    user_ids_involved: set[str] = set()
+    disagreements: list[dict] = []
+    class_counts: dict[str, int] = defaultdict(int)
+
     for r in recs:
         try:
             q = json.loads(r.quality_json or "{}")
@@ -306,15 +326,38 @@ def _compute_cohens_kappa_across_recordings(recs: list[models.Recording]) -> dic
             q = {}
         raw_anns = q.get("independent_annotations") or []
         seen_reviewers: set[str] = set()
-        distinct: list[str] = []
+        distinct: list[dict] = []
         for a in raw_anns:
-            rid = str(a.get("reviewer_id") or "").strip()
-            lbl = str(a.get("vocalization_label") or "").strip().lower()
+            rid = str(a.get("reviewer_id") or a.get("reviewer_user_id") or "").strip()
+            lbl = str(a.get("canonical_label") or a.get("vocalization_label") or "").strip().lower()
+            if lbl not in CANONICAL_6_CLASSES:
+                lbl = "unknown"
             if rid and lbl and rid not in seen_reviewers:
                 seen_reviewers.add(rid)
-                distinct.append(lbl)
+                distinct.append(a)
+                class_counts[lbl] += 1
+                if a.get("reviewer_user_id"):
+                    user_ids_involved.add(str(a["reviewer_user_id"]))
+
         if len(distinct) >= 2:
-            pairs.append((distinct[0], distinct[1]))
+            lbl1 = str(distinct[0].get("canonical_label") or distinct[0].get("vocalization_label") or "").strip().lower()
+            lbl2 = str(distinct[1].get("canonical_label") or distinct[1].get("vocalization_label") or "").strip().lower()
+            if lbl1 not in CANONICAL_6_CLASSES:
+                lbl1 = "unknown"
+            if lbl2 not in CANONICAL_6_CLASSES:
+                lbl2 = "unknown"
+            pairs.append((lbl1, lbl2))
+            pair_info = {
+                "recording_id": r.id,
+                "reviewer_1": distinct[0].get("reviewer_id"),
+                "label_1": lbl1,
+                "reviewer_2": distinct[1].get("reviewer_id"),
+                "label_2": lbl2,
+                "concordant": lbl1 == lbl2,
+            }
+            pair_details.append(pair_info)
+            if lbl1 != lbl2:
+                disagreements.append(pair_info)
 
     n = len(pairs)
     if n == 0:
@@ -324,6 +367,13 @@ def _compute_cohens_kappa_across_recordings(recs: list[models.Recording]) -> dic
             "expected_agreement": 0.0,
             "cohens_kappa": 0.0,
             "consensus_status": "insufficient_dual_annotations",
+            "pabak": 0.0,
+            "confidence_interval_95": [0.0, 0.0],
+            "sample_size_assessment": "insufficient_dual_annotations",
+            "reviewer_independence_status": "no_annotations",
+            "class_distribution": dict(class_counts),
+            "disagreements_count": 0,
+            "disagreement_cases": [],
         }
 
     p_o = sum(1 for y1, y2 in pairs if y1 == y2) / n
@@ -338,6 +388,40 @@ def _compute_cohens_kappa_across_recordings(recs: list[models.Recording]) -> dic
     else:
         kappa = (p_o - p_e) / (1.0 - p_e)
 
+    # Prevalence-Adjusted Bias-Adjusted Kappa (PABAK = 2*P_o - 1)
+    pabak = round(2.0 * p_o - 1.0, 4)
+
+    # Standard Error of Cohen's Kappa: SE_kappa = sqrt(P_o * (1 - P_o) / (N * (1 - P_e)^2))
+    denom = max(1e-6, 1.0 - p_e)
+    se_var = (p_o * (1.0 - p_o)) / max(1, n * (denom ** 2))
+    se_kappa = math.sqrt(max(0.0, se_var)) if n >= 2 else 0.0
+    ci_lower = round(max(-1.0, kappa - 1.96 * se_kappa), 4)
+    ci_upper = round(min(1.0, kappa + 1.96 * se_kappa), 4)
+
+    # Sample size assessment: N < 30 is statistically underpowered for inter-rater reliability
+    if n < 30:
+        sample_size_assessment = (
+            f"statistically_unreliable_small_sample (N={n} < 30 minimum). "
+            f"Confidence intervals [{ci_lower}, {ci_upper}] are wide."
+        )
+    else:
+        sample_size_assessment = f"adequate_sample_size (N={n} >= 30)"
+
+    # Class prevalence imbalance warning
+    max_prevalence = max(class_counts.values()) / max(1, sum(class_counts.values())) if class_counts else 0.0
+    prevalence_warning = None
+    if max_prevalence > 0.60:
+        prevalence_warning = (
+            f"Severe class prevalence skew detected ({round(max_prevalence * 100, 1)}% dominant class). "
+            f"P_e is elevated, which depresses raw Cohen's kappa. Refer to PABAK ({pabak}) alongside raw kappa."
+        )
+
+    # Reviewer independence status
+    if len(user_ids_involved) > 1:
+        reviewer_independence_status = "independently_authenticated_reviewers"
+    else:
+        reviewer_independence_status = "unverified_single_account_simulation"
+
     if kappa >= 0.80:
         consensus_status = "strong_consensus"
     elif kappa >= 0.60:
@@ -350,7 +434,16 @@ def _compute_cohens_kappa_across_recordings(recs: list[models.Recording]) -> dic
         "observed_agreement": round(p_o, 4),
         "expected_agreement": round(p_e, 4),
         "cohens_kappa": round(kappa, 4),
+        "pabak": pabak,
+        "standard_error": round(se_kappa, 4),
+        "confidence_interval_95": [ci_lower, ci_upper],
+        "sample_size_assessment": sample_size_assessment,
+        "reviewer_independence_status": reviewer_independence_status,
+        "prevalence_warning": prevalence_warning,
         "consensus_status": consensus_status,
+        "class_distribution": dict(class_counts),
+        "disagreements_count": len(disagreements),
+        "disagreement_cases": disagreements,
     }
 
 
@@ -371,24 +464,48 @@ def add_recording_annotation(
     db: Session = Depends(get_db),
 ) -> dict:
     rec = _recording_owned(db, user, recording_id)
-    reviewer_id = payload.reviewer_id.strip()
+    reviewer_id = (payload.reviewer_id or user.id).strip()
     vocal_label = payload.vocalization_label.strip().lower()
     if not reviewer_id or not vocal_label:
         raise HTTPException(status_code=400, detail="reviewer_id and vocalization_label are required.")
 
+    # Canonical 6-class normalization
+    if vocal_label in CANONICAL_6_CLASSES:
+        canonical_label = vocal_label
+    elif payload.non_canine_sound or payload.insufficient_evidence:
+        canonical_label = "unknown"
+    else:
+        canonical_label = "unknown"
+
     q = json.loads(rec.quality_json or "{}")
     anns: list[dict] = list(q.get("independent_annotations") or [])
+    
+    # Audit trail: ensure a reviewer can only update their own prior annotation; cannot overwrite other reviewers
     entry = {
+        "annotation_id": str(uuid.uuid4()),
+        "annotation_version": "2.0",
         "reviewer_id": reviewer_id,
+        "reviewer_user_id": user.id,
+        "reviewer_email": user.email,
         "vocalization_label": vocal_label,
+        "canonical_label": canonical_label,
         "context_label": payload.context_label.strip().lower(),
+        "uncertain_classification": bool(payload.uncertain_classification),
+        "multiple_vocalizations": bool(payload.multiple_vocalizations),
+        "non_canine_sound": bool(payload.non_canine_sound),
+        "poor_recording_quality": bool(payload.poor_recording_quality),
+        "context_unavailable": bool(payload.context_unavailable),
+        "insufficient_evidence": bool(payload.insufficient_evidence),
         "notes": payload.notes.strip(),
         "created_at": datetime.now(timezone.utc).isoformat(),
+        "is_owner_authored": rec.user_id == user.id,
     }
-    anns = [a for a in anns if a.get("reviewer_id") != reviewer_id] + [entry]
+
+    # Replace existing entry for this specific reviewer_id, preserving all other independent reviewers
+    anns = [a for a in anns if str(a.get("reviewer_id") or "").strip() != reviewer_id] + [entry]
     q["independent_annotations"] = anns
     if len(anns) >= 2:
-        labels = [a["vocalization_label"] for a in anns]
+        labels = [str(a.get("canonical_label") or a.get("vocalization_label")).lower() for a in anns]
         label_pairs = [(labels[i], labels[j]) for i in range(len(labels)) for j in range(i + 1, len(labels))]
         pairwise_agree = sum(1 for a, b in label_pairs if a == b) / len(label_pairs)
         q["pairwise_agreement"] = round(pairwise_agree, 4)

@@ -6,6 +6,7 @@
 
 import { getUser, clearSession } from "./api";
 import type { Dog } from "./api";
+import { synthesizeProfileFallbackWav } from "./audio/canineSynth";
 
 // Helper to generate a realistic waveform PNG via HTML5 Canvas
 export function generateWaveformPng(): string {
@@ -111,50 +112,9 @@ export function generateSpectrogramPng(): string {
   return canvas.toDataURL("image/png");
 }
 
-// Generate simple audible synthetic WAV data URL
-export function generateSyntheticWavUrl(freq = 260, duration = 0.8): string {
-  const sampleRate = 22050;
-  const numSamples = Math.floor(sampleRate * duration);
-  const buffer = new ArrayBuffer(44 + numSamples * 2);
-  const view = new DataView(buffer);
-
-  function writeString(offset: number, str: string) {
-    for (let i = 0; i < str.length; i++) {
-      view.setUint8(offset + i, str.charCodeAt(i));
-    }
-  }
-
-  // RIFF chunk descriptor
-  writeString(0, "RIFF");
-  view.setUint32(4, 36 + numSamples * 2, true);
-  writeString(8, "WAVE");
-
-  // FMT sub-chunk
-  writeString(12, "fmt ");
-  view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
-  view.setUint16(20, 1, true); // AudioFormat (1 = PCM)
-  view.setUint16(22, 1, true); // NumChannels (1 = mono)
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true); // ByteRate
-  view.setUint16(32, 2, true); // BlockAlign
-  view.setUint16(34, 16, true); // BitsPerSample
-
-  // DATA sub-chunk
-  writeString(36, "data");
-  view.setUint32(40, numSamples * 2, true);
-
-  // PCM samples: synthesized canine acoustic bark envelope
-  for (let i = 0; i < numSamples; i++) {
-    const t = i / sampleRate;
-    const decay = Math.exp(-t * 8);
-    const mod = Math.sin(2 * Math.PI * 12 * t);
-    const sample = Math.sin(2 * Math.PI * (freq + mod * 40) * t) * decay * 0.7;
-    const s = Math.max(-1, Math.min(1, sample));
-    view.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-  }
-
-  const blob = new Blob([buffer], { type: "audio/wav" });
-  return URL.createObjectURL(blob);
+// Generate coherent canine-inspired synthetic WAV data URL via repaired DSP synthesizer
+export function generateSyntheticWavUrl(freq = 260, duration = 0.8, profile = "bark"): string {
+  return synthesizeProfileFallbackWav(profile, freq, duration).blobUrl;
 }
 
 // Client-side storage keys for demo preview
@@ -169,7 +129,23 @@ export function getMockMediaUrl(path: string): string {
   if (path.includes("spectrogram")) {
     return generateSpectrogramPng();
   }
-  return generateSyntheticWavUrl(260, 0.8);
+  // Look up matching generated record if available so offline mode plays the requested vocal profile
+  const match = path.match(/\/api\/communicate\/([^/]+)\/audio/);
+  if (match) {
+    const genId = match[1];
+    try {
+      const user = getUser();
+      const suffix = user ? `_${user.id}` : "";
+      const items: any[] = JSON.parse(localStorage.getItem(`${KEY_COMM}${suffix}`) || "[]");
+      const found = items.find((item) => item.id === genId);
+      if (found) {
+        return synthesizeProfileFallbackWav(found.vocalization_target || "bark", found.f0_hz, found.duration_sec).blobUrl;
+      }
+    } catch {
+      // fall through to default
+    }
+  }
+  return synthesizeProfileFallbackWav("bark").blobUrl;
 }
 
 export async function handleMockApi<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -490,14 +466,53 @@ export async function handleMockApi<T>(path: string, init: RequestInit = {}): Pr
 
   if (cleanPath === "/api/communicate/generate" && method === "POST") {
     const genId = "gen_" + Math.random().toString(36).slice(2, 10);
-    const cat = body.vocalization_target || "BARK";
+    const cat = body.vocalization_target || "bark";
+    const synthOut = synthesizeProfileFallbackWav(cat, body.pitch_hz, body.duration_sec);
+    URL.revokeObjectURL(synthOut.blobUrl);
     const newGen = {
+      status: "ok",
       id: genId,
+      intent: {
+        intent: body.intent_override || "general",
+        confidence: 0.75,
+        reason: "Offline repaired DSP preview.",
+      },
+      generated: {
+        id: genId,
+        source_text: body.text || "Hello",
+        vocalization_target: cat,
+        generation_method: body.generation_method || "experimental_dsp",
+        output_classification: "Experimental Synthetic DSP Preview",
+        is_synthetic: true,
+        audio_url: `/api/communicate/${genId}/audio`,
+        waveform_url: `/api/communicate/${genId}/waveform`,
+        spectrogram_url: `/api/communicate/${genId}/spectrogram`,
+        created_at: new Date().toISOString(),
+        params: {
+          sr: synthOut.sampleRate,
+          duration: synthOut.durationSec,
+          f0_base_hz: synthOut.f0Hz,
+          formants_hz: synthOut.formantsHz,
+          n_events: synthOut.burstCount,
+          output_peak: synthOut.peak,
+          output_rms: synthOut.rms,
+          validation: {
+            valid: true,
+            sample_rate: synthOut.sampleRate,
+            duration_sec: synthOut.durationSec,
+            rms: synthOut.rms,
+            peak: synthOut.peak,
+            dc_offset: synthOut.dcOffset,
+            clipping_ratio: 0,
+          },
+        },
+        disclaimer: "Experimental Synthetic DSP Output (Offline Preview): Not a real dog recording and does not prove canine comprehension.",
+      },
       intent_text: body.text || "Hello",
       vocalization_target: cat,
-      generation_method: "METHOD_B_CROSS_SYNTHESIS",
-      duration_sec: 1.2,
-      f0_hz: 245.0,
+      generation_method: body.generation_method || "experimental_dsp",
+      duration_sec: synthOut.durationSec,
+      f0_hz: synthOut.f0Hz,
       audio_url: `/api/communicate/${genId}/audio`,
       waveform_url: `/api/communicate/${genId}/waveform`,
       spectrogram_url: `/api/communicate/${genId}/spectrogram`,

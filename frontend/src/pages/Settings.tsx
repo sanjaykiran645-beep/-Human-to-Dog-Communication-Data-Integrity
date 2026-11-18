@@ -18,6 +18,9 @@ export default function Settings() {
   const [newPassword, setNewPassword] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [confirmErase, setConfirmErase] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteErr, setDeleteErr] = useState<string | null>(null);
 
   useEffect(() => {
     localStorage.setItem("cs_color_theme", theme);
@@ -39,6 +42,20 @@ export default function Settings() {
       setMsg("Password updated successfully.");
     } catch (e: any) {
       setErr(e.message || "Could not update password.");
+    }
+  }
+
+  async function deleteAccount() {
+    if (!confirmErase || deletingAccount) return;
+    setDeleteErr(null);
+    setDeletingAccount(true);
+    try {
+      await api("/api/account", { method: "DELETE" });
+      clearAuth();
+      nav("/login");
+    } catch (e: any) {
+      setDeleteErr(e.message || "Could not delete account.");
+      setDeletingAccount(false);
     }
   }
 
@@ -116,6 +133,43 @@ export default function Settings() {
             Update Password
           </button>
         </form>
+      </div>
+
+      <div
+        className="card stack"
+        style={{
+          padding: 28,
+          borderRadius: 20,
+          border: "1px solid rgba(185, 28, 28, 0.3)",
+          background: "rgba(254, 242, 242, 0.65)",
+        }}
+      >
+        <div>
+          <h3 style={{ margin: "0 0 4px 0", fontSize: 20, color: "#991b1b" }}>Danger Zone</h3>
+          <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>
+            Permanently delete your CanineSense AI account along with all dogs, recordings, generated cues, study preregistrations, reviewer invitations, and stored audio files. This action cannot be undone.
+          </p>
+        </div>
+        {deleteErr && <div className="alert alert-error">{deleteErr}</div>}
+        <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13.5, cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={confirmErase}
+            onChange={(e) => setConfirmErase(e.target.checked)}
+          />
+          <span>I understand this permanently deletes my account and all associated audio/study data.</span>
+        </label>
+        <div className="row" style={{ gap: 10 }}>
+          <button
+            type="button"
+            className="btn btn-danger btn-sm"
+            disabled={!confirmErase || deletingAccount}
+            onClick={deleteAccount}
+            style={{ borderRadius: 999, padding: "10px 20px" }}
+          >
+            {deletingAccount ? "Deleting Account..." : "Delete Account & All Data"}
+          </button>
+        </div>
       </div>
     </div>
   );

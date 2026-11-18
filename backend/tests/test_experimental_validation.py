@@ -249,7 +249,52 @@ def test_independent_blind_review_and_agreement(client: TestClient, user_a: dict
         },
     ).json()["id"]
 
-    # Secondary reviewer (user_b) submits blind video scoring agreeing with primary
+    # Uninvited secondary reviewer (user_b) must be blocked (403)
+    rev_uninvited = client.post(
+        f"/api/experiments/trials/{t_id}/reviews",
+        headers=hdr_b,
+        json={
+            "reviewer_name": "Dr. Ethologist",
+            "is_blind_to_condition": True,
+            "scored_outcome_category": "correct_target_action",
+        },
+    )
+    assert rev_uninvited.status_code == 403
+
+    # Owner cannot invite themselves
+    inv_self = client.post(
+        f"/api/experiments/trials/{t_id}/invitations",
+        headers=hdr_a,
+        json={"reviewer_email": user_a["email"], "permission_scope": "blind_video_review", "is_blind": True},
+    )
+    assert inv_self.status_code == 400
+
+    # Owner invites user_b explicitly for blind video review
+    inv_res = client.post(
+        f"/api/experiments/trials/{t_id}/invitations",
+        headers=hdr_a,
+        json={"reviewer_email": user_b["email"], "permission_scope": "blind_video_review", "is_blind": True},
+    )
+    assert inv_res.status_code == 201, inv_res.text
+    inv_id = inv_res.json()["id"]
+
+    # user_b accepts the invitation
+    acc_res = client.post(
+        f"/api/experiments/invitations/{inv_id}/respond",
+        headers=hdr_b,
+        json={"decision": "accept"},
+    )
+    assert acc_res.status_code == 200, acc_res.text
+    assert acc_res.json()["status"] == "accepted"
+
+    # Assigned trials for user_b must omit condition and primary outcome (blind protection)
+    assigned = client.get("/api/experiments/assigned-trials", headers=hdr_b).json()
+    assert len(assigned) == 1
+    assert assigned[0]["trial_id"] == t_id
+    assert "experimental_condition" not in assigned[0]
+    assert "primary_outcome_category" not in assigned[0]
+
+    # Secondary reviewer (user_b) submits blind video scoring
     rev1 = client.post(
         f"/api/experiments/trials/{t_id}/reviews",
         headers=hdr_b,
@@ -262,7 +307,13 @@ def test_independent_blind_review_and_agreement(client: TestClient, user_a: dict
         },
     )
     assert rev1.status_code == 201
-    assert rev1.json()["disagreement_with_primary"] is False
+    assert "primary_observer_category" not in rev1.json()
+    assert "disagreement_with_primary" not in rev1.json()
+
+    # Study owner inspects reviews and inter-reviewer agreement
+    owner_revs = client.get(f"/api/experiments/trials/{t_id}/reviews", headers=hdr_a)
+    assert owner_revs.status_code == 200
+    assert owner_revs.json()[0]["disagreement_with_primary"] is False
 
     # Same reviewer cannot submit duplicate review
     rev_dup = client.post(
@@ -274,6 +325,11 @@ def test_independent_blind_review_and_agreement(client: TestClient, user_a: dict
         },
     )
     assert rev_dup.status_code == 409
+
+    # Owner revokes invitation; assigned-trials no longer exposes the trial
+    revk = client.post(f"/api/experiments/invitations/{inv_id}/revoke", headers=hdr_a)
+    assert revk.status_code == 200
+    assert client.get("/api/experiments/assigned-trials", headers=hdr_b).json() == []
 
 
 def test_auditable_trial_correction(client: TestClient, user_a: dict):
@@ -508,3 +564,98 @@ def test_empty_experimental_metrics_schema_complete(client: TestClient, user_a: 
     assert body["target_cue_metrics"]["correct_action_rate"] == 0.0
     assert body["discrimination_and_controls"]["acoustic_discrimination_ratio"] == 0.0
     assert body["animal_welfare_and_safety"]["max_volume_cap_dba"] == 75.0
+
+
+def test_reviewer_invitation_revocation_expiration_and_preregistration(client: TestClient, user_a: dict, user_b: dict):
+    from datetime import datetime, timedelta, timezone
+    from app.db import SessionLocal
+
+    hdr_a = auth_header(user_a["token"])
+    hdr_b = auth_header(user_b["token"])
+
+    # Preregistration & Adverse Events
+    pre = client.post(
+        "/api/experiments/preregistrations",
+        headers=hdr_a,
+        json={
+            "study_title": "Pilot Recall Conditioning Protocol v1",
+            "hypothesis": "Conditioned canine-prosody cues yield higher target recall than C1-C3 controls after 10 conditioning sessions.",
+            "target_behaviour": "Approach handler within 2.5s without visual gesture.",
+            "baseline_measurement_plan": "3-minute resting baseline prior to trial block.",
+        },
+    )
+    assert pre.status_code == 201, pre.text
+    assert len(client.get("/api/experiments/preregistrations", headers=hdr_a).json()) == 1
+
+    p_id = client.post(
+        "/api/experiments/participants",
+        headers=hdr_a,
+        json={"pseudonym": "DOG-PREREG-01", "owner_consent_confirmed": True, "welfare_review_confirmed": True},
+    ).json()["id"]
+
+    t1 = client.post(
+        "/api/experiments/trials",
+        headers=hdr_a,
+        json={
+            "participant_id": p_id,
+            "session_id": "sess-sec-01",
+            "trial_order_in_session": 1,
+            "experimental_condition": "target_engine_b_cue",
+            "measured_spl_dba": 64.0,
+            "outcome_category": "attention_only",
+        },
+    ).json()["id"]
+
+    ae = client.post(
+        "/api/experiments/adverse-events",
+        headers=hdr_a,
+        json={
+            "participant_id": p_id,
+            "trial_id": t1,
+            "severity": "mild",
+            "distress_indicators": ["lip_licking"],
+            "action_taken": "Paused session for 5 minutes and offered water.",
+            "session_aborted": False,
+        },
+    )
+    assert ae.status_code == 201, ae.text
+
+    # Owner cannot review own trial
+    self_rev = client.post(
+        f"/api/experiments/trials/{t1}/reviews",
+        headers=hdr_a,
+        json={"reviewer_name": "Owner", "scored_outcome_category": "attention_only"},
+    )
+    assert self_rev.status_code == 403
+
+    # Inviting then revoking BEFORE review blocks submission
+    inv1 = client.post(
+        f"/api/experiments/trials/{t1}/invitations",
+        headers=hdr_a,
+        json={"reviewer_email": user_b["email"], "is_blind": True},
+    ).json()["id"]
+    assert client.post(f"/api/experiments/invitations/{inv1}/respond", headers=hdr_b, json={"decision": "accept"}).status_code == 200
+    assert client.post(f"/api/experiments/invitations/{inv1}/revoke", headers=hdr_a).status_code == 200
+    after_revoke = client.post(
+        f"/api/experiments/trials/{t1}/reviews",
+        headers=hdr_b,
+        json={"reviewer_name": "Dr. B", "scored_outcome_category": "attention_only"},
+    )
+    assert after_revoke.status_code == 403
+
+    # Expired invitation is blocked
+    inv2 = client.post(
+        f"/api/experiments/trials/{t1}/invitations",
+        headers=hdr_a,
+        json={"reviewer_email": user_b["email"], "is_blind": True, "expires_in_hours": 1},
+    ).json()["id"]
+    with SessionLocal() as s:
+        row = s.get(models.TrialReviewerInvitation, inv2)
+        row.expires_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+        s.commit()
+    exp_resp = client.post(
+        f"/api/experiments/invitations/{inv2}/respond",
+        headers=hdr_b,
+        json={"decision": "accept"},
+    )
+    assert exp_resp.status_code == 403

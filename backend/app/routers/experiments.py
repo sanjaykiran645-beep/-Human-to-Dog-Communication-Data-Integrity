@@ -10,13 +10,13 @@ import hashlib
 import json
 import secrets
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -123,6 +123,67 @@ class IndependentReviewIn(BaseModel):
     scored_latency_ms: float | None = None
     reviewer_confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     review_notes: str | None = ""
+
+
+class ReviewerInvitationIn(BaseModel):
+    reviewer_email: EmailStr
+    permission_scope: str = Field(default="blind_video_review", pattern="^(blind_video_review|unblinded_audit)$")
+    is_blind: bool = True
+    expires_in_hours: int = Field(default=168, ge=1, le=720)
+
+
+class InvitationRespondIn(BaseModel):
+    decision: str = Field(..., pattern="^(accept|reject)$")
+
+
+class PreregistrationIn(BaseModel):
+    study_title: str = Field(..., min_length=4, max_length=160)
+    hypothesis: str = Field(..., min_length=10)
+    target_behaviour: str = Field(..., min_length=5)
+    success_criteria: dict[str, Any] = Field(default_factory=lambda: {"min_congruence_rate": 0.75, "min_d_ratio": 0.50, "p_alpha": 0.01})
+    baseline_measurement_plan: str = Field(..., min_length=5)
+    randomization_rule: str = Field(default="Latin-square counterbalanced schedule with <=2 consecutive identical conditions")
+    termination_rules: str = Field(default="Abort immediately on >75 dBA, freezing_observed, or >=2 consecutive moderate stress signs")
+    missing_data_policy: str = Field(default="Confounded/aborted trials flagged invalid_or_confounded or welfare_terminated; excluded from efficacy numerator but reported in total exclusion rate")
+    statistical_analysis_plan: str = Field(default="Repeated-measures binomial & D_ratio evaluation against C1-C3 controls with Cohen's kappa >= 0.80 inter-rater gate")
+
+
+class AdverseEventIn(BaseModel):
+    participant_id: str
+    trial_id: str | None = None
+    severity: str = Field(..., pattern="^(mild|moderate|severe)$")
+    distress_indicators: list[str] = Field(default_factory=list)
+    action_taken: str = Field(..., min_length=4)
+    session_aborted: bool = True
+    vet_followup_notes: str | None = ""
+
+
+def _as_utc(dt: datetime) -> datetime:
+    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+
+
+def _active_invitation_for_user(
+    db: Session,
+    trial_id: str,
+    user: models.User,
+) -> models.TrialReviewerInvitation | None:
+    email_norm = user.email.lower().strip()
+    invs = list(
+        db.scalars(
+            select(models.TrialReviewerInvitation).where(
+                models.TrialReviewerInvitation.trial_id == trial_id,
+                models.TrialReviewerInvitation.status == "accepted",
+                models.TrialReviewerInvitation.revoked_at.is_(None),
+            )
+        )
+    )
+    now = datetime.now(timezone.utc)
+    for inv in invs:
+        if _as_utc(inv.expires_at) <= now:
+            continue
+        if inv.reviewer_user_id == user.id or inv.reviewer_email.lower().strip() == email_norm:
+            return inv
+    return None
 
 
 # Participant Endpoints
@@ -550,6 +611,218 @@ def correct_trial_record(
     }
 
 
+# Independent Reviewer Invitation & Blind Authorization Endpoints
+
+@router.post("/trials/{trial_id}/invitations", status_code=status.HTTP_201_CREATED)
+def invite_independent_reviewer(
+    trial_id: str,
+    payload: ReviewerInvitationIn,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    trial = db.get(models.BehaviouralTrial, trial_id)
+    if not trial or trial.user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trial not found")
+
+    target_email = str(payload.reviewer_email).lower().strip()
+    if target_email == user.email.lower().strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Independent reviewer must be a separate account from the trial owner.",
+        )
+
+    invited_user = db.scalar(select(models.User).where(models.User.email == target_email))
+    now = datetime.now(timezone.utc)
+    inv = models.TrialReviewerInvitation(
+        id=str(uuid.uuid4()),
+        trial_id=trial.id,
+        study_owner_user_id=user.id,
+        invited_by_user_id=user.id,
+        reviewer_email=target_email,
+        reviewer_user_id=invited_user.id if invited_user else None,
+        permission_scope=payload.permission_scope,
+        is_blind=bool(payload.is_blind),
+        status="pending",
+        expires_at=now + timedelta(hours=payload.expires_in_hours),
+    )
+    db.add(inv)
+    db.flush()
+    audit.log(
+        db,
+        action="experiment.reviewer_invited",
+        entity="trial_reviewer_invitation",
+        user_id=user.id,
+        entity_id=inv.id,
+        detail=f"trial={trial.id},scope={inv.permission_scope},blind={inv.is_blind}",
+    )
+    db.commit()
+    return {
+        "id": inv.id,
+        "trial_id": inv.trial_id,
+        "reviewer_email": inv.reviewer_email,
+        "permission_scope": inv.permission_scope,
+        "is_blind": inv.is_blind,
+        "status": inv.status,
+        "expires_at": _as_utc(inv.expires_at).isoformat(),
+        "created_at": _as_utc(inv.created_at).isoformat(),
+    }
+
+
+@router.get("/invitations")
+def list_reviewer_invitations(
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, list[dict[str, Any]]]:
+    email_norm = user.email.lower().strip()
+    now = datetime.now(timezone.utc)
+
+    incoming_rows = list(
+        db.scalars(
+            select(models.TrialReviewerInvitation)
+            .where(
+                (models.TrialReviewerInvitation.reviewer_user_id == user.id)
+                | (models.TrialReviewerInvitation.reviewer_email == email_norm)
+            )
+            .order_by(models.TrialReviewerInvitation.created_at.desc())
+        )
+    )
+    outgoing_rows = list(
+        db.scalars(
+            select(models.TrialReviewerInvitation)
+            .where(models.TrialReviewerInvitation.study_owner_user_id == user.id)
+            .order_by(models.TrialReviewerInvitation.created_at.desc())
+        )
+    )
+
+    def _serialize(inv: models.TrialReviewerInvitation, include_email: bool) -> dict[str, Any]:
+        exp = _as_utc(inv.expires_at)
+        effective_status = "expired" if (inv.status in {"pending", "accepted"} and exp <= now and inv.revoked_at is None) else inv.status
+        out: dict[str, Any] = {
+            "id": inv.id,
+            "trial_id": inv.trial_id,
+            "permission_scope": inv.permission_scope,
+            "is_blind": inv.is_blind,
+            "status": effective_status,
+            "expires_at": exp.isoformat(),
+            "created_at": _as_utc(inv.created_at).isoformat(),
+        }
+        if include_email:
+            out["reviewer_email"] = inv.reviewer_email
+        return out
+
+    return {
+        "incoming": [_serialize(i, include_email=False) for i in incoming_rows],
+        "outgoing": [_serialize(i, include_email=True) for i in outgoing_rows],
+    }
+
+
+@router.post("/invitations/{invitation_id}/respond")
+def respond_reviewer_invitation(
+    invitation_id: str,
+    payload: InvitationRespondIn,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    inv = db.get(models.TrialReviewerInvitation, invitation_id)
+    if not inv:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found")
+
+    email_norm = user.email.lower().strip()
+    if inv.reviewer_email.lower().strip() != email_norm and inv.reviewer_user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to respond to this invitation")
+
+    if inv.revoked_at is not None or inv.status == "revoked":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invitation has been revoked")
+
+    now = datetime.now(timezone.utc)
+    if _as_utc(inv.expires_at) <= now:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invitation has expired")
+
+    if inv.status != "pending":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Invitation already {inv.status}")
+
+    inv.reviewer_user_id = user.id
+    inv.status = "accepted" if payload.decision == "accept" else "rejected"
+    inv.responded_at = now
+    audit.log(
+        db,
+        action=f"experiment.reviewer_{inv.status}",
+        entity="trial_reviewer_invitation",
+        user_id=user.id,
+        entity_id=inv.id,
+        detail=f"trial={inv.trial_id}",
+    )
+    db.commit()
+    return {"id": inv.id, "trial_id": inv.trial_id, "status": inv.status, "is_blind": inv.is_blind}
+
+
+@router.post("/invitations/{invitation_id}/revoke")
+def revoke_reviewer_invitation(
+    invitation_id: str,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    inv = db.get(models.TrialReviewerInvitation, invitation_id)
+    if not inv or inv.study_owner_user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found")
+
+    inv.status = "revoked"
+    inv.revoked_at = datetime.now(timezone.utc)
+    audit.log(
+        db,
+        action="experiment.reviewer_revoked",
+        entity="trial_reviewer_invitation",
+        user_id=user.id,
+        entity_id=inv.id,
+        detail=f"trial={inv.trial_id}",
+    )
+    db.commit()
+    return {"id": inv.id, "trial_id": inv.trial_id, "status": inv.status}
+
+
+@router.get("/assigned-trials")
+def list_assigned_trials_for_reviewer(
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict[str, Any]]:
+    email_norm = user.email.lower().strip()
+    now = datetime.now(timezone.utc)
+    invs = list(
+        db.scalars(
+            select(models.TrialReviewerInvitation).where(
+                models.TrialReviewerInvitation.status == "accepted",
+                models.TrialReviewerInvitation.revoked_at.is_(None),
+                (models.TrialReviewerInvitation.reviewer_user_id == user.id)
+                | (models.TrialReviewerInvitation.reviewer_email == email_norm),
+            )
+        )
+    )
+    out = []
+    for inv in invs:
+        if _as_utc(inv.expires_at) <= now:
+            continue
+        trial = db.get(models.BehaviouralTrial, inv.trial_id)
+        if not trial:
+            continue
+        item: dict[str, Any] = {
+            "invitation_id": inv.id,
+            "trial_id": trial.id,
+            "session_id": trial.session_id,
+            "trial_order": trial.trial_order_in_session,
+            "pre_cue_state": trial.pre_cue_state,
+            "video_reference_path": trial.video_reference_path,
+            "is_blind": inv.is_blind,
+            "permission_scope": inv.permission_scope,
+            "created_at": trial.created_at.isoformat(),
+        }
+        # Only expose condition/primary outcome if explicitly unblinded assignment
+        if not inv.is_blind:
+            item["experimental_condition"] = trial.experimental_condition
+            item["primary_outcome_category"] = trial.outcome_category
+        out.append(item)
+    return out
+
+
 # Independent Reviewer Endpoints
 
 @router.post("/trials/{trial_id}/reviews", status_code=status.HTTP_201_CREATED)
@@ -562,6 +835,19 @@ def submit_independent_review(
     trial = db.get(models.BehaviouralTrial, trial_id)
     if not trial:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trial not found")
+
+    if trial.user_id == user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Primary study owner cannot submit an independent review for their own trial.",
+        )
+
+    inv = _active_invitation_for_user(db, trial.id, user)
+    if inv is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Explicit accepted reviewer invitation required to review this trial.",
+        )
 
     if payload.scored_outcome_category not in OUTCOME_CATEGORIES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid outcome category")
@@ -580,13 +866,14 @@ def submit_independent_review(
         )
 
     disagreement = payload.scored_outcome_category != trial.outcome_category
+    blind_flag = True if inv.is_blind else payload.is_blind_to_condition
 
     rev = models.TrialIndependentReview(
         id=str(uuid.uuid4()),
         trial_id=trial.id,
         reviewer_user_id=user.id,
         reviewer_name=payload.reviewer_name.strip(),
-        is_blind_to_condition=payload.is_blind_to_condition,
+        is_blind_to_condition=blind_flag,
         scored_outcome_category=payload.scored_outcome_category,
         scored_latency_ms=payload.scored_latency_ms,
         reviewer_confidence=payload.reviewer_confidence,
@@ -594,19 +881,198 @@ def submit_independent_review(
         disagreement_with_primary=disagreement,
     )
     db.add(rev)
+    db.flush()
+    audit.log(
+        db,
+        action="experiment.review_submitted",
+        entity="trial_independent_review",
+        user_id=user.id,
+        entity_id=rev.id,
+        detail=f"trial={trial.id},blind={blind_flag}",
+    )
     db.commit()
 
-    resp = {
+    resp: dict[str, Any] = {
         "id": rev.id,
         "trial_id": rev.trial_id,
         "reviewer_name": rev.reviewer_name,
         "scored_outcome_category": rev.scored_outcome_category,
-        "disagreement_with_primary": disagreement,
+        "is_blind_to_condition": blind_flag,
         "created_at": rev.created_at.isoformat(),
     }
-    if not payload.is_blind_to_condition:
+    if not blind_flag:
+        resp["disagreement_with_primary"] = disagreement
         resp["primary_observer_category"] = trial.outcome_category
     return resp
+
+
+@router.get("/trials/{trial_id}/reviews")
+def list_trial_reviews_for_owner(
+    trial_id: str,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict[str, Any]]:
+    trial = db.get(models.BehaviouralTrial, trial_id)
+    if not trial or trial.user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trial not found")
+    revs = list(
+        db.scalars(
+            select(models.TrialIndependentReview)
+            .where(models.TrialIndependentReview.trial_id == trial.id)
+            .order_by(models.TrialIndependentReview.created_at.desc())
+        )
+    )
+    return [
+        {
+            "id": r.id,
+            "trial_id": r.trial_id,
+            "reviewer_name": r.reviewer_name,
+            "is_blind_to_condition": r.is_blind_to_condition,
+            "scored_outcome_category": r.scored_outcome_category,
+            "disagreement_with_primary": r.disagreement_with_primary,
+            "reviewer_confidence": r.reviewer_confidence,
+            "review_notes": r.review_notes,
+            "created_at": r.created_at.isoformat(),
+        }
+        for r in revs
+    ]
+
+
+# Preregistration & Adverse Events (Priority D Trial Readiness)
+
+@router.post("/preregistrations", status_code=status.HTTP_201_CREATED)
+def create_preregistration(
+    payload: PreregistrationIn,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    pre = models.TrialPreregistration(
+        id=str(uuid.uuid4()),
+        user_id=user.id,
+        study_title=payload.study_title.strip(),
+        hypothesis=payload.hypothesis.strip(),
+        target_behaviour=payload.target_behaviour.strip(),
+        success_criteria_json=json.dumps(payload.success_criteria),
+        baseline_measurement_plan=payload.baseline_measurement_plan.strip(),
+        randomization_rule=payload.randomization_rule.strip(),
+        termination_rules=payload.termination_rules.strip(),
+        missing_data_policy=payload.missing_data_policy.strip(),
+        statistical_analysis_plan=payload.statistical_analysis_plan.strip(),
+        protocol_version=PROTOCOL_VERSION,
+    )
+    db.add(pre)
+    db.flush()
+    audit.log(db, action="experiment.preregistered", entity="trial_preregistration", user_id=user.id, entity_id=pre.id)
+    db.commit()
+    return {
+        "id": pre.id,
+        "study_title": pre.study_title,
+        "hypothesis": pre.hypothesis,
+        "target_behaviour": pre.target_behaviour,
+        "success_criteria": payload.success_criteria,
+        "protocol_version": pre.protocol_version,
+        "locked_at": _as_utc(pre.locked_at).isoformat(),
+    }
+
+
+@router.get("/preregistrations")
+def list_preregistrations(
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict[str, Any]]:
+    rows = list(
+        db.scalars(
+            select(models.TrialPreregistration)
+            .where(models.TrialPreregistration.user_id == user.id)
+            .order_by(models.TrialPreregistration.locked_at.desc())
+        )
+    )
+    return [
+        {
+            "id": r.id,
+            "study_title": r.study_title,
+            "hypothesis": r.hypothesis,
+            "target_behaviour": r.target_behaviour,
+            "success_criteria": json.loads(r.success_criteria_json or "{}"),
+            "baseline_measurement_plan": r.baseline_measurement_plan,
+            "randomization_rule": r.randomization_rule,
+            "termination_rules": r.termination_rules,
+            "missing_data_policy": r.missing_data_policy,
+            "statistical_analysis_plan": r.statistical_analysis_plan,
+            "protocol_version": r.protocol_version,
+            "locked_at": _as_utc(r.locked_at).isoformat(),
+        }
+        for r in rows
+    ]
+
+
+@router.post("/adverse-events", status_code=status.HTTP_201_CREATED)
+def log_adverse_event(
+    payload: AdverseEventIn,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    part = db.get(models.StudyParticipant, payload.participant_id)
+    if not part or part.user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Participant not found")
+    if payload.trial_id:
+        tr = db.get(models.BehaviouralTrial, payload.trial_id)
+        if not tr or tr.user_id != user.id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trial not found")
+
+    ae = models.TrialAdverseEvent(
+        id=str(uuid.uuid4()),
+        user_id=user.id,
+        participant_id=part.id,
+        trial_id=payload.trial_id,
+        severity=payload.severity,
+        distress_indicators_json=json.dumps(payload.distress_indicators or []),
+        action_taken=payload.action_taken.strip(),
+        session_aborted=payload.session_aborted,
+        vet_followup_notes=(payload.vet_followup_notes or "").strip(),
+    )
+    db.add(ae)
+    db.flush()
+    audit.log(db, action="experiment.adverse_event", entity="trial_adverse_event", user_id=user.id, entity_id=ae.id)
+    db.commit()
+    return {
+        "id": ae.id,
+        "participant_id": ae.participant_id,
+        "trial_id": ae.trial_id,
+        "severity": ae.severity,
+        "distress_indicators": payload.distress_indicators,
+        "action_taken": ae.action_taken,
+        "session_aborted": ae.session_aborted,
+        "created_at": _as_utc(ae.created_at).isoformat(),
+    }
+
+
+@router.get("/adverse-events")
+def list_adverse_events(
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict[str, Any]]:
+    rows = list(
+        db.scalars(
+            select(models.TrialAdverseEvent)
+            .where(models.TrialAdverseEvent.user_id == user.id)
+            .order_by(models.TrialAdverseEvent.created_at.desc())
+        )
+    )
+    return [
+        {
+            "id": r.id,
+            "participant_id": r.participant_id,
+            "trial_id": r.trial_id,
+            "severity": r.severity,
+            "distress_indicators": json.loads(r.distress_indicators_json or "[]"),
+            "action_taken": r.action_taken,
+            "session_aborted": r.session_aborted,
+            "vet_followup_notes": r.vet_followup_notes,
+            "created_at": _as_utc(r.created_at).isoformat(),
+        }
+        for r in rows
+    ]
 
 
 # Scientific Metrics & Research Exports
@@ -617,7 +1083,14 @@ def get_experimental_metrics(
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     trials = list(db.scalars(select(models.BehaviouralTrial).where(models.BehaviouralTrial.user_id == user.id)))
-    return compute_experimental_metrics(trials)
+    trial_ids = [t.id for t in trials]
+    reviews = (
+        list(db.scalars(select(models.TrialIndependentReview).where(models.TrialIndependentReview.trial_id.in_(trial_ids))))
+        if trial_ids
+        else []
+    )
+    adverse_count = len(list(db.scalars(select(models.TrialAdverseEvent).where(models.TrialAdverseEvent.user_id == user.id))))
+    return compute_experimental_metrics(trials, reviews=reviews, adverse_events_count=adverse_count)
 
 
 @router.get("/export")

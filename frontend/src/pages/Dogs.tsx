@@ -22,6 +22,7 @@ export default function Dogs() {
   const [breed, setBreed] = useState("");
   const [sex, setSex] = useState<"male" | "female">("male");
   const [age, setAge] = useState("");
+  const [weight, setWeight] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
@@ -54,18 +55,20 @@ export default function Dogs() {
           breed: breed.trim() || "Mixed Breed",
           sex,
           age_years: age ? Number(age) : null,
+          weight_kg: weight ? Number(weight) : null,
         }),
       });
       setName("");
       setBreed("");
       setAge("");
+      setWeight("");
       if (prevCount >= 10) {
         setSavedMsg(
-          `Profile saved with ${sex.toUpperCase()} acoustic calibration! Since your profiles exceeded 10, the starting 3 (oldest) profiles were automatically deleted.`
+          `Profile saved with ${sex.toUpperCase()} heuristic calibration! Since your profiles exceeded 10, the starting 3 (oldest) profiles were automatically deleted.`
         );
       } else {
         setSavedMsg(
-          `Profile saved! ${sex === "male" ? "Male (-10% deeper vocal fold pitch)" : "Female (+8% harmonic pitch)"} & breed intelligence synced.`
+          `Profile saved! Heuristic prior active (${sex === "male" ? "Male x0.91 / -9% F0 prior" : "Female x1.08 / +8% F0 prior"}) & allometric breed estimate synced.`
         );
       }
       await load();
@@ -123,7 +126,7 @@ export default function Dogs() {
                 cursor: "pointer",
               }}
             >
-              Male Dog (Deeper F0 Pitch)
+              Male Dog (Heuristic Prior: -9% F0)
             </button>
             <button
               type="button"
@@ -138,13 +141,13 @@ export default function Dogs() {
                 cursor: "pointer",
               }}
             >
-              Female Dog (Higher F0 Pitch)
+              Female Dog (Heuristic Prior: +8% F0)
             </button>
           </div>
         </div>
 
         <div className="field">
-          <label>Breed (Auto-Syncs Vocal & Behavioral Intelligence)</label>
+          <label>Breed (Allometric &amp; Heuristic Acoustic Prior — Not Clinically Measured)</label>
           <input value={breed} onChange={(e) => setBreed(e.target.value)} placeholder="e.g. Golden Retriever, American Pit Bull..." />
           <div className="row" style={{ gap: 6, flexWrap: "wrap", marginTop: 8 }}>
             {POPULAR_BREEDS.map((b) => (
@@ -161,9 +164,19 @@ export default function Dogs() {
           </div>
         </div>
 
-        <div className="field">
-          <label>Age in Years (Optional)</label>
-          <input type="number" step="0.5" min="0" max="30" value={age} onChange={(e) => setAge(e.target.value)} placeholder="e.g. 3" />
+        <div className="grid-2" style={{ gap: 12 }}>
+          <div className="field">
+            <label>Age in Years (Optional)</label>
+            <input type="number" step="0.5" min="0" max="30" value={age} onChange={(e) => setAge(e.target.value)} placeholder="e.g. 3" />
+          </div>
+          <div className="field">
+            <label>Weight in kg (Optional Override)</label>
+            <input type="number" step="0.5" min="0.5" max="110" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="Auto-estimated if blank" />
+          </div>
+        </div>
+
+        <div style={{ padding: "10px 12px", borderRadius: 10, background: "rgba(0,0,0,0.03)", fontSize: 12, lineHeight: 1.45, color: "#475569" }}>
+          <strong>Parameter Provenance:</strong> Weight/breed defaults use <em>Research-Derived</em> body-mass allometry (Taylor &amp; Reby); male (×0.91) and female (×1.08) pitch multipliers are <em>Heuristic Priors</em>, not measured breed acoustics. Coren rankings reflect trainability only.
         </div>
 
         <button className="btn btn-primary" disabled={busy} style={{ borderRadius: 999, padding: "12px 24px", fontWeight: 700 }}>

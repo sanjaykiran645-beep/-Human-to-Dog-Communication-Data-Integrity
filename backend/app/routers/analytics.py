@@ -253,6 +253,14 @@ def export_data(user: models.User = Depends(get_current_user), db: Session = Dep
 def delete_account(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     uid = user.id
     user_trial_ids = select(models.BehaviouralTrial.id).where(models.BehaviouralTrial.user_id == uid)
+    db.query(models.TrialReviewerInvitation).filter(
+        (models.TrialReviewerInvitation.study_owner_user_id == uid)
+        | (models.TrialReviewerInvitation.invited_by_user_id == uid)
+        | (models.TrialReviewerInvitation.reviewer_user_id == uid)
+        | (models.TrialReviewerInvitation.trial_id.in_(user_trial_ids))
+    ).delete(synchronize_session=False)
+    db.query(models.TrialAdverseEvent).filter(models.TrialAdverseEvent.user_id == uid).delete()
+    db.query(models.TrialPreregistration).filter(models.TrialPreregistration.user_id == uid).delete()
     db.query(models.TrialIndependentReview).filter(
         (models.TrialIndependentReview.reviewer_user_id == uid)
         | (models.TrialIndependentReview.trial_id.in_(user_trial_ids))

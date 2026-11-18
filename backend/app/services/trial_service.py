@@ -165,11 +165,55 @@ def synthesize_control_audio(
     return np.zeros(n_samples, dtype=np.float32)
 
 
-def compute_experimental_metrics(trials: list[models.BehaviouralTrial]) -> dict[str, Any]:
+def compute_inter_reviewer_agreement(
+    trials: list[models.BehaviouralTrial],
+    reviews: list[models.TrialIndependentReview],
+) -> dict[str, Any]:
+    """Compute observed agreement and Cohen's kappa across independent blind reviews."""
+    by_id = {t.id: t for t in trials}
+    pairs: list[tuple[str, str]] = []
+    for rev in reviews:
+        t = by_id.get(rev.trial_id)
+        if t:
+            pairs.append((t.outcome_category, rev.scored_outcome_category))
+
+    n = len(pairs)
+    if n == 0:
+        return {
+            "paired_reviews": 0,
+            "observed_agreement": None,
+            "cohens_kappa": None,
+            "disagreements_count": 0,
+            "status": "no_independent_reviews",
+        }
+
+    agree = sum(1 for a, b in pairs if a == b)
+    po = agree / n
+    cats = sorted({a for a, _ in pairs} | {b for _, b in pairs})
+    pe = sum(
+        (sum(1 for a, _ in pairs if a == c) / n) * (sum(1 for _, b in pairs if b == c) / n)
+        for c in cats
+    )
+    kappa = 1.0 if abs(1.0 - pe) < 1e-12 else (po - pe) / (1.0 - pe)
+    return {
+        "paired_reviews": n,
+        "observed_agreement": round(po, 4),
+        "cohens_kappa": round(float(max(-1.0, min(1.0, kappa))), 4),
+        "disagreements_count": n - agree,
+        "status": "calculated",
+    }
+
+
+def compute_experimental_metrics(
+    trials: list[models.BehaviouralTrial],
+    reviews: list[models.TrialIndependentReview] | None = None,
+    adverse_events_count: int = 0,
+) -> dict[str, Any]:
     """
     Compute rigorous repeated-measures behavioral validation metrics across trials.
     Accounts for individual dog clusters, control discrimination, habituation, and welfare.
     """
+    agreement = compute_inter_reviewer_agreement(trials, reviews or [])
     total_count = len(trials)
     if total_count == 0:
         empty_controls = {
@@ -215,6 +259,7 @@ def compute_experimental_metrics(trials: list[models.BehaviouralTrial]) -> dict[
                 "mean_habituation_index": None,
                 "habituation_interpretation": "No empirical behavioural trials have been logged yet.",
             },
+            "inter_reviewer_agreement": agreement,
             "animal_welfare_and_safety": {
                 "volume_cap_strictly_enforced": True,
                 "max_volume_cap_dba": MAX_PLAYBACK_SPL_DBA,
@@ -222,6 +267,7 @@ def compute_experimental_metrics(trials: list[models.BehaviouralTrial]) -> dict[
                 "welfare_abort_rate": 0.0,
                 "freezing_episodes_count": 0,
                 "freezing_rate": 0.0,
+                "adverse_events_count": adverse_events_count,
                 "safety_assessment": "No trials recorded yet. 75.0 dBA SPL welfare hard cap active.",
             },
         }
@@ -368,6 +414,7 @@ def compute_experimental_metrics(trials: list[models.BehaviouralTrial]) -> dict[
                 else "Response latency remained stable across trial repetitions."
             ),
         },
+        "inter_reviewer_agreement": agreement,
         "animal_welfare_and_safety": {
             "volume_cap_strictly_enforced": True,
             "max_volume_cap_dba": MAX_PLAYBACK_SPL_DBA,
@@ -375,6 +422,7 @@ def compute_experimental_metrics(trials: list[models.BehaviouralTrial]) -> dict[
             "welfare_abort_rate": welfare_abort_rate,
             "freezing_episodes_count": freezing_count,
             "freezing_rate": freezing_rate,
+            "adverse_events_count": adverse_events_count,
             "safety_assessment": (
                 "PASS: Welfare aborts and freezing rates within safe boundaries (<5%)."
                 if welfare_abort_rate < 0.05 and freezing_rate < 0.05
@@ -449,7 +497,14 @@ def export_pseudonymous_research_archive(
         return buf.getvalue(), "text/csv"
 
     # Default JSON
-    metrics = compute_experimental_metrics(trials)
+    trial_ids = [t.id for t in trials]
+    reviews = (
+        list(db.scalars(select(models.TrialIndependentReview).where(models.TrialIndependentReview.trial_id.in_(trial_ids))))
+        if trial_ids
+        else []
+    )
+    adverse_count = len(list(db.scalars(select(models.TrialAdverseEvent).where(models.TrialAdverseEvent.user_id == user.id))))
+    metrics = compute_experimental_metrics(trials, reviews=reviews, adverse_events_count=adverse_count)
     archive = {
         "metadata": {
             "archive_version": "2.0.0-csai-research",

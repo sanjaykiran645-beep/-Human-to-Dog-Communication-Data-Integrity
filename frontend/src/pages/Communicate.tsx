@@ -1028,7 +1028,7 @@ export default function Communicate() {
             </div>
 
             <span className="muted" style={{ fontSize: 13, fontWeight: 600 }}>
-              Calibrated for {activeDog ? `${activeDog.name} (${activeDog.breed || "Mixed"} · ${(activeDog.sex || "male").toUpperCase()})` : "Canine Vocal Tract"}
+              Heuristic prior: {activeDog ? `${activeDog.name} (${activeDog.breed || "Mixed"} · ${(activeDog.sex || "male").toUpperCase()} — unvalidated allometric/sex scaling)` : "Canine Vocal Tract (Experimental DSP)"}
             </span>
           </div>
 

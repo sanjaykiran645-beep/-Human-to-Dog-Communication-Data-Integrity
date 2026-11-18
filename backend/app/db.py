@@ -37,6 +37,24 @@ def _sqlite_pragmas(dbapi_connection, _connection_record) -> None:  # noqa: ANN0
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
 
 
+_MIGRATIONS: tuple[tuple[str, str], ...] = (
+    ("001_initial_schema", "Users, dogs, recordings, analyses, generated_audio, dog_responses, audit_events"),
+    ("002_priority7_experimental_tables", "Study participants, experimental cues, schedules, behavioural trials, independent reviews"),
+    ("003_phase13_durability_and_governance", "Schema migrations, reviewer invitations, trial preregistrations, adverse events"),
+)
+
+
+def apply_migrations() -> None:
+    from . import models  # noqa: F401
+
+    with SessionLocal() as session:
+        applied = {m.version for m in session.query(models.SchemaMigration).all()}
+        for version, desc in _MIGRATIONS:
+            if version not in applied:
+                session.add(models.SchemaMigration(version=version, description=desc))
+        session.commit()
+
+
 def init_db() -> None:
     from . import models  # noqa: F401
 
@@ -50,6 +68,7 @@ def init_db() -> None:
     with engine.connect() as conn:
         conn.execute(text("PRAGMA foreign_keys=ON"))
         conn.commit()
+    apply_migrations()
 
 
 def get_db() -> Generator[Session, None, None]:

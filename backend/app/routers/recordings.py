@@ -182,6 +182,7 @@ def _analyze_impl(upload: UploadFile, dog_id: str | None, source: str, user: mod
             status_code=413,
             detail=f"File exceeds {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit",
         )
+    storage.enforce_user_quota(user.id, len(data))
 
     rec_id = str(uuid.uuid4())
     folder = storage.recording_dir(user.id, rec_id)
@@ -924,8 +925,9 @@ def quick_analyze_recording(
         db.add(analysis_row)
         audit.log(db, action="recording.analyze", entity="recording", user_id=user.id, entity_id=rec_row.id)
         db.commit()
-    except Exception:
+    except Exception as exc:
         db.rollback()
+        raise HTTPException(status_code=503, detail="Database persistence error; recording could not be saved.") from exc
 
     return {
         "id": rec_row_id,

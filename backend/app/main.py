@@ -11,9 +11,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 from . import SYNTH_MODEL_VERSION, BEHAVIOR_MODEL_VERSION, MODEL_VERSION, __version__
+from .config import IS_EPHEMERAL_STORAGE, STORAGE_PROVIDER
 from .db import init_db
 from .routers import analytics, auth, communicate, dogs, experiments, recordings
 from .services.audio import decoder_status, find_ffmpeg
+from .services.storage import StorageQuotaExceededError, StorageUnavailableError
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("caninesense")
@@ -64,6 +66,16 @@ async def security_headers(request: Request, call_next):
     return response
 
 
+@app.exception_handler(StorageUnavailableError)
+async def storage_unavailable(_request: Request, exc: StorageUnavailableError):
+    return JSONResponse(status_code=503, content={"detail": str(exc) or "Storage backend unavailable"})
+
+
+@app.exception_handler(StorageQuotaExceededError)
+async def storage_quota_exceeded(_request: Request, exc: StorageQuotaExceededError):
+    return JSONResponse(status_code=507, content={"detail": str(exc) or "Storage quota exceeded"})
+
+
 @app.exception_handler(Exception)
 async def unhandled(request: Request, exc: Exception):
     if isinstance(exc, HTTPException):
@@ -93,6 +105,15 @@ def health() -> dict:
         "synth_model": SYNTH_MODEL_VERSION,
         "accuracy_target_met": False,
         "decoder": dec,
+        "persistence": {
+            "provider": STORAGE_PROVIDER,
+            "durable_across_redeploy": not IS_EPHEMERAL_STORAGE,
+            "note": (
+                "Ephemeral container storage active; user data does not survive container replacement until persistent disk or external object storage is configured."
+                if IS_EPHEMERAL_STORAGE
+                else "Local/persistent storage configured."
+            ),
+        },
         "notes": (
             "Vocalization labels are acoustic inferences. The 90% independent-accuracy "
             "target is not met: no dog-held-out annotated evaluation corpus is bundled."

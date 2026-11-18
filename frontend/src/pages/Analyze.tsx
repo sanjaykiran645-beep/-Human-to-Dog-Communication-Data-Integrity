@@ -462,22 +462,25 @@ export default function Analyze() {
 
           <div className="grid-3" style={{ gap: 12 }}>
             <div style={{ padding: 14, borderRadius: 12, background: "rgba(0,0,0,0.025)" }}>
-              <div className="muted" style={{ fontSize: 12 }}>Vocal Pitch & Intensity</div>
+              <div className="muted" style={{ fontSize: 12 }}>Directly Measured Pitch &amp; Intensity</div>
               <div style={{ fontSize: 16, fontWeight: 700, marginTop: 4 }}>
                 {Math.round(Number(analysis.features?.f0_mean || 340))} Hz ({Number(analysis.features?.f0_mean || 340) > 350 ? "High Pitch Alert" : "Grounded Pitch"})
               </div>
+              <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>Measured from audio PCM</div>
             </div>
             <div style={{ padding: 14, borderRadius: 12, background: "rgba(0,0,0,0.025)" }}>
-              <div className="muted" style={{ fontSize: 12 }}>Attention & Urgency Level</div>
+              <div className="muted" style={{ fontSize: 12 }}>Estimated Arousal / Urgency</div>
               <div style={{ fontSize: 16, fontWeight: 700, marginTop: 4, textTransform: "capitalize" }}>
                 {analysis.behavior?.arousal_label || "High"} Attention
               </div>
+              <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>Heuristic context (unvalidated)</div>
             </div>
             <div style={{ padding: 14, borderRadius: 12, background: "rgba(0,0,0,0.025)" }}>
-              <div className="muted" style={{ fontSize: 12 }}>Breed Intelligence Calibration</div>
+              <div className="muted" style={{ fontSize: 12 }}>Breed / Sex Context Prior</div>
               <div style={{ fontSize: 15, fontWeight: 700, marginTop: 4 }}>
-                {dogProfile?.intelligence_tier || "Adaptive Canine Profile"}
+                {dogProfile?.intelligence_tier || "Allometric / Heuristic Prior"}
               </div>
+              <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>Not a measured vocal diagnosis</div>
             </div>
           </div>
 

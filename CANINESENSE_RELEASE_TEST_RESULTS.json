@@ -1,0 +1,148 @@
+{
+  "generated_at_utc": "2026-11-18T07:00:00Z",
+  "source_commit": "a53e5c13335376be20eb60903bf71904dd8c94ac",
+  "gh_pages_commit": "07d639439514606db5cf1011ee356e8366f3c614",
+  "render_deploy_id": "dep-dbukjn4ipgvc7397btig",
+  "render_commit": "a53e5c13335376be20eb60903bf71904dd8c94ac",
+  "docker_image_digest": null,
+  "apk": {
+    "version": "1.0.0",
+    "version_code": 1,
+    "bytes": 122203,
+    "sha256": "E17BD6DD6221DDB2A78E99817355BCA409F2F6945910F4BEC854585686AA34AC",
+    "status": "OBSOLETE",
+    "rebuild_status": "BLOCKED"
+  },
+  "file_audit_totals": {
+    "total_files_audited": 630,
+    "PASS": 608,
+    "DEFECTIVE": 1,
+    "MISSING": 0,
+    "OBSOLETE": 1,
+    "DUPLICATE": 17,
+    "SECURITY_RISK": 1,
+    "UNUSED": 0,
+    "REQUIRES_OWNER_INPUT": 2
+  },
+  "software_regression": {
+    "overall_status": "PASS",
+    "executed_at_utc": "2026-11-18T06:40:03Z",
+    "suites": [
+      {
+        "name": "backend_pytest_full",
+        "status": "PASS",
+        "exit_code": 0,
+        "duration_sec": 116.29,
+        "passed": 143,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "backend_priority8_audio_matrix",
+        "status": "PASS",
+        "exit_code": 0,
+        "duration_sec": 34.63,
+        "passed": 23,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "backend_priority7_validation_lab",
+        "status": "PASS",
+        "exit_code": 0,
+        "duration_sec": 19.83,
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "backend_security_suite",
+        "status": "PASS",
+        "exit_code": 0,
+        "duration_sec": 41.23,
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0
+      },
+      {
+        "name": "frontend_lint_oxlint",
+        "status": "PASS",
+        "exit_code": 0,
+        "duration_sec": 1.99,
+        "warnings": 33,
+        "errors": 0
+      },
+      {
+        "name": "frontend_typecheck_tsc",
+        "status": "PASS",
+        "exit_code": 0,
+        "duration_sec": 4.88,
+        "errors": 0
+      },
+      {
+        "name": "frontend_vite_build",
+        "status": "PASS",
+        "exit_code": 0,
+        "duration_sec": 3.67,
+        "bundle_js": "assets/index-CJAKXIuV.js",
+        "bundle_css": "assets/index-u4mLwK6I.css"
+      }
+    ]
+  },
+  "release_verification": {
+    "status": "PASS",
+    "live_backend_health_http": 200,
+    "live_frontend_shell_http": 200,
+    "live_openapi_routes": 51,
+    "live_cors_github_io": "https://sanjaykiran645-beep.github.io"
+  },
+  "live_browser_acceptance": {
+    "status": "PASS",
+    "frontend_url": "https://sanjaykiran645-beep.github.io/-Human-to-Dog-Communication-Data-Integrity/",
+    "backend_url": "https://caninesense-backend.onrender.com",
+    "console_errors": 0,
+    "failed_network_requests": 0,
+    "checks": {
+      "landing_and_legal_pages": "PASS",
+      "registration_and_refresh_persistence": "PASS",
+      "dog_profile_creation": "PASS",
+      "engine_a_upload_and_render_persistence": "PASS",
+      "engine_b_dsp_and_reference_audio": "PASS",
+      "validation_lab_5_tabs": "PASS",
+      "history_analytics_settings_themes": "PASS",
+      "mobile_390x844_no_overflow": "PASS",
+      "sign_out": "PASS"
+    }
+  },
+  "scientific_validation": {
+    "engine_a_90pct_gate": "FAIL",
+    "engine_a_reproduction": {
+      "status": "FAIL",
+      "total_records": 169,
+      "train_dog_clusters": 45,
+      "test_dog_clusters": 26,
+      "test_records": 91,
+      "dog_overlap": 0,
+      "accuracy": 0.8681,
+      "balanced_accuracy": 0.8546,
+      "macro_f1": 0.7877,
+      "ece": 0.1440,
+      "brier_score": 0.1481,
+      "abstention_rate": 0.0,
+      "majority_baseline_balanced_accuracy": 0.1667,
+      "target_balanced_accuracy": 0.90,
+      "target_met": false
+    },
+    "engine_b_biological_validation": {
+      "status": "NOT VALIDATED",
+      "live_canine_trials_completed": 0,
+      "verified_target_congruence": 0.0
+    },
+    "breed_sex_scaling": "HEURISTIC"
+  },
+  "final_release_gates": {
+    "SOFTWARE_RELEASE_VERIFIED": true,
+    "ANDROID_APK_RELEASE": "BLOCKED",
+    "SCIENTIFIC_VALIDATION_VERIFIED": false
+  }
+}

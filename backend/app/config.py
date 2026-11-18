@@ -16,6 +16,9 @@ DATA_DIR = Path(os.getenv("CANINESENSE_DATA_DIR", str(ROOT / "data"))).resolve()
 STORAGE_DIR = DATA_DIR / "storage"
 DB_PATH = DATA_DIR / "caninesense.sqlite3"
 SECRET_FILE = DATA_DIR / ".secret"
+STORAGE_PROVIDER = os.getenv("CANINESENSE_STORAGE_PROVIDER", "local").strip().lower() or "local"
+USER_STORAGE_QUOTA_BYTES = int(os.getenv("CANINESENSE_USER_QUOTA_MB", "250")) * 1024 * 1024
+IS_EPHEMERAL_STORAGE = bool(ENV == "production" and not os.getenv("CANINESENSE_PERSISTENT_DISK", "").strip())
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 MAX_DURATION_SEC = 300.0

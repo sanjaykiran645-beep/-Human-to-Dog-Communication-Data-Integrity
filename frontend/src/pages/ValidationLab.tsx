@@ -3,7 +3,7 @@ import { api, getBackendUrl, getToken } from "../api";
 import type { BehaviouralTrial, ExperimentalCue, ExperimentalMetrics, StudyParticipant, TrialSchedule } from "../api";
 
 export default function ValidationLab() {
-  const [tab, setTab] = useState<"participants" | "cues" | "schedule" | "trials" | "metrics">("metrics");
+  const [tab, setTab] = useState<"participants" | "cues" | "schedule" | "trials" | "reviews" | "metrics">("metrics");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -13,6 +13,15 @@ export default function ValidationLab() {
   const [cues, setCues] = useState<ExperimentalCue[]>([]);
   const [trials, setTrials] = useState<BehaviouralTrial[]>([]);
   const [metrics, setMetrics] = useState<ExperimentalMetrics | null>(null);
+  const [invitations, setInvitations] = useState<{ incoming: any[]; outgoing: any[] }>({ incoming: [], outgoing: [] });
+  const [assignedTrials, setAssignedTrials] = useState<any[]>([]);
+  const [preregistrations, setPreregistrations] = useState<any[]>([]);
+  const [inviteTrialId, setInviteTrialId] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [preTitle, setPreTitle] = useState("");
+  const [preHypothesis, setPreHypothesis] = useState("");
+  const [preTarget, setPreTarget] = useState("");
+  const [preBaseline, setPreBaseline] = useState("3-minute resting quiet baseline prior to trial block");
 
   // Form states: Participant
   const [pseudonym, setPseudonym] = useState("");
@@ -73,16 +82,22 @@ export default function ValidationLab() {
     setLoading(true);
     setErr(null);
     try {
-      const [pRes, cRes, tRes, mRes] = await Promise.all([
+      const [pRes, cRes, tRes, mRes, invRes, asgRes, preRes] = await Promise.all([
         api<StudyParticipant[]>("/api/experiments/participants").catch(() => []),
         api<ExperimentalCue[]>("/api/experiments/cues").catch(() => []),
         api<BehaviouralTrial[]>("/api/experiments/trials").catch(() => []),
         api<ExperimentalMetrics>("/api/experiments/metrics").catch(() => null),
+        api<{ incoming: any[]; outgoing: any[] }>("/api/experiments/invitations").catch(() => ({ incoming: [], outgoing: [] })),
+        api<any[]>("/api/experiments/assigned-trials").catch(() => []),
+        api<any[]>("/api/experiments/preregistrations").catch(() => []),
       ]);
       setParticipants(pRes || []);
       setCues(cRes || []);
       setTrials(tRes || []);
       setMetrics(mRes);
+      setInvitations(invRes || { incoming: [], outgoing: [] });
+      setAssignedTrials(asgRes || []);
+      setPreregistrations(preRes || []);
       if (pRes?.length > 0 && !selectedParticipantId) {
         setSelectedParticipantId(pRes[0].id);
       }
@@ -252,6 +267,74 @@ export default function ValidationLab() {
     }
   }
 
+  async function handleInviteReviewer(e: React.FormEvent) {
+    e.preventDefault();
+    if (!inviteTrialId || !inviteEmail.trim()) return;
+    setErr(null);
+    setSuccessMsg(null);
+    try {
+      await api(`/api/experiments/trials/${inviteTrialId}/invitations`, {
+        method: "POST",
+        body: JSON.stringify({ reviewer_email: inviteEmail.trim(), permission_scope: "blind_video_review", is_blind: true }),
+      });
+      setSuccessMsg(`Blind reviewer invitation sent to ${inviteEmail.trim()}.`);
+      setInviteTrialId(null);
+      setInviteEmail("");
+      await loadAll();
+    } catch (err: any) {
+      setErr(err.message || "Failed to send reviewer invitation");
+    }
+  }
+
+  async function handleRespondInvitation(invId: string, decision: "accept" | "reject") {
+    setErr(null);
+    try {
+      await api(`/api/experiments/invitations/${invId}/respond`, {
+        method: "POST",
+        body: JSON.stringify({ decision }),
+      });
+      setSuccessMsg(`Invitation ${decision}ed.`);
+      await loadAll();
+    } catch (err: any) {
+      setErr(err.message || "Could not update invitation");
+    }
+  }
+
+  async function handleRevokeInvitation(invId: string) {
+    setErr(null);
+    try {
+      await api(`/api/experiments/invitations/${invId}/revoke`, { method: "POST" });
+      setSuccessMsg("Reviewer invitation revoked.");
+      await loadAll();
+    } catch (err: any) {
+      setErr(err.message || "Could not revoke invitation");
+    }
+  }
+
+  async function handleCreatePreregistration(e: React.FormEvent) {
+    e.preventDefault();
+    setErr(null);
+    setSuccessMsg(null);
+    try {
+      await api("/api/experiments/preregistrations", {
+        method: "POST",
+        body: JSON.stringify({
+          study_title: preTitle,
+          hypothesis: preHypothesis,
+          target_behaviour: preTarget,
+          baseline_measurement_plan: preBaseline,
+        }),
+      });
+      setSuccessMsg("Study protocol preregistration locked with timestamp.");
+      setPreTitle("");
+      setPreHypothesis("");
+      setPreTarget("");
+      await loadAll();
+    } catch (err: any) {
+      setErr(err.message || "Preregistration failed");
+    }
+  }
+
   function triggerExport(format: "json" | "csv") {
     const token = getToken();
     const url = `${backendUrl}/api/experiments/export?format=${format}`;
@@ -343,6 +426,7 @@ export default function ValidationLab() {
           {[
             { id: "metrics", label: "Scientific Telemetry & Metrics" },
             { id: "trials", label: "Trial Logger & Controls" },
+            { id: "reviews", label: `Blind Reviewer Queue (${assignedTrials.length})` },
             { id: "schedule", label: "Counterbalanced Schedules" },
             { id: "cues", label: "Cue & Action Taxonomy" },
             { id: "participants", label: "Study Participants & Consent" },
@@ -457,6 +541,49 @@ export default function ValidationLab() {
             <div style={{ marginTop: 8, fontSize: 12.5, color: "#475569" }}>
               {metrics?.animal_welfare_and_safety?.safety_assessment || "No trials recorded yet."}
             </div>
+          </div>
+
+          {/* Study Preregistration Lock */}
+          <div className="card stack" style={{ padding: 24, borderRadius: 16 }}>
+            <h3 style={{ margin: "0 0 8px 0", fontSize: 17 }}>Study Preregistrations ({preregistrations.length})</h3>
+            <form onSubmit={handleCreatePreregistration} className="stack" style={{ gap: 10 }}>
+              <div className="grid-2" style={{ gap: 12 }}>
+                <input
+                  type="text"
+                  value={preTitle}
+                  onChange={(e) => setPreTitle(e.target.value)}
+                  placeholder="Study title (e.g. Recall Conditioning Pilot)"
+                  required
+                  style={{ width: "100%", padding: 8, borderRadius: 8 }}
+                />
+                <input
+                  type="text"
+                  value={preTarget}
+                  onChange={(e) => setPreTarget(e.target.value)}
+                  placeholder="Target behaviour definition (min 5 chars)"
+                  required
+                  style={{ width: "100%", padding: 8, borderRadius: 8 }}
+                />
+              </div>
+              <textarea
+                value={preHypothesis}
+                onChange={(e) => setPreHypothesis(e.target.value)}
+                placeholder="Explicit falsifiable hypothesis (min 10 chars)..."
+                required
+                style={{ width: "100%", padding: 8, borderRadius: 8, minHeight: 54 }}
+              />
+              <input
+                type="text"
+                value={preBaseline}
+                onChange={(e) => setPreBaseline(e.target.value)}
+                placeholder="Baseline measurement plan"
+                required
+                style={{ width: "100%", padding: 8, borderRadius: 8 }}
+              />
+              <div className="row" style={{ justifyContent: "flex-end" }}>
+                <button type="submit" className="btn-primary" style={{ padding: "8px 18px" }}>Lock Protocol Preregistration</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -662,9 +789,9 @@ export default function ValidationLab() {
                           type="button"
                           className="btn"
                           style={{ padding: "3px 8px", fontSize: 11 }}
-                          onClick={() => setReviewTrialId(t.id)}
+                          onClick={() => setInviteTrialId(t.id)}
                         >
-                          Review Blind
+                          Invite Reviewer
                         </button>
                       </td>
                     </tr>
@@ -672,6 +799,84 @@ export default function ValidationLab() {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {inviteTrialId && (
+            <div className="card stack" style={{ padding: 22, borderRadius: 16, border: "2px solid #0284c7", background: "#f8fafc" }}>
+              <h3 style={{ margin: 0, fontSize: 16 }}>Assign Independent Blind Reviewer</h3>
+              <form onSubmit={handleInviteReviewer} className="row" style={{ gap: 10, flexWrap: "wrap" }}>
+                <input
+                  type="email"
+                  required
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="Secondary reviewer account email..."
+                  style={{ flex: 1, minWidth: 200, padding: 8, borderRadius: 8 }}
+                />
+                <button type="submit" className="btn-primary">Send Blind Invitation</button>
+                <button type="button" className="btn" onClick={() => setInviteTrialId(null)}>Cancel</button>
+              </form>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB: Reviewer Invitations & Blind Assigned Trials */}
+      {tab === "reviews" && (
+        <div className="stack">
+          <div className="card stack" style={{ padding: 24, borderRadius: 16 }}>
+            <h3 style={{ margin: "0 0 8px 0", fontSize: 17 }}>Incoming Reviewer Invitations ({invitations.incoming.length})</h3>
+            {invitations.incoming.length === 0 ? (
+              <p className="muted" style={{ fontSize: 13 }}>No incoming blind review invitations.</p>
+            ) : (
+              <div className="stack" style={{ gap: 8 }}>
+                {invitations.incoming.map((inv: any) => (
+                  <div key={inv.id} className="row" style={{ justifyContent: "space-between", padding: 12, borderRadius: 10, background: "rgba(0,0,0,0.03)", flexWrap: "wrap", gap: 8 }}>
+                    <div style={{ fontSize: 13 }}>
+                      <strong>Trial {String(inv.trial_id).slice(0, 8)}</strong> · Scope: {inv.permission_scope} · Status: <strong>{inv.status}</strong>
+                    </div>
+                    {inv.status === "pending" && (
+                      <div className="row" style={{ gap: 8 }}>
+                        <button type="button" className="btn-primary btn-sm" onClick={() => handleRespondInvitation(inv.id, "accept")}>Accept</button>
+                        <button type="button" className="btn btn-sm" onClick={() => handleRespondInvitation(inv.id, "reject")}>Reject</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="card stack" style={{ padding: 24, borderRadius: 16 }}>
+            <h3 style={{ margin: "0 0 8px 0", fontSize: 17 }}>Assigned Blind Trials ({assignedTrials.length})</h3>
+            {assignedTrials.length === 0 ? (
+              <p className="muted" style={{ fontSize: 13 }}>Accept a reviewer invitation above to score assigned trials blindly (condition &amp; primary observer score hidden).</p>
+            ) : (
+              <div className="stack" style={{ gap: 8 }}>
+                {assignedTrials.map((at: any) => (
+                  <div key={at.trial_id} className="row" style={{ justifyContent: "space-between", padding: 12, borderRadius: 10, background: "rgba(0,0,0,0.03)", flexWrap: "wrap", gap: 8 }}>
+                    <div style={{ fontSize: 13 }}>
+                      <strong>Trial {String(at.trial_id).slice(0, 8)}</strong> · Session {at.session_id} (#{at.trial_order}) · Pre-cue: {at.pre_cue_state}
+                    </div>
+                    <button type="button" className="btn-primary btn-sm" onClick={() => setReviewTrialId(at.trial_id)}>Score Blind</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="card stack" style={{ padding: 24, borderRadius: 16 }}>
+            <h3 style={{ margin: "0 0 8px 0", fontSize: 17 }}>Outgoing Reviewer Invitations ({invitations.outgoing.length})</h3>
+            {invitations.outgoing.map((inv: any) => (
+              <div key={inv.id} className="row" style={{ justifyContent: "space-between", padding: 10, borderRadius: 10, background: "rgba(0,0,0,0.025)", flexWrap: "wrap", gap: 8 }}>
+                <div style={{ fontSize: 13 }}>
+                  {inv.reviewer_email} · Trial {String(inv.trial_id).slice(0, 8)} · Status: <strong>{inv.status}</strong>
+                </div>
+                {inv.status !== "revoked" && (
+                  <button type="button" className="btn btn-danger btn-sm" onClick={() => handleRevokeInvitation(inv.id)}>Revoke</button>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}

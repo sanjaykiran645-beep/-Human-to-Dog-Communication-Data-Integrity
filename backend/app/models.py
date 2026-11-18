@@ -259,3 +259,62 @@ class TrialIndependentReview(Base):
     adjudicator_user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
+
+class SchemaMigration(Base):
+    __tablename__ = "schema_migrations"
+
+    version: Mapped[str] = mapped_column(String(80), primary_key=True)
+    description: Mapped[str] = mapped_column(String(240), nullable=False)
+    applied_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class TrialReviewerInvitation(Base):
+    __tablename__ = "trial_reviewer_invitations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    trial_id: Mapped[str] = mapped_column(String(36), ForeignKey("behavioural_trials.id", ondelete="CASCADE"), index=True)
+    study_owner_user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    invited_by_user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"))
+    reviewer_email: Mapped[str] = mapped_column(String(320), nullable=False, index=True)
+    reviewer_user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    permission_scope: Mapped[str] = mapped_column(String(40), default="blind_video_review", nullable=False)
+    is_blind: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), default="pending", nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class TrialPreregistration(Base):
+    __tablename__ = "trial_preregistrations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    study_title: Mapped[str] = mapped_column(String(160), nullable=False)
+    hypothesis: Mapped[str] = mapped_column(Text, nullable=False)
+    target_behaviour: Mapped[str] = mapped_column(Text, nullable=False)
+    success_criteria_json: Mapped[str] = mapped_column(Text, nullable=False)
+    baseline_measurement_plan: Mapped[str] = mapped_column(Text, nullable=False)
+    randomization_rule: Mapped[str] = mapped_column(Text, nullable=False)
+    termination_rules: Mapped[str] = mapped_column(Text, nullable=False)
+    missing_data_policy: Mapped[str] = mapped_column(Text, nullable=False)
+    statistical_analysis_plan: Mapped[str] = mapped_column(Text, nullable=False)
+    protocol_version: Mapped[str] = mapped_column(String(60), nullable=False)
+    locked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class TrialAdverseEvent(Base):
+    __tablename__ = "trial_adverse_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    participant_id: Mapped[str] = mapped_column(String(36), ForeignKey("study_participants.id", ondelete="CASCADE"), index=True)
+    trial_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("behavioural_trials.id", ondelete="SET NULL"), nullable=True)
+    severity: Mapped[str] = mapped_column(String(24), nullable=False)
+    distress_indicators_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    action_taken: Mapped[str] = mapped_column(Text, nullable=False)
+    session_aborted: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    vet_followup_notes: Mapped[str | None] = mapped_column(Text, nullable=True, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+

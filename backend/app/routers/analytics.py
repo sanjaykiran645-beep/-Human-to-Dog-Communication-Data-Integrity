@@ -252,6 +252,15 @@ def export_data(user: models.User = Depends(get_current_user), db: Session = Dep
 @router.delete("/account")
 def delete_account(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     uid = user.id
+    user_trial_ids = select(models.BehaviouralTrial.id).where(models.BehaviouralTrial.user_id == uid)
+    db.query(models.TrialIndependentReview).filter(
+        (models.TrialIndependentReview.reviewer_user_id == uid)
+        | (models.TrialIndependentReview.trial_id.in_(user_trial_ids))
+    ).delete(synchronize_session=False)
+    db.query(models.BehaviouralTrial).filter(models.BehaviouralTrial.user_id == uid).delete()
+    db.query(models.TrialSchedule).filter(models.TrialSchedule.user_id == uid).delete()
+    db.query(models.ExperimentalCue).filter(models.ExperimentalCue.user_id == uid).delete()
+    db.query(models.StudyParticipant).filter(models.StudyParticipant.user_id == uid).delete()
     db.query(models.DogResponse).filter(models.DogResponse.user_id == uid).delete()
     db.query(models.Analysis).filter(models.Analysis.user_id == uid).delete()
     db.query(models.GeneratedAudio).filter(models.GeneratedAudio.user_id == uid).delete()

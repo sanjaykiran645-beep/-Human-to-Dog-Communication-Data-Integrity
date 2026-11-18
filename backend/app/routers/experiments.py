@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import secrets
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -143,6 +144,11 @@ def register_participant(
             detail="Animal welfare ethics screening must be confirmed prior to study participant registration.",
         )
 
+    if payload.dog_id:
+        dog = db.get(models.Dog, payload.dog_id)
+        if not dog or dog.user_id != user.id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dog not found")
+
     part = models.StudyParticipant(
         id=str(uuid.uuid4()),
         user_id=user.id,
@@ -161,8 +167,9 @@ def register_participant(
         baseline_behavioural_notes=payload.baseline_behavioural_notes or "",
     )
     db.add(part)
-    db.commit()
+    db.flush()
     audit.log(db, action="experiment.participant_registered", entity="study_participant", user_id=user.id, entity_id=part.id)
+    db.commit()
 
     return {
         "id": part.id,
@@ -188,10 +195,6 @@ def list_participants(
     participants = list(db.scalars(stmt))
     out = []
     for p in participants:
-        trial_count = db.scalar(
-            select(models.BehaviouralTrial)
-            .where(models.BehaviouralTrial.participant_id == p.id)
-        )
         out.append({
             "id": p.id,
             "pseudonym": p.pseudonym,
@@ -328,7 +331,7 @@ def create_randomized_schedule(
     if not cue or cue.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Experimental cue not found")
 
-    seed = payload.randomization_seed if payload.randomization_seed is not None else random.randint(100000, 999999)
+    seed = payload.randomization_seed if payload.randomization_seed is not None else (secrets.randbelow(900000) + 100000)
     conditions = generate_counterbalanced_schedule(
         seed=seed,
         session_number=payload.session_number,
@@ -370,6 +373,14 @@ def log_behavioural_trial(
     part = db.get(models.StudyParticipant, payload.participant_id)
     if not part or part.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Participant not found")
+    if payload.cue_id:
+        cue = db.get(models.ExperimentalCue, payload.cue_id)
+        if not cue or cue.user_id != user.id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Experimental cue not found")
+    if payload.schedule_id:
+        sched = db.get(models.TrialSchedule, payload.schedule_id)
+        if not sched or sched.user_id != user.id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trial schedule not found")
 
     # Volume cap check
     if payload.measured_spl_dba > MAX_PLAYBACK_SPL_DBA:
@@ -585,15 +596,17 @@ def submit_independent_review(
     db.add(rev)
     db.commit()
 
-    return {
+    resp = {
         "id": rev.id,
         "trial_id": rev.trial_id,
         "reviewer_name": rev.reviewer_name,
         "scored_outcome_category": rev.scored_outcome_category,
         "disagreement_with_primary": disagreement,
-        "primary_observer_category": trial.outcome_category,
         "created_at": rev.created_at.isoformat(),
     }
+    if not payload.is_blind_to_condition:
+        resp["primary_observer_category"] = trial.outcome_category
+    return resp
 
 
 # Scientific Metrics & Research Exports

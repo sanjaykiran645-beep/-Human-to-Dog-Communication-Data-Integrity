@@ -85,3 +85,29 @@ def test_spoofed_forwarded_for_does_not_reset_rate_limit(client):
 def test_unauthenticated_requests_rejected(client):
     for path in ("/api/dogs", "/api/recordings", "/api/communicate", "/api/communicate/references", "/api/analytics/summary"):
         assert client.get(path).status_code == 401, path
+
+
+def test_account_delete_erases_priority7_experimental_records(client, user_a):
+    hdr = auth_header(user_a["token"])
+    p_res = client.post(
+        "/api/experiments/participants",
+        headers=hdr,
+        json={"pseudonym": "DOG-DEL-01", "owner_consent_confirmed": True, "welfare_review_confirmed": True},
+    )
+    assert p_res.status_code == 201
+    p_id = p_res.json()["id"]
+    t_res = client.post(
+        "/api/experiments/trials",
+        headers=hdr,
+        json={
+            "participant_id": p_id,
+            "session_id": "sess-del-01",
+            "trial_order_in_session": 1,
+            "experimental_condition": "target_engine_b_cue",
+            "measured_spl_dba": 62.0,
+            "outcome_category": "attention_only",
+        },
+    )
+    assert t_res.status_code == 201
+    assert client.delete("/api/account", headers=hdr).status_code == 200
+    assert client.get("/api/experiments/participants", headers=hdr).status_code == 401

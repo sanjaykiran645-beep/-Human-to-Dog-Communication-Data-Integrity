@@ -88,7 +88,7 @@ export default function Dashboard() {
                   borderRadius: 999,
                 }}
               >
-                Speak to Dog ?
+                Speak to Dog →
               </Link>
             </div>
           </div>
@@ -111,26 +111,26 @@ export default function Dashboard() {
               <>
                 <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6, color: "#fff" }}>{activeDog.name}</div>
                 <div style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", marginTop: 2 }}>
-                  {activeDog.breed || "Mixed Breed"} ? Breed Intelligence Active
+                  {activeDog.breed || "Mixed Breed"} · Breed Intelligence Active
                 </div>
                 <Link
                   to="/app/dogs"
                   style={{ display: "inline-block", marginTop: 12, fontSize: 12, color: "#f5d0c5", textDecoration: "none", fontWeight: 600 }}
                 >
-                  Manage profiles ?
+                  Manage profiles →
                 </Link>
               </>
             ) : (
               <>
                 <div style={{ fontSize: 16, fontWeight: 600, marginTop: 6, color: "#fff" }}>No dog profile yet</div>
                 <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 4 }}>
-                  Add your dog?s breed to auto-calibrate pitch & behavior.
+                  Add your dog’s breed to auto-calibrate pitch & behavior.
                 </div>
                 <Link
                   to="/app/dogs"
                   style={{ display: "inline-block", marginTop: 12, fontSize: 12, color: "#f5d0c5", textDecoration: "none", fontWeight: 600 }}
                 >
-                  + Add your dog ?
+                  + Add your dog →
                 </Link>
               </>
             )}
@@ -142,24 +142,24 @@ export default function Dashboard() {
       <div className="grid-3" style={{ gap: 18 }}>
         <Link to="/app/analyze" className="card" style={{ textDecoration: "none", color: "inherit", padding: 24, borderRadius: 16 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: "#7c2d12", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            Dog ? Human
+            Dog → Human
           </div>
           <h3 style={{ fontSize: 20, margin: "8px 0" }}>Analyze Vocalization</h3>
           <p className="muted" style={{ fontSize: 14, margin: "0 0 16px 0", lineHeight: 1.5 }}>
             Record or upload a bark, whine, or howl to detect emotional state and acoustic patterns.
           </p>
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#7c2d12" }}>Open Analyzer ?</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#7c2d12" }}>Open Analyzer →</span>
         </Link>
 
         <Link to="/app/communicate" className="card" style={{ textDecoration: "none", color: "inherit", padding: 24, borderRadius: 16 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: "#7c2d12", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            Human ? Dog
+            Human → Dog
           </div>
           <h3 style={{ fontSize: 20, margin: "8px 0" }}>Translate & Speak</h3>
           <p className="muted" style={{ fontSize: 14, margin: "0 0 16px 0", lineHeight: 1.5 }}>
-            Type or speak any phrase to generate a calm, playful, or attention cue tuned to your dog?s breed.
+            Type or speak any phrase to generate a calm, playful, or attention cue tuned to your dog’s breed.
           </p>
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#7c2d12" }}>Open Translator ?</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#7c2d12" }}>Open Translator →</span>
         </Link>
 
         <Link to="/app/dogs" className="card" style={{ textDecoration: "none", color: "inherit", padding: 24, borderRadius: 16 }}>
@@ -168,9 +168,9 @@ export default function Dashboard() {
           </div>
           <h3 style={{ fontSize: 20, margin: "8px 0" }}>Dog Profiles ({dogs.length})</h3>
           <p className="muted" style={{ fontSize: 14, margin: "0 0 16px 0", lineHeight: 1.5 }}>
-            Enter your dog?s name and breed. Our backend automatically syncs breed intelligence and vocal range.
+            Enter your dog’s name and breed. Our backend automatically syncs breed intelligence and vocal range.
           </p>
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#7c2d12" }}>Manage Dogs ?</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#7c2d12" }}>Manage Dogs →</span>
         </Link>
       </div>
 
@@ -227,7 +227,7 @@ export default function Dashboard() {
                     {r.analysis?.vocalization ? r.analysis.vocalization.toUpperCase() : r.original_filename}
                   </div>
                   <div className="muted" style={{ fontSize: 12 }}>
-                    {r.analysis?.behavior?.context?.replace(/_/g, " ") || "Processed audio"} ? {(r.duration_sec || 0).toFixed(1)}s
+                    {r.analysis?.behavior?.context?.replace(/_/g, " ") || "Processed audio"} · {(r.duration_sec || 0).toFixed(1)}s
                   </div>
                 </div>
                 <span className="badge">

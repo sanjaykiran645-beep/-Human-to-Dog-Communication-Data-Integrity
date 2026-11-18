@@ -443,3 +443,56 @@ def test_tenant_isolation_on_participants_and_trials(client: TestClient, user_a:
         },
     )
     assert trial_b.status_code == 404
+
+
+def test_schedule_without_seed_and_cross_tenant_fk_isolation(client: TestClient, user_a: dict, user_b: dict):
+    hdr_a = auth_header(user_a["token"])
+    hdr_b = auth_header(user_b["token"])
+
+    p_a = client.post(
+        "/api/experiments/participants",
+        headers=hdr_a,
+        json={"pseudonym": "DOG-SEED-A", "owner_consent_confirmed": True, "welfare_review_confirmed": True},
+    ).json()["id"]
+    c_a = client.post(
+        "/api/experiments/cues",
+        headers=hdr_a,
+        json={
+            "cue_label": "Seedless Cue",
+            "target_intention": "come",
+            "target_action_description": "Approach handler within 3 seconds",
+            "action_category": "learned_action",
+            "peak_spl_dba": 64.0,
+            "f0_hz": 380.0,
+        },
+    ).json()["id"]
+
+    # Omitting randomization_seed must auto-generate a seed without NameError
+    sched_res = client.post(
+        "/api/experiments/schedules",
+        headers=hdr_a,
+        json={"participant_id": p_a, "cue_id": c_a, "session_number": 1, "total_trials": 8},
+    )
+    assert sched_res.status_code == 201, sched_res.text
+    assert 100000 <= sched_res.json()["randomization_seed"] < 1000000
+
+    # User B cannot link User A's cue_id into User B's trial
+    p_b = client.post(
+        "/api/experiments/participants",
+        headers=hdr_b,
+        json={"pseudonym": "DOG-SEED-B", "owner_consent_confirmed": True, "welfare_review_confirmed": True},
+    ).json()["id"]
+    bad_trial = client.post(
+        "/api/experiments/trials",
+        headers=hdr_b,
+        json={
+            "participant_id": p_b,
+            "cue_id": c_a,
+            "session_id": "sess-b-fk",
+            "trial_order_in_session": 1,
+            "experimental_condition": "target_engine_b_cue",
+            "measured_spl_dba": 62.0,
+            "outcome_category": "attention_only",
+        },
+    )
+    assert bad_trial.status_code == 404

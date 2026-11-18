@@ -112,14 +112,10 @@ const TOKEN = "cs_token";
 const USER = "cs_user";
 const BACKEND_URL_KEY = "cs_backend_url";
 
-// Cleanup stale demo and backend URL entries
+// Cleanup stale legacy demo flag
 try {
   localStorage.removeItem("cs_demo_mode");
   localStorage.removeItem("caninesense_demo");
-  const savedUrl = localStorage.getItem("cs_backend_url") || "";
-  if (savedUrl.includes("onrender.com")) {
-    localStorage.removeItem("cs_backend_url");
-  }
 } catch {}
 
 export function getToken(): string | null {
@@ -128,11 +124,16 @@ export function getToken(): string | null {
 
 export function getUser(): User | null {
   const raw = localStorage.getItem(USER);
-  return raw ? JSON.parse(raw) : null;
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
 export function isDemoSession(): boolean {
-  return false;
+  return getToken() === "cs_demo_token_offline_preview" && getUser()?.isDemo === true;
 }
 
 export function setSession(token: string, user: User) {
@@ -194,7 +195,7 @@ export function isAllowedBackendOrigin(rawUrl: string): boolean {
     const allowedEnvOrigins = [
       import.meta.env.VITE_API_URL,
       import.meta.env.VITE_PRODUCTION_BACKEND_URL,
-      // "https://caninesense-backend.onrender.com", // intentionally omitted
+      "https://caninesense-backend.onrender.com",
     ].filter(Boolean);
 
     for (const envOrigin of allowedEnvOrigins) {
@@ -217,13 +218,27 @@ export function isAllowedBackendOrigin(rawUrl: string): boolean {
 export function getBackendUrl(): string {
   if (typeof window !== "undefined") {
     const host = window.location.hostname;
-    if (host === "localhost" || host === "127.0.0.1") {
-      return window.location.origin;
-    }
-    const custom = localStorage.getItem("cs_backend_url");
-    if (custom && !custom.includes("onrender.com")) {
+    const isCapacitor =
+      window.location.protocol === "capacitor:" ||
+      (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.() === true;
+
+    const custom = localStorage.getItem(BACKEND_URL_KEY);
+    if (custom && isAllowedBackendOrigin(custom)) {
       return custom.replace(/\/+$/, "");
     }
+
+    if ((host === "localhost" || host === "127.0.0.1") && !isCapacitor) {
+      return window.location.origin;
+    }
+
+    const configuredApi = String(
+      import.meta.env.VITE_API_URL || import.meta.env.VITE_PRODUCTION_BACKEND_URL || ""
+    ).trim();
+
+    if ((host.endsWith("github.io") || isCapacitor) && configuredApi) {
+      return configuredApi.replace(/\/+$/, "");
+    }
+
     return window.location.origin;
   }
   return "http://127.0.0.1:8000";

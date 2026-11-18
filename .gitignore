@@ -39,6 +39,7 @@ frontend/node_modules/
 frontend/dist/
 .npm
 *.log
+logs/
 
 # Mobile & Android artifacts
 *.apk

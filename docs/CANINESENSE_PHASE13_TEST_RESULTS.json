@@ -1,0 +1,96 @@
+{
+  "phase": "Phase 13",
+  "generated_at_utc": "2026-11-18T14:46:00Z",
+  "rollback_tag": "checkpoint-phase13-20261118",
+  "rollback_commit": "a53e5c13335376be20eb60903bf71904dd8c94ac",
+  "deployed_backend_commit": "588324dc1f85335590e895d1448fdea7248fa31c",
+  "deployed_render_id": "dep-dbuq6ug8v5cc739s64ig",
+  "deployed_frontend_source_commit": "cce101d73cce52cbecac71155c8ffed2f169bfce",
+  "deployed_gh_pages_commit": "3c866a9954504c07e600ae560d8c585062a218d5",
+  "software_gates": {
+    "phase13_audit": {
+      "status": "PASS",
+      "executed_at_utc": "2026-11-18T12:51:11Z"
+    },
+    "data_integrity": {
+      "status": "PASS",
+      "executed_at_utc": "2026-11-18T12:51:40Z",
+      "pytest_durability_passed": 3,
+      "pytest_durability_failed": 0,
+      "db_integrity": "PASS",
+      "storage_integrity": "PASS",
+      "isolated_restore_probe": "PASS",
+      "production_render_durable_across_redeploy": false
+    },
+    "security_hardening": {
+      "status": "PASS",
+      "executed_at_utc": "2026-11-18T12:53:03Z",
+      "security_pytest_passed": 31,
+      "security_pytest_failed": 0,
+      "android_cleartext_disabled": true,
+      "hardcoded_secret_hits": 0
+    },
+    "regression_post_final_edit": {
+      "status": "PASS",
+      "executed_at_utc": "2026-11-18T14:35:15Z",
+      "backend_pytest_full": { "passed": 147, "failed": 0, "skipped": 0 },
+      "backend_priority8_audio_matrix": { "passed": 23, "failed": 0, "skipped": 0 },
+      "backend_priority7_validation_lab": { "passed": 12, "failed": 0, "skipped": 0 },
+      "backend_security_suite": { "passed": 13, "failed": 0, "skipped": 0 },
+      "frontend_lint_oxlint": { "status": "PASS", "errors": 0, "warnings": 33 },
+      "frontend_typecheck_tsc": { "status": "PASS", "errors": 0 },
+      "frontend_vite_build": { "status": "PASS", "main_bundle": "index-D49uE4oN.js" }
+    },
+    "live_release_verify": {
+      "status": "PASS",
+      "verified_at_utc": "2026-11-18T14:45:59Z",
+      "openapi_routes": 58,
+      "live_backend_http": 200,
+      "live_frontend_http": 200
+    },
+    "live_browser_qa": {
+      "status": "PASS",
+      "desktop_viewport": "1280x800",
+      "mobile_viewport": "390x844",
+      "mobile_horizontal_overflow": false,
+      "themes_tested": 4,
+      "synthetic_accounts_deleted_via_ui": true
+    },
+    "android_readiness": {
+      "status": "BLOCKED",
+      "executed_at_utc": "2026-11-18T13:00:09Z",
+      "existing_apk_sha256": "E17BD6DD6221DDB2A78E99817355BCA409F2F6945910F4BEC854585686AA34AC",
+      "blockers": [
+        "JDK 17+ (javac) not installed",
+        "Android SDK 34 not installed",
+        "Gradle wrapper (gradlew.bat) and system gradle missing",
+        "@capacitor/android and @capacitor/cli not present in frontend/package.json"
+      ]
+    }
+  },
+  "scientific_gates": {
+    "engine_a_90pct_target": {
+      "status": "FAIL",
+      "target_balanced_accuracy": 0.90,
+      "balanced_accuracy": 0.8546,
+      "overall_accuracy": 0.8681,
+      "macro_f1": 0.7877,
+      "ece": 0.1440,
+      "shortfall_pp": 4.54,
+      "manifest_sha256": "187C83D1B66B7B3537E969076B5C565340B7F7CD7E089F5C99912A05412559A4",
+      "train_dogs": 45,
+      "train_files": 78,
+      "test_dogs": 26,
+      "test_files": 91
+    },
+    "engine_b_biological_validation": {
+      "status": "NOT VALIDATED",
+      "live_canine_trials": 0,
+      "empirically_verified_congruence_pct": 0.0
+    },
+    "breed_sex_scaling": {
+      "status": "HEURISTIC",
+      "clinically_validated": false
+    }
+  }
+}

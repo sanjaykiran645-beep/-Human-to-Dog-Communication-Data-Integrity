@@ -101,7 +101,9 @@ export default function Dashboard() {
               border: "1px solid rgba(255,255,255,0.15)",
               borderRadius: 16,
               padding: "20px 24px",
-              minWidth: 240,
+              flex: "1 1 220px",
+              minWidth: 0,
+              maxWidth: "100%",
             }}
           >
             <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.65)" }}>

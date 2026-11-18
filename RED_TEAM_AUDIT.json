@@ -1,13 +1,13 @@
 ﻿{
-    "generated_at_utc":  "2026-11-18T06:22:12Z",
+    "generated_at_utc":  "2026-11-18T06:39:43Z",
     "repo_root":  "E:\\CanineSense_AI_Complete_Project (1)\\CanineSense_AI",
     "git":  {
                 "git_available":  false,
                 "branch":  "ref: refs/heads/main",
-                "head_sha":  "b8fc3eba889c29ee859d5c558e0e545e0ab11c63",
-                "origin_main_sha":  "b8fc3eba889c29ee859d5c558e0e545e0ab11c63",
-                "gh_pages_sha":  "3c5627da339997a4e7835b41d5e636c13fadc356",
-                "origin_gh_pages_sha":  "3c5627da339997a4e7835b41d5e636c13fadc356",
+                "head_sha":  "61f614a1d88ad23bf6b5d5dc80afe65ae5e392af",
+                "origin_main_sha":  "61f614a1d88ad23bf6b5d5dc80afe65ae5e392af",
+                "gh_pages_sha":  "d18162458183f76138b8fd329bd66e3d215158b5",
+                "origin_gh_pages_sha":  "d18162458183f76138b8fd329bd66e3d215158b5",
                 "working_tree_dirty":  null,
                 "dirty_files_count":  0,
                 "remote_url":  null
@@ -17,13 +17,13 @@
                                        "SECURITY RISK":  1,
                                        "OBSOLETE":  1,
                                        "REQUIRES OWNER INPUT":  2,
-                                       "PASS":  600,
+                                       "PASS":  608,
                                        "MISSING":  0,
                                        "UNUSED":  0,
                                        "DUPLICATE":  17,
                                        "DEFECTIVE":  1
                                    },
-    "total_files_audited":  622,
+    "total_files_audited":  630,
     "findings":  [
                      {
                          "id":  "RT-INFRA-01",
@@ -98,8 +98,8 @@
                   },
                   {
                       "path":  ".gitignore",
-                      "bytes":  920,
-                      "last_write_utc":  "2026-11-12T16:34:12Z",
+                      "bytes":  926,
+                      "last_write_utc":  "2026-11-18T06:26:36Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -329,15 +329,15 @@
                   },
                   {
                       "path":  "RED_TEAM_AUDIT.json",
-                      "bytes":  220700,
-                      "last_write_utc":  "2026-11-18T06:21:27Z",
+                      "bytes":  220692,
+                      "last_write_utc":  "2026-11-18T06:22:16Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
                   {
                       "path":  "RED_TEAM_AUDIT.md",
-                      "bytes":  2382,
-                      "last_write_utc":  "2026-11-18T06:21:27Z",
+                      "bytes":  2097,
+                      "last_write_utc":  "2026-11-18T06:22:16Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -651,8 +651,8 @@
                   },
                   {
                       "path":  "backend/app/services/trial_service.py",
-                      "bytes":  17337,
-                      "last_write_utc":  "2026-11-15T16:21:02Z",
+                      "bytes":  19407,
+                      "last_write_utc":  "2026-11-18T06:38:45Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -896,8 +896,8 @@
                   },
                   {
                       "path":  "backend/tests/test_experimental_validation.py",
-                      "bytes":  17817,
-                      "last_write_utc":  "2026-11-18T06:21:11Z",
+                      "bytes":  18383,
+                      "last_write_utc":  "2026-11-18T06:39:16Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -3997,8 +3997,8 @@
                   },
                   {
                       "path":  "frontend/src/index.css",
-                      "bytes":  38974,
-                      "last_write_utc":  "2026-11-14T17:51:14Z",
+                      "bytes":  41399,
+                      "last_write_utc":  "2026-11-18T06:39:31Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4123,15 +4123,15 @@
                   },
                   {
                       "path":  "frontend/src/pages/Analyze.tsx",
-                      "bytes":  21499,
-                      "last_write_utc":  "2026-11-14T18:20:16Z",
+                      "bytes":  21500,
+                      "last_write_utc":  "2026-11-18T06:38:49Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
                   {
                       "path":  "frontend/src/pages/Communicate.tsx",
-                      "bytes":  45133,
-                      "last_write_utc":  "2026-11-15T17:34:50Z",
+                      "bytes":  45354,
+                      "last_write_utc":  "2026-11-18T06:38:57Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4158,8 +4158,8 @@
                   },
                   {
                       "path":  "frontend/src/pages/Dashboard.tsx",
-                      "bytes":  10395,
-                      "last_write_utc":  "2026-11-18T06:20:14Z",
+                      "bytes":  10460,
+                      "last_write_utc":  "2026-11-18T06:38:51Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4235,22 +4235,43 @@
                   },
                   {
                       "path":  "frontend/src/pages/ValidationLab.tsx",
-                      "bytes":  54343,
-                      "last_write_utc":  "2026-11-15T16:34:58Z",
+                      "bytes":  54335,
+                      "last_write_utc":  "2026-11-18T06:38:47Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/deploy-recovery-20261118-115348.log",
+                      "bytes":  529,
+                      "last_write_utc":  "2026-11-18T06:23:49Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/deploy-recovery-20261118-115424.log",
+                      "bytes":  836,
+                      "last_write_utc":  "2026-11-18T06:24:26Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/deploy-recovery-20261118-115716.log",
+                      "bytes":  1048,
+                      "last_write_utc":  "2026-11-18T06:27:22Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
                   {
                       "path":  "logs/latest-regression-results.json",
-                      "bytes":  5790,
-                      "last_write_utc":  "2026-11-18T06:16:39Z",
+                      "bytes":  6106,
+                      "last_write_utc":  "2026-11-18T06:23:20Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
                   {
                       "path":  "logs/latest-release-verify.json",
-                      "bytes":  1700,
-                      "last_write_utc":  "2026-11-18T06:17:32Z",
+                      "bytes":  2492,
+                      "last_write_utc":  "2026-11-18T06:29:59Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4270,8 +4291,15 @@
                   },
                   {
                       "path":  "logs/redteam-audit-20261118-115212.log",
+                      "bytes":  346,
+                      "last_write_utc":  "2026-11-18T06:22:16Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/redteam-audit-20261118-120943.log",
                       "bytes":  216,
-                      "last_write_utc":  "2026-11-18T06:22:15Z",
+                      "last_write_utc":  "2026-11-18T06:39:48Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4284,8 +4312,8 @@
                   },
                   {
                       "path":  "logs/regression-20261118-115133.log",
-                      "bytes":  69,
-                      "last_write_utc":  "2026-11-18T06:21:33Z",
+                      "bytes":  56986,
+                      "last_write_utc":  "2026-11-18T06:23:20Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4293,6 +4321,34 @@
                       "path":  "logs/release-verify-20261118-114711.log",
                       "bytes":  854,
                       "last_write_utc":  "2026-11-18T06:17:32Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/release-verify-20261118-115341.log",
+                      "bytes":  1629,
+                      "last_write_utc":  "2026-11-18T06:23:47Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/release-verify-20261118-115412.log",
+                      "bytes":  2921,
+                      "last_write_utc":  "2026-11-18T06:24:23Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/release-verify-20261118-115535.log",
+                      "bytes":  1586,
+                      "last_write_utc":  "2026-11-18T06:25:47Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/release-verify-20261118-115948.log",
+                      "bytes":  1586,
+                      "last_write_utc":  "2026-11-18T06:29:59Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4340,8 +4396,8 @@
                   },
                   {
                       "path":  "scripts/CanineSense-Deployment-Recovery.ps1",
-                      "bytes":  5978,
-                      "last_write_utc":  "2026-11-18T06:12:35Z",
+                      "bytes":  6091,
+                      "last_write_utc":  "2026-11-18T06:24:01Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4361,8 +4417,8 @@
                   },
                   {
                       "path":  "scripts/CanineSense-Release-Verify.ps1",
-                      "bytes":  8025,
-                      "last_write_utc":  "2026-11-18T06:18:17Z",
+                      "bytes":  8354,
+                      "last_write_utc":  "2026-11-18T06:25:03Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },

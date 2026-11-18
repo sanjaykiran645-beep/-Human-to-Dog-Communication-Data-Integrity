@@ -496,3 +496,15 @@ def test_schedule_without_seed_and_cross_tenant_fk_isolation(client: TestClient,
         },
     )
     assert bad_trial.status_code == 404
+
+
+def test_empty_experimental_metrics_schema_complete(client: TestClient, user_a: dict):
+    hdr_a = auth_header(user_a["token"])
+    res = client.get("/api/experiments/metrics", headers=hdr_a)
+    assert res.status_code == 200
+    body = res.json()
+    assert body["status"] == "insufficient_data"
+    assert body["total_trials"] == 0
+    assert body["target_cue_metrics"]["correct_action_rate"] == 0.0
+    assert body["discrimination_and_controls"]["acoustic_discrimination_ratio"] == 0.0
+    assert body["animal_welfare_and_safety"]["max_volume_cap_dba"] == 75.0

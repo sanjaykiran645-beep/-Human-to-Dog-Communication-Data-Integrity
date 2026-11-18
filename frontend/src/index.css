@@ -1870,3 +1870,98 @@ html[data-theme="yellow-green"] .card {
   color: #fefce8 !important;
   border: 2px solid #facc15 !important;
 }
+
+/* === MOBILE OVERFLOW CONTAINMENT & THEME HEADER CONTRAST FIXES === */
+.main,
+.stack,
+.stack-lg,
+.grid-2,
+.grid-3,
+.grid-2 > *,
+.grid-3 > *,
+.row > * {
+  min-width: 0;
+}
+
+.card,
+canvas,
+audio,
+video,
+img {
+  max-width: 100%;
+}
+
+@media (max-width: 860px) {
+  .app-header {
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    gap: 8px;
+  }
+  .app-header-left {
+    flex: 1 1 180px;
+    min-width: 0;
+  }
+  .app-header-right {
+    flex-wrap: wrap;
+    gap: 6px;
+    max-width: 100%;
+  }
+  .main {
+    padding: 14px 12px 64px;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 560px) {
+  .header-user-chip span:last-child {
+    display: none;
+  }
+  .card {
+    padding: 16px !important;
+    overflow-wrap: anywhere;
+  }
+  .btn {
+    max-width: 100%;
+    white-space: normal;
+    text-align: center;
+  }
+}
+
+body[data-theme="white-black"] .menu-btn,
+body[data-theme="white-black"] header .btn.ghost,
+body[data-theme="white-black"] header .header-icon-btn,
+body[data-theme="white-black"] header .header-user-chip,
+html[data-theme="white-black"] .menu-btn,
+html[data-theme="white-black"] header .btn.ghost,
+html[data-theme="white-black"] header .header-icon-btn,
+html[data-theme="white-black"] header .header-user-chip {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+  color: #ffffff !important;
+}
+
+body[data-theme="red-blue"] .menu-btn,
+body[data-theme="red-blue"] header .btn.ghost,
+body[data-theme="red-blue"] header .header-icon-btn,
+body[data-theme="red-blue"] header .header-user-chip,
+html[data-theme="red-blue"] .menu-btn,
+html[data-theme="red-blue"] header .btn.ghost,
+html[data-theme="red-blue"] header .header-icon-btn,
+html[data-theme="red-blue"] header .header-user-chip {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+  color: #ffffff !important;
+}
+
+body[data-theme="yellow-green"] .menu-btn,
+body[data-theme="yellow-green"] header .btn.ghost,
+body[data-theme="yellow-green"] header .header-icon-btn,
+body[data-theme="yellow-green"] header .header-user-chip,
+html[data-theme="yellow-green"] .menu-btn,
+html[data-theme="yellow-green"] header .btn.ghost,
+html[data-theme="yellow-green"] header .header-icon-btn,
+html[data-theme="yellow-green"] header .header-user-chip {
+  background: rgba(250, 204, 21, 0.14) !important;
+  border-color: rgba(250, 204, 21, 0.4) !important;
+  color: #fef08a !important;
+}

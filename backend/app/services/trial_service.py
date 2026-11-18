@@ -172,11 +172,58 @@ def compute_experimental_metrics(trials: list[models.BehaviouralTrial]) -> dict[
     """
     total_count = len(trials)
     if total_count == 0:
+        empty_controls = {
+            cond: {
+                "total_presentations": 0,
+                "target_action_performed": 0,
+                "false_positive_action_rate": 0.0,
+                "orienting_rate": 0.0,
+            }
+            for cond in EXPERIMENTAL_CONDITIONS[1:]
+        }
+        empty_lat = {"count": 0, "median_ms": None, "q25_ms": None, "q75_ms": None, "mean_ms": None}
         return {
             "status": "insufficient_data",
             "total_trials": 0,
             "valid_trials": 0,
             "message": "No empirical behavioural trials have been logged yet.",
+            "sample_size_assessment": {
+                "total_trials_recorded": 0,
+                "valid_evaluated_trials": 0,
+                "excluded_confounded_trials": 0,
+                "exclusion_rate": 0.0,
+                "distinct_participants_evaluated": 0,
+                "pilot_minimum_met": False,
+            },
+            "target_cue_metrics": {
+                "target_presentations": 0,
+                "correct_action_rate": 0.0,
+                "attention_only_rate": 0.0,
+                "incorrect_action_rate": 0.0,
+                "no_response_rate": 0.0,
+                "latency_to_orient": dict(empty_lat),
+                "latency_to_action": dict(empty_lat),
+            },
+            "discrimination_and_controls": {
+                "acoustic_discrimination_ratio": 0.0,
+                "target_response_rate": 0.0,
+                "control_response_rate": 0.0,
+                "control_breakdown": empty_controls,
+            },
+            "learning_and_habituation": {
+                "session_learning_trajectory": [],
+                "mean_habituation_index": None,
+                "habituation_interpretation": "No empirical behavioural trials have been logged yet.",
+            },
+            "animal_welfare_and_safety": {
+                "volume_cap_strictly_enforced": True,
+                "max_volume_cap_dba": MAX_PLAYBACK_SPL_DBA,
+                "welfare_aborts_count": 0,
+                "welfare_abort_rate": 0.0,
+                "freezing_episodes_count": 0,
+                "freezing_rate": 0.0,
+                "safety_assessment": "No trials recorded yet. 75.0 dBA SPL welfare hard cap active.",
+            },
         }
 
     valid_trials = [t for t in trials if t.is_valid and t.outcome_category != "invalid_or_confounded"]

@@ -180,7 +180,7 @@ export default function Analyze() {
       setLocalAudioUrl(URL.createObjectURL(file));
 
       const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 3500);
+      const timeoutId = window.setTimeout(() => controller.abort(), 30000);
       try {
         const fd = new FormData();
         fd.append("file", file, (file as File).name || "clip.wav");

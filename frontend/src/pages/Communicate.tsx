@@ -880,8 +880,8 @@ export default function Communicate() {
           gap: 16,
         }}
       >
-        <div style={{ flex: 1, minWidth: 280 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+        <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
             <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#0284c7" }}>
               Scientific Validation Protocol
             </span>
@@ -905,7 +905,8 @@ export default function Communicate() {
             padding: "10px 18px",
             fontSize: 13,
             fontWeight: 700,
-            whiteSpace: "nowrap",
+            whiteSpace: "normal",
+            textAlign: "center",
           }}
         >
           Open Behavioural Validation Lab →
@@ -958,13 +959,13 @@ export default function Communicate() {
               if (err) setErr(null);
             }}
             placeholder="Type a real instruction (e.g. 'Stop barking at the door', 'Go and bring the ball in the hall', 'Come eat dinner')..."
-            style={{ flex: 1, minWidth: 260, padding: "14px 18px", borderRadius: 12, fontSize: 15 }}
+            style={{ flex: "1 1 200px", minWidth: 0, width: "100%", padding: "14px 18px", borderRadius: 12, fontSize: 15 }}
           />
           <button
             type="submit"
             className="btn btn-primary"
             disabled={busy || !text.trim()}
-            style={{ borderRadius: 12, padding: "14px 26px", fontWeight: 700 }}
+            style={{ borderRadius: 12, padding: "14px 26px", fontWeight: 700, maxWidth: "100%" }}
           >
             {busy ? "Synthesizing Dog Voice..." : "Convert to Dog Voice & Play"}
           </button>
@@ -996,10 +997,12 @@ export default function Communicate() {
                   border: isSelected ? "2px solid #059669" : "1px solid rgba(0,0,0,0.12)",
                   background: isSelected ? "rgba(5, 150, 105, 0.08)" : "#fff",
                   cursor: "pointer",
+                  width: "100%",
+                  minWidth: 0,
                 }}
               >
-                <div className="row" style={{ justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontWeight: 700, fontSize: 15, color: "#0f172a" }}>{c.label}</span>
+                <div className="row" style={{ justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontWeight: 700, fontSize: 15, color: "#0f172a", minWidth: 0, overflowWrap: "anywhere" }}>{c.label}</span>
                   <span style={{ fontSize: 11, fontWeight: 700, color: "#0284c7", background: "rgba(2, 132, 199, 0.1)", padding: "2px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>
                     {c.vocal.replace(/_/g, " ").toUpperCase()}
                   </span>

@@ -371,7 +371,7 @@ export default function ValidationLab() {
             <div className="card stack" style={{ padding: 22, borderRadius: 16 }}>
               <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", color: "#64748b" }}>Target Intention Congruence</div>
               <div style={{ fontSize: 32, fontWeight: 800, color: "#0f172a" }}>
-                {metrics ? `${(metrics.target_cue_metrics.correct_action_rate * 100).toFixed(1)}%` : "0.0%"}
+                {`${(((metrics?.target_cue_metrics?.correct_action_rate) ?? 0) * 100).toFixed(1)}%`}
               </div>
               <div style={{ fontSize: 12, color: "#64748b" }}>
                 Target threshold: &ge; 75% for verified communication
@@ -380,8 +380,8 @@ export default function ValidationLab() {
 
             <div className="card stack" style={{ padding: 22, borderRadius: 16 }}>
               <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", color: "#64748b" }}>Acoustic Discrimination Ratio</div>
-              <div style={{ fontSize: 32, fontWeight: 800, color: (metrics?.discrimination_and_controls?.acoustic_discrimination_ratio || 0) > 0.5 ? "#059669" : "#d97706" }}>
-                {metrics ? metrics.discrimination_and_controls.acoustic_discrimination_ratio.toFixed(2) : "0.00"}
+              <div style={{ fontSize: 32, fontWeight: 800, color: ((metrics?.discrimination_and_controls?.acoustic_discrimination_ratio) ?? 0) > 0.5 ? "#059669" : "#d97706" }}>
+                {((metrics?.discrimination_and_controls?.acoustic_discrimination_ratio) ?? 0).toFixed(2)}
               </div>
               <div style={{ fontSize: 12, color: "#64748b" }}>
                 Range: [-1.0, 1.0] (Target vs C1–C4 Control Sounds)
@@ -391,7 +391,7 @@ export default function ValidationLab() {
             <div className="card stack" style={{ padding: 22, borderRadius: 16 }}>
               <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", color: "#64748b" }}>Attention-Only Rate</div>
               <div style={{ fontSize: 32, fontWeight: 800, color: "#2563eb" }}>
-                {metrics ? `${(metrics.target_cue_metrics.attention_only_rate * 100).toFixed(1)}%` : "0.0%"}
+                {`${(((metrics?.target_cue_metrics?.attention_only_rate) ?? 0) * 100).toFixed(1)}%`}
               </div>
               <div style={{ fontSize: 12, color: "#64748b" }}>
                 Head turn / orient without action (Not comprehension)
@@ -417,20 +417,20 @@ export default function ValidationLab() {
                   <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
                     <td style={{ padding: "10px 12px", fontWeight: 700, color: "#059669" }}>Target Engine B Cue</td>
                     <td style={{ padding: "10px 12px" }}>Canine-Inspired Prosody</td>
-                    <td style={{ padding: "10px 12px" }}>{metrics?.target_cue_metrics.target_presentations || 0}</td>
-                    <td style={{ padding: "10px 12px" }}>{metrics ? `${(metrics.target_cue_metrics.correct_action_rate * 100).toFixed(1)}% (Target Action)` : "0%"}</td>
-                    <td style={{ padding: "10px 12px" }}>{metrics ? `${((metrics.target_cue_metrics.correct_action_rate + metrics.target_cue_metrics.attention_only_rate) * 100).toFixed(1)}%` : "0%"}</td>
+                    <td style={{ padding: "10px 12px" }}>{metrics?.target_cue_metrics?.target_presentations ?? 0}</td>
+                    <td style={{ padding: "10px 12px" }}>{`${(((metrics?.target_cue_metrics?.correct_action_rate) ?? 0) * 100).toFixed(1)}% (Target Action)`}</td>
+                    <td style={{ padding: "10px 12px" }}>{`${((((metrics?.target_cue_metrics?.correct_action_rate) ?? 0) + ((metrics?.target_cue_metrics?.attention_only_rate) ?? 0)) * 100).toFixed(1)}%`}</td>
                   </tr>
-                  {metrics?.discrimination_and_controls.control_breakdown &&
+                  {metrics?.discrimination_and_controls?.control_breakdown &&
                     Object.entries(metrics.discrimination_and_controls.control_breakdown).map(([k, v]: [string, any]) => (
                       <tr key={k} style={{ borderBottom: "1px solid #f1f5f9" }}>
                         <td style={{ padding: "10px 12px", fontWeight: 600 }}>{k.replace(/_/g, " ")}</td>
                         <td style={{ padding: "10px 12px" }}>
                           {k.includes("silent") ? "0.0 Amplitude Baseline" : k.includes("tone") ? "500 Hz Pure Sine Tone" : k.includes("noise") ? "Formant-Shaped Pink Noise" : "Familiar Voice Audio"}
                         </td>
-                        <td style={{ padding: "10px 12px" }}>{v.total_presentations}</td>
-                        <td style={{ padding: "10px 12px" }}>{(v.false_positive_action_rate * 100).toFixed(1)}%</td>
-                        <td style={{ padding: "10px 12px" }}>{(v.orienting_rate * 100).toFixed(1)}%</td>
+                        <td style={{ padding: "10px 12px" }}>{v?.total_presentations ?? 0}</td>
+                        <td style={{ padding: "10px 12px" }}>{((v?.false_positive_action_rate ?? 0) * 100).toFixed(1)}%</td>
+                        <td style={{ padding: "10px 12px" }}>{((v?.orienting_rate ?? 0) * 100).toFixed(1)}%</td>
                       </tr>
                     ))}
                 </tbody>
@@ -443,19 +443,19 @@ export default function ValidationLab() {
             <h3 style={{ margin: "0 0 8px 0", fontSize: 17 }}>Veterinary Welfare & Ethical Compliance</h3>
             <div className="row" style={{ gap: 20, flexWrap: "wrap", fontSize: 13.5 }}>
               <div>
-                <strong>Welfare Aborts:</strong> {metrics?.animal_welfare_and_safety.welfare_aborts_count || 0} (
-                {metrics ? `${(metrics.animal_welfare_and_safety.welfare_abort_rate * 100).toFixed(1)}%` : "0%"})
+                <strong>Welfare Aborts:</strong> {metrics?.animal_welfare_and_safety?.welfare_aborts_count ?? 0} (
+                {`${(((metrics?.animal_welfare_and_safety?.welfare_abort_rate) ?? 0) * 100).toFixed(1)}%`})
               </div>
               <div>
-                <strong>Freezing / Tonic Immobility:</strong> {metrics?.animal_welfare_and_safety.freezing_episodes_count || 0} (
-                {metrics ? `${(metrics.animal_welfare_and_safety.freezing_rate * 100).toFixed(1)}%` : "0%"})
+                <strong>Freezing / Tonic Immobility:</strong> {metrics?.animal_welfare_and_safety?.freezing_episodes_count ?? 0} (
+                {`${(((metrics?.animal_welfare_and_safety?.freezing_rate) ?? 0) * 100).toFixed(1)}%`})
               </div>
               <div>
                 <strong>Volume Safety:</strong> Max Cap &le; 75.0 dBA SPL (Active)
               </div>
             </div>
             <div style={{ marginTop: 8, fontSize: 12.5, color: "#475569" }}>
-              {metrics?.animal_welfare_and_safety.safety_assessment || "No trials recorded yet."}
+              {metrics?.animal_welfare_and_safety?.safety_assessment || "No trials recorded yet."}
             </div>
           </div>
         </div>

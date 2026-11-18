@@ -1,0 +1,89 @@
+{
+  "phase": "Phase 14",
+  "generated_at_utc": "2026-11-18T15:35:00Z",
+  "rollback_tag": "checkpoint-phase14-20261118",
+  "rollback_commit": "5dd48eb6c51da066c9e841e9c7c36e32f3abeb43",
+  "deployed_backend_commit": "44984caa44720212c3ab064eca0885b8a94193c7",
+  "deployed_render_id": "dep-dbus42jm8hqs73b8jj7g",
+  "deployed_gh_pages_commit": "3c866a9954504c07e600ae560d8c585062a218d5",
+  "deployed_frontend_source_commit": "cce101d73cce52cbecac71155c8ffed2f169bfce",
+  "overall_phase14_status": "PARTIAL",
+  "overall_software_gates": "PASS",
+  "gates": {
+    "code_integrity": { "status": "PASS", "checkpoint_tag": "checkpoint-phase14-20261118" },
+    "backend_pytest_full": { "status": "PASS", "passed": 151, "failed": 0, "skipped": 0, "duration_sec": 129.15 },
+    "backend_priority8_audio_matrix": { "status": "PASS", "passed": 23, "failed": 0, "skipped": 0 },
+    "backend_priority7_validation_lab": { "status": "PASS", "passed": 12, "failed": 0, "skipped": 0 },
+    "backend_security_suite": { "status": "PASS", "passed": 13, "failed": 0, "skipped": 0 },
+    "phase14_security_closure": {
+      "status": "PASS",
+      "combined_security_pytest_passed": 33,
+      "combined_security_pytest_failed": 0,
+      "npm_prod_vulnerabilities": 0,
+      "hardcoded_secret_hits": 0,
+      "android_cleartext_disabled": true
+    },
+    "frontend_build": {
+      "status": "PASS",
+      "oxlint_errors": 0,
+      "oxlint_warnings": 33,
+      "tsc_errors": 0,
+      "vite_main_bundle": "index-D49uE4oN.js"
+    },
+    "persistence_architecture_and_dr": {
+      "status": "PASS",
+      "pytest_durability_passed": 5,
+      "pytest_durability_failed": 0,
+      "isolated_restore": "PASS",
+      "zipslip_protection": "PASS"
+    },
+    "production_data_durability": {
+      "status": "BLOCKED",
+      "reason": "BLOCKED - OWNER INFRASTRUCTURE APPROVAL REQUIRED",
+      "render_plan": "free",
+      "durable_across_redeploy": false,
+      "database_backend": "sqlite",
+      "backup_status": "WARN_NO_BACKUPS"
+    },
+    "deployment_and_live_qa": {
+      "status": "PASS",
+      "openapi_routes": 58,
+      "live_backend_http": 200,
+      "live_frontend_http": 200,
+      "viewports_tested": ["1280x800", "768x1024", "390x844"],
+      "horizontal_overflow": false,
+      "themes_verified": 4,
+      "synthetic_accounts_deleted_via_ui": true
+    },
+    "android_release": {
+      "status": "BLOCKED",
+      "existing_apk_sha256": "E17BD6DD6221DDB2A78E99817355BCA409F2F6945910F4BEC854585686AA34AC",
+      "existing_apk_date": "2026-11-07",
+      "blockers": [
+        "JDK 17+ (javac) missing",
+        "Android SDK 34 missing",
+        "Gradle wrapper missing",
+        "@capacitor/android and @capacitor/cli missing"
+      ]
+    },
+    "engine_a_90pct_target": {
+      "status": "FAIL",
+      "balanced_accuracy": 0.8546,
+      "overall_accuracy": 0.8681,
+      "macro_f1": 0.7877,
+      "ece": 0.144,
+      "test_dogs": 26,
+      "test_files": 91,
+      "manifest_sha256": "187C83D1B66B7B3537E969076B5C565340B7F7CD7E089F5C99912A05412559A4"
+    },
+    "engine_b_biological_validation": {
+      "status": "NOT VALIDATED",
+      "live_canine_trials": 0,
+      "empirically_verified_congruence_pct": 0.0
+    },
+    "breed_sex_scaling": {
+      "status": "HEURISTIC",
+      "clinically_validated": false
+    }
+  }
+}

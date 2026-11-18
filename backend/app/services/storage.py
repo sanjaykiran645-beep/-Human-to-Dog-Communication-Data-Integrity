@@ -27,6 +27,10 @@ class StorageBackend(Protocol):
 
     def ensure_available(self) -> None: ...
     def write_bytes_atomic(self, dest: Path, data: bytes) -> None: ...
+    def read_bytes(self, rel_path: str) -> bytes: ...
+    def exists(self, rel_path: str) -> bool: ...
+    def delete_rel(self, rel_path: str) -> bool: ...
+    def list_user_keys(self, user_id: str) -> list[str]: ...
     def user_usage_bytes(self, user_id: str) -> int: ...
 
 
@@ -39,6 +43,13 @@ class LocalStorageBackend:
     @property
     def root(self) -> Path:
         return self._root or STORAGE_DIR
+
+    def _safe_rel_path(self, rel_path: str) -> Path:
+        root_res = self.root.resolve()
+        candidate = (root_res / rel_path).resolve()
+        if not candidate.is_relative_to(root_res):
+            raise PermissionError("path traversal blocked")
+        return candidate
 
     def ensure_available(self) -> None:
         try:
@@ -63,6 +74,38 @@ class LocalStorageBackend:
             if tmp_path.exists():
                 tmp_path.unlink(missing_ok=True)
             raise StorageUnavailableError(f"Atomic storage write failed: {exc}") from exc
+
+    def read_bytes(self, rel_path: str) -> bytes:
+        self.ensure_available()
+        target = self._safe_rel_path(rel_path)
+        if not target.is_file():
+            raise FileNotFoundError(rel_path)
+        return target.read_bytes()
+
+    def exists(self, rel_path: str) -> bool:
+        try:
+            target = self._safe_rel_path(rel_path)
+            return target.is_file()
+        except PermissionError:
+            return False
+
+    def delete_rel(self, rel_path: str) -> bool:
+        target = self._safe_rel_path(rel_path)
+        if target.is_file():
+            target.unlink(missing_ok=True)
+            return True
+        return False
+
+    def list_user_keys(self, user_id: str) -> list[str]:
+        udir = self._safe_rel_path(user_id)
+        if not udir.exists():
+            return []
+        root_res = self.root.resolve()
+        return sorted(
+            str(p.resolve().relative_to(root_res).as_posix())
+            for p in udir.rglob("*")
+            if p.is_file() and not p.name.startswith(".tmp_")
+        )
 
     def user_usage_bytes(self, user_id: str) -> int:
         udir = self.root / user_id
@@ -168,3 +211,24 @@ def delete_recording_tree(user_id: str, recording_id: str) -> None:
     path = STORAGE_DIR / user_id / "recordings" / recording_id
     if path.exists():
         shutil.rmtree(path, ignore_errors=True)
+
+
+def cleanup_stale_temp_files(storage_dir: Path | None = None, max_age_seconds: int = 3600) -> int:
+    """Remove abandoned `.tmp_*` partial upload files older than max_age_seconds."""
+    import time
+
+    root = storage_dir or STORAGE_DIR
+    if not root.exists():
+        return 0
+    cutoff = time.time() - max(0, max_age_seconds)
+    removed = 0
+    for f in root.rglob(".tmp_*"):
+        if not f.is_file():
+            continue
+        try:
+            if max_age_seconds == 0 or f.stat().st_mtime <= cutoff:
+                f.unlink(missing_ok=True)
+                removed += 1
+        except OSError:
+            pass
+    return removed

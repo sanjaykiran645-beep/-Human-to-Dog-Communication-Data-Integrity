@@ -1,15 +1,15 @@
 ﻿{
-    "generated_at_utc":  "2026-11-18T12:51:08Z",
+    "generated_at_utc":  "2026-11-18T15:09:09Z",
     "repo_root":  "E:\\CanineSense_AI_Complete_Project (1)\\CanineSense_AI",
     "git":  {
                 "git_available":  true,
                 "branch":  "ref: refs/heads/main",
-                "head_sha":  "a53e5c13335376be20eb60903bf71904dd8c94ac",
-                "origin_main_sha":  "a53e5c13335376be20eb60903bf71904dd8c94ac",
-                "gh_pages_sha":  "07d639439514606db5cf1011ee356e8366f3c614",
-                "origin_gh_pages_sha":  "07d639439514606db5cf1011ee356e8366f3c614",
+                "head_sha":  "5dd48eb6c51da066c9e841e9c7c36e32f3abeb43",
+                "origin_main_sha":  "5dd48eb6c51da066c9e841e9c7c36e32f3abeb43",
+                "gh_pages_sha":  "3c866a9954504c07e600ae560d8c585062a218d5",
+                "origin_gh_pages_sha":  "3c866a9954504c07e600ae560d8c585062a218d5",
                 "working_tree_dirty":  true,
-                "dirty_files_count":  31,
+                "dirty_files_count":  15,
                 "remote_url":  "https://github.com/sanjaykiran645-beep/-Human-to-Dog-Communication-Data-Integrity.git"
             },
     "apk_sha256":  "E17BD6DD6221DDB2A78E99817355BCA409F2F6945910F4BEC854585686AA34AC",
@@ -17,13 +17,13 @@
                                        "SECURITY RISK":  1,
                                        "OBSOLETE":  1,
                                        "REQUIRES OWNER INPUT":  2,
-                                       "PASS":  643,
+                                       "PASS":  678,
                                        "MISSING":  0,
                                        "UNUSED":  0,
                                        "DUPLICATE":  17,
                                        "DEFECTIVE":  1
                                    },
-    "total_files_audited":  665,
+    "total_files_audited":  700,
     "findings":  [
                      {
                          "id":  "RT-INFRA-01",
@@ -246,7 +246,7 @@
                   {
                       "path":  "engine_a_metrics.json",
                       "bytes":  5290,
-                      "last_write_utc":  "2026-11-18T07:23:56Z",
+                      "last_write_utc":  "2026-11-18T12:55:03Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -364,15 +364,15 @@
                   },
                   {
                       "path":  "RED_TEAM_AUDIT.json",
-                      "bytes":  231848,
-                      "last_write_utc":  "2026-11-18T07:20:24Z",
+                      "bytes":  242650,
+                      "last_write_utc":  "2026-11-18T14:59:40Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
                   {
                       "path":  "RED_TEAM_AUDIT.md",
                       "bytes":  2097,
-                      "last_write_utc":  "2026-11-18T07:20:24Z",
+                      "last_write_utc":  "2026-11-18T14:59:40Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -427,15 +427,15 @@
                   },
                   {
                       "path":  "backend/app/config.py",
-                      "bytes":  1871,
-                      "last_write_utc":  "2026-11-18T07:06:11Z",
+                      "bytes":  2880,
+                      "last_write_utc":  "2026-11-18T15:03:40Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
                   {
                       "path":  "backend/app/db.py",
-                      "bytes":  2462,
-                      "last_write_utc":  "2026-11-18T07:06:48Z",
+                      "bytes":  2908,
+                      "last_write_utc":  "2026-11-18T15:03:43Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -448,8 +448,8 @@
                   },
                   {
                       "path":  "backend/app/main.py",
-                      "bytes":  6791,
-                      "last_write_utc":  "2026-11-18T07:07:22Z",
+                      "bytes":  7158,
+                      "last_write_utc":  "2026-11-18T15:04:40Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -532,8 +532,8 @@
                   },
                   {
                       "path":  "backend/app/routers/analytics.py",
-                      "bytes":  13115,
-                      "last_write_utc":  "2026-11-18T07:07:30Z",
+                      "bytes":  13404,
+                      "last_write_utc":  "2026-11-18T15:05:01Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -616,8 +616,8 @@
                   },
                   {
                       "path":  "backend/app/services/durability.py",
-                      "bytes":  8602,
-                      "last_write_utc":  "2026-11-18T12:30:05Z",
+                      "bytes":  14057,
+                      "last_write_utc":  "2026-11-18T15:04:35Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -679,8 +679,8 @@
                   },
                   {
                       "path":  "backend/app/services/storage.py",
-                      "bytes":  5414,
-                      "last_write_utc":  "2026-11-18T07:06:50Z",
+                      "bytes":  7607,
+                      "last_write_utc":  "2026-11-18T15:04:29Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -954,6 +954,20 @@
                       "path":  "backend/tests/test_formats_and_decoder.py",
                       "bytes":  2402,
                       "last_write_utc":  "2026-11-11T14:19:03Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "backend/tests/test_phase14_durability_recovery.py",
+                      "bytes":  6821,
+                      "last_write_utc":  "2026-11-18T15:05:32Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "backend/tests/test_phase14_security.py",
+                      "bytes":  9531,
+                      "last_write_utc":  "2026-11-18T15:08:02Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -3702,6 +3716,62 @@
                       "reason":  "Duplicate of root documentation file"
                   },
                   {
+                      "path":  "docs/CANINESENSE_ANDROID_RELEASE_READINESS.md",
+                      "bytes":  2520,
+                      "last_write_utc":  "2026-11-18T14:47:30Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "docs/CANINESENSE_DATA_DURABILITY_REPORT.md",
+                      "bytes":  4000,
+                      "last_write_utc":  "2026-11-18T14:46:48Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "docs/CANINESENSE_ENGINE_A_IMPROVEMENT_REPORT.md",
+                      "bytes":  3207,
+                      "last_write_utc":  "2026-11-18T14:46:53Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "docs/CANINESENSE_ENGINE_B_VALIDATION_READINESS.md",
+                      "bytes":  3049,
+                      "last_write_utc":  "2026-11-18T14:46:55Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "docs/CANINESENSE_PHASE13_DEPLOYMENT_TRACEABILITY.md",
+                      "bytes":  1644,
+                      "last_write_utc":  "2026-11-18T14:47:38Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "docs/CANINESENSE_PHASE13_MASTER_AUDIT.md",
+                      "bytes":  6218,
+                      "last_write_utc":  "2026-11-18T14:46:45Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "docs/CANINESENSE_PHASE13_REMAINING_BLOCKERS.md",
+                      "bytes":  2448,
+                      "last_write_utc":  "2026-11-18T14:47:40Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "docs/CANINESENSE_PHASE13_TEST_RESULTS.json",
+                      "bytes":  3498,
+                      "last_write_utc":  "2026-11-18T14:47:36Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
                       "path":  "docs/CANINESENSE_PRIORITY_6_FINAL_REPORT.md",
                       "bytes":  11970,
                       "last_write_utc":  "2026-11-15T16:10:05Z",
@@ -3714,6 +3784,20 @@
                       "last_write_utc":  "2026-11-15T16:38:09Z",
                       "classification":  "DUPLICATE",
                       "reason":  "Duplicate of root documentation file"
+                  },
+                  {
+                      "path":  "docs/CANINESENSE_PRODUCTION_RELIABILITY_REPORT.md",
+                      "bytes":  4467,
+                      "last_write_utc":  "2026-11-18T14:47:33Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "docs/CANINESENSE_SECURITY_HARDENING_REPORT.md",
+                      "bytes":  3536,
+                      "last_write_utc":  "2026-11-18T14:46:51Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
                   },
                   {
                       "path":  "docs/COMMUNICATOR_AUDIO_REPAIR_REPORT.md",
@@ -3746,7 +3830,7 @@
                   {
                       "path":  "docs/engine_a_metrics.json",
                       "bytes":  5290,
-                      "last_write_utc":  "2026-11-18T07:23:56Z",
+                      "last_write_utc":  "2026-11-18T12:55:03Z",
                       "classification":  "DUPLICATE",
                       "reason":  "Duplicate of root documentation file"
                   },
@@ -4270,8 +4354,8 @@
                   },
                   {
                       "path":  "frontend/src/pages/Settings.tsx",
-                      "bytes":  5761,
-                      "last_write_utc":  "2026-11-14T17:13:30Z",
+                      "bytes":  7940,
+                      "last_write_utc":  "2026-11-18T14:34:55Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4290,6 +4374,13 @@
                       "reason":  "Verified on disk"
                   },
                   {
+                      "path":  "logs/android-readiness-20261118-183008.log",
+                      "bytes":  297,
+                      "last_write_utc":  "2026-11-18T13:00:09Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
                       "path":  "logs/data-integrity-20261118-124843.log",
                       "bytes":  5290,
                       "last_write_utc":  "2026-11-18T07:19:03Z",
@@ -4300,6 +4391,13 @@
                       "path":  "logs/data-integrity-20261118-125025.log",
                       "bytes":  1592,
                       "last_write_utc":  "2026-11-18T07:20:43Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/data-integrity-20261118-182112.log",
+                      "bytes":  1592,
+                      "last_write_utc":  "2026-11-18T12:51:40Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4332,16 +4430,30 @@
                       "reason":  "Verified on disk"
                   },
                   {
+                      "path":  "logs/deploy-recovery-20261118-183846.log",
+                      "bytes":  1048,
+                      "last_write_utc":  "2026-11-18T13:08:54Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/deploy-recovery-20261118-201127.log",
+                      "bytes":  1048,
+                      "last_write_utc":  "2026-11-18T14:41:35Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
                       "path":  "logs/latest-regression-results.json",
-                      "bytes":  6135,
-                      "last_write_utc":  "2026-11-18T07:29:22Z",
+                      "bytes":  6180,
+                      "last_write_utc":  "2026-11-18T15:03:18Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
                   {
                       "path":  "logs/latest-release-verify.json",
-                      "bytes":  2492,
-                      "last_write_utc":  "2026-11-18T06:49:20Z",
+                      "bytes":  2729,
+                      "last_write_utc":  "2026-11-18T14:45:59Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4349,6 +4461,20 @@
                       "path":  "logs/ml-improvement-20261118-125143.log",
                       "bytes":  824,
                       "last_write_utc":  "2026-11-18T07:23:56Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/ml-improvement-20261118-182304.log",
+                      "bytes":  824,
+                      "last_write_utc":  "2026-11-18T12:55:04Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase13-android-readiness.json",
+                      "bytes":  1556,
+                      "last_write_utc":  "2026-11-18T13:00:09Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4368,29 +4494,43 @@
                   },
                   {
                       "path":  "logs/phase13-audit-20261118-182106.log",
+                      "bytes":  718,
+                      "last_write_utc":  "2026-11-18T12:51:11Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase13-audit-20261118-202934.log",
+                      "bytes":  716,
+                      "last_write_utc":  "2026-11-18T14:59:40Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase13-audit-20261118-203907.log",
                       "bytes":  488,
-                      "last_write_utc":  "2026-11-18T12:51:09Z",
+                      "last_write_utc":  "2026-11-18T15:09:09Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
                   {
                       "path":  "logs/phase13-audit-summary.json",
-                      "bytes":  419,
-                      "last_write_utc":  "2026-11-18T07:20:24Z",
+                      "bytes":  418,
+                      "last_write_utc":  "2026-11-18T14:59:40Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
                   {
                       "path":  "logs/phase13-data-integrity.json",
                       "bytes":  4824,
-                      "last_write_utc":  "2026-11-18T07:20:43Z",
+                      "last_write_utc":  "2026-11-18T12:51:40Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
                   {
                       "path":  "logs/phase13-ml-evaluation.json",
                       "bytes":  469,
-                      "last_write_utc":  "2026-11-18T07:23:56Z",
+                      "last_write_utc":  "2026-11-18T12:55:04Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4410,15 +4550,22 @@
                   },
                   {
                       "path":  "logs/phase13-release-20261118-182105.log",
-                      "bytes":  576,
-                      "last_write_utc":  "2026-11-18T12:51:09Z",
+                      "bytes":  5769,
+                      "last_write_utc":  "2026-11-18T13:01:11Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
                   {
                       "path":  "logs/phase13-security-hardening.json",
                       "bytes":  352,
-                      "last_write_utc":  "2026-11-18T07:21:42Z",
+                      "last_write_utc":  "2026-11-18T12:53:03Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase14-release-20261118-203906.log",
+                      "bytes":  576,
+                      "last_write_utc":  "2026-11-18T15:09:09Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4466,8 +4613,22 @@
                   },
                   {
                       "path":  "logs/redteam-audit-20261118-182108.log",
+                      "bytes":  342,
+                      "last_write_utc":  "2026-11-18T12:51:11Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/redteam-audit-20261118-202936.log",
+                      "bytes":  341,
+                      "last_write_utc":  "2026-11-18T14:59:40Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/redteam-audit-20261118-203909.log",
                       "bytes":  212,
-                      "last_write_utc":  "2026-11-18T12:51:09Z",
+                      "last_write_utc":  "2026-11-18T15:09:09Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4496,6 +4657,27 @@
                       "path":  "logs/regression-20261118-125357.log",
                       "bytes":  60794,
                       "last_write_utc":  "2026-11-18T07:29:22Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/regression-20261118-182505.log",
+                      "bytes":  57790,
+                      "last_write_utc":  "2026-11-18T13:00:07Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/regression-20261118-200514.log",
+                      "bytes":  57791,
+                      "last_write_utc":  "2026-11-18T14:39:35Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/regression-20261118-202941.log",
+                      "bytes":  57503,
+                      "last_write_utc":  "2026-11-18T15:03:18Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4542,9 +4724,37 @@
                       "reason":  "Verified on disk"
                   },
                   {
+                      "path":  "logs/release-verify-20261118-183010.log",
+                      "bytes":  1586,
+                      "last_write_utc":  "2026-11-18T13:01:11Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/release-verify-20261118-194601.log",
+                      "bytes":  1811,
+                      "last_write_utc":  "2026-11-18T14:17:10Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/release-verify-20261118-201546.log",
+                      "bytes":  1811,
+                      "last_write_utc":  "2026-11-18T14:45:59Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
                       "path":  "logs/security-hardening-20261118-125044.log",
                       "bytes":  4708,
                       "last_write_utc":  "2026-11-18T07:21:42Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/security-hardening-20261118-182141.log",
+                      "bytes":  4708,
+                      "last_write_utc":  "2026-11-18T12:53:03Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4636,6 +4846,41 @@
                       "path":  "scripts/CanineSense-Phase13-Release.ps1",
                       "bytes":  3306,
                       "last_write_utc":  "2026-11-18T07:13:42Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "scripts/CanineSense-Phase14-Android.ps1",
+                      "bytes":  1972,
+                      "last_write_utc":  "2026-11-18T15:08:49Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "scripts/CanineSense-Phase14-Deployment.ps1",
+                      "bytes":  4020,
+                      "last_write_utc":  "2026-11-18T15:08:52Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "scripts/CanineSense-Phase14-Persistence.ps1",
+                      "bytes":  4098,
+                      "last_write_utc":  "2026-11-18T15:08:44Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "scripts/CanineSense-Phase14-Release.ps1",
+                      "bytes":  3395,
+                      "last_write_utc":  "2026-11-18T15:08:55Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "scripts/CanineSense-Phase14-Security.ps1",
+                      "bytes":  4638,
+                      "last_write_utc":  "2026-11-18T15:08:46Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },

@@ -11,10 +11,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 from . import SYNTH_MODEL_VERSION, BEHAVIOR_MODEL_VERSION, MODEL_VERSION, __version__
-from .config import IS_EPHEMERAL_STORAGE, STORAGE_PROVIDER
+from .config import BACKUP_DIR, BACKUP_MAX_AGE_HOURS, DB_BACKEND, IS_EPHEMERAL_STORAGE, STORAGE_PROVIDER
 from .db import init_db
 from .routers import analytics, auth, communicate, dogs, experiments, recordings
 from .services.audio import decoder_status, find_ffmpeg
+from .services.durability import check_backup_health
 from .services.storage import StorageQuotaExceededError, StorageUnavailableError
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -97,6 +98,7 @@ def health() -> dict:
     dec = decoder_status()
     # Public endpoint: never expose host filesystem paths or tool build strings.
     dec = {k: v for k, v in dec.items() if k not in {"ffmpeg_path", "ffmpeg_version"}}
+    bkp = check_backup_health(BACKUP_DIR, BACKUP_MAX_AGE_HOURS)
     return {
         "status": "ok" if dec["soundfile_wav"] else "degraded",
         "version": __version__,
@@ -107,7 +109,11 @@ def health() -> dict:
         "decoder": dec,
         "persistence": {
             "provider": STORAGE_PROVIDER,
+            "database_backend": DB_BACKEND,
             "durable_across_redeploy": not IS_EPHEMERAL_STORAGE,
+            "backup_status": bkp["status"],
+            "backup_count": bkp["backup_count"],
+            "last_backup_age_hours": bkp["last_backup_age_hours"],
             "note": (
                 "Ephemeral container storage active; user data does not survive container replacement until persistent disk or external object storage is configured."
                 if IS_EPHEMERAL_STORAGE

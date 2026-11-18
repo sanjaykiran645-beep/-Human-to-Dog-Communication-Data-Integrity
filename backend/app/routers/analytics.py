@@ -6,7 +6,7 @@ import json
 from collections import Counter
 
 import numpy as np
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -14,6 +14,7 @@ from .. import BEHAVIOR_MODEL_VERSION, MODEL_VERSION, SYNTH_MODEL_VERSION, model
 from ..db import get_db
 from ..deps import get_current_user
 from ..ml.evaluate import CANONICAL_6_CLASSES, evaluate_dog_independent_generalization
+from ..security import revoke_token
 from ..services import audit, storage
 from ..services.breed_intelligence import resolve_breed_intelligence
 
@@ -250,7 +251,12 @@ def export_data(user: models.User = Depends(get_current_user), db: Session = Dep
 
 
 @router.delete("/account")
-def delete_account(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+def delete_account(
+    request: Request,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Full user erasure: removes DB entities, stored files, private references, and revokes the caller JWT."""
     uid = user.id
     user_trial_ids = select(models.BehaviouralTrial.id).where(models.BehaviouralTrial.user_id == uid)
     db.query(models.TrialReviewerInvitation).filter(
@@ -282,6 +288,9 @@ def delete_account(user: models.User = Depends(get_current_user), db: Session = 
     from ..services.reference_library import purge_user_references
 
     purge_user_references(uid)
+    token = getattr(request.state, "access_token", None)
+    if token:
+        revoke_token(token)
     return {"ok": True}
 
 

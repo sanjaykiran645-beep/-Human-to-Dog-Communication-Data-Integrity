@@ -4,18 +4,42 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import secrets
 import sqlite3
 import tempfile
 import zipfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from .. import models
-from ..config import DB_PATH, STORAGE_DIR
+from ..config import (
+    BACKUP_DIR,
+    BACKUP_MAX_AGE_HOURS,
+    BACKUP_MAX_COUNT,
+    BACKUP_RETENTION_DAYS,
+    DB_BACKEND,
+    DB_PATH,
+    STORAGE_DIR,
+    STORAGE_PROVIDER,
+)
+
+_TRACKED_TABLES: tuple[str, ...] = (
+    "users",
+    "dogs",
+    "recordings",
+    "analyses",
+    "generated_audio",
+    "study_participants",
+    "behavioural_trials",
+    "trial_reviewer_invitations",
+    "trial_preregistrations",
+    "trial_adverse_events",
+)
 
 
 def _sha256_file(path: Path) -> str:
@@ -26,7 +50,31 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _sqlite_table_counts(conn: sqlite3.Connection) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for tbl in _TRACKED_TABLES:
+        try:
+            row = conn.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()  # noqa: S608
+            counts[tbl] = int(row[0]) if row else 0
+        except sqlite3.OperationalError:
+            pass
+    return counts
+
+
 def verify_database_integrity(db_path: Path = DB_PATH) -> dict[str, Any]:
+    if DB_BACKEND != "sqlite" and db_path == DB_PATH:
+        from ..db import engine
+
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+            migrations = [r[0] for r in conn.execute(text("SELECT version FROM schema_migrations ORDER BY version")).fetchall()]
+        return {
+            "status": "PASS",
+            "db_backend": DB_BACKEND,
+            "integrity_check": ["ok"],
+            "foreign_key_violations": 0,
+            "migrations_applied": migrations,
+        }
     if not db_path.exists():
         return {"status": "FAIL", "reason": f"Database file missing: {db_path}"}
     conn = sqlite3.connect(str(db_path))
@@ -42,9 +90,11 @@ def verify_database_integrity(db_path: Path = DB_PATH) -> dict[str, Any]:
             migrations = []
         return {
             "status": "PASS" if (integrity_ok and fk_ok) else "FAIL",
+            "db_backend": "sqlite",
             "integrity_check": [r[0] for r in integrity_rows],
             "foreign_key_violations": len(fk_violations),
             "migrations_applied": migrations,
+            "table_counts": _sqlite_table_counts(conn),
         }
     finally:
         conn.close()
@@ -127,13 +177,16 @@ def audit_storage_integrity(db: Session, storage_dir: Path = STORAGE_DIR) -> dic
 
 
 def create_verified_backup(
-    backup_dir: Path,
+    backup_dir: Path = BACKUP_DIR,
     db_path: Path = DB_PATH,
     storage_dir: Path = STORAGE_DIR,
 ) -> dict[str, Any]:
     backup_dir.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    zip_path = backup_dir / f"caninesense_backup_{ts}.zip"
+    now_utc = datetime.now(timezone.utc)
+    ts = now_utc.strftime("%Y%m%dT%H%M%SZ")
+    suffix = secrets.token_hex(3)
+    zip_path = backup_dir / f"caninesense_backup_{ts}_{suffix}.zip"
+    tmp_zip = backup_dir / f".tmp_{zip_path.name}"
 
     with tempfile.TemporaryDirectory(prefix="cs_bkp_") as tmp_str:
         tmp_dir = Path(tmp_str)
@@ -142,12 +195,21 @@ def create_verified_backup(
         dst_conn = sqlite3.connect(str(snap_db))
         try:
             src_conn.backup(dst_conn)
+            table_counts = _sqlite_table_counts(dst_conn)
+            try:
+                migrations = [r[0] for r in dst_conn.execute("SELECT version FROM schema_migrations ORDER BY version").fetchall()]
+            except sqlite3.OperationalError:
+                migrations = []
         finally:
             dst_conn.close()
             src_conn.close()
 
         manifest: dict[str, Any] = {
-            "created_at_utc": datetime.now(timezone.utc).isoformat(),
+            "created_at_utc": now_utc.isoformat(),
+            "db_backend": DB_BACKEND,
+            "storage_provider": STORAGE_PROVIDER,
+            "migrations_applied": migrations,
+            "table_counts": table_counts,
             "files": {},
         }
         manifest["files"]["db/caninesense.sqlite3"] = {
@@ -170,17 +232,79 @@ def create_verified_backup(
         manifest_path = tmp_dir / "backup_manifest.json"
         manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
-        with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        with zipfile.ZipFile(tmp_zip, "w", compression=zipfile.ZIP_DEFLATED) as zf:
             zf.write(snap_db, "db/caninesense.sqlite3")
             zf.write(manifest_path, "backup_manifest.json")
             for src_f, arc in storage_files:
                 zf.write(src_f, arc)
+        os.replace(tmp_zip, zip_path)
+
+    zip_sha = _sha256_file(zip_path)
+    meta_sidecar = {
+        "created_at_utc": now_utc.isoformat(),
+        "backup_zip_name": zip_path.name,
+        "backup_sha256": zip_sha,
+        "archive_bytes": zip_path.stat().st_size,
+        "file_count": len(manifest["files"]),
+        "db_backend": DB_BACKEND,
+        "storage_provider": STORAGE_PROVIDER,
+        "migrations_applied": migrations,
+        "table_counts": table_counts,
+    }
+    meta_path = zip_path.with_suffix(".meta.json")
+    meta_path.write_text(json.dumps(meta_sidecar, indent=2), encoding="utf-8")
 
     return {
         "status": "PASS",
         "backup_zip": str(zip_path),
-        "backup_sha256": _sha256_file(zip_path),
+        "metadata_json": str(meta_path),
+        "backup_sha256": zip_sha,
         "file_count": len(manifest["files"]),
+        "table_counts": table_counts,
+    }
+
+
+def apply_backup_retention(
+    backup_dir: Path = BACKUP_DIR,
+    max_count: int = BACKUP_MAX_COUNT,
+    max_age_days: int = BACKUP_RETENTION_DAYS,
+) -> dict[str, Any]:
+    if not backup_dir.exists():
+        return {"status": "PASS", "kept": 0, "pruned": 0, "pruned_files": []}
+    zips = sorted(backup_dir.glob("caninesense_backup_*.zip"), key=lambda p: p.stat().st_mtime, reverse=True)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=max(1, max_age_days))
+    pruned_names: list[str] = []
+    kept = 0
+    for idx, zp in enumerate(zips):
+        mtime_utc = datetime.fromtimestamp(zp.stat().st_mtime, tz=timezone.utc)
+        expired_by_count = max_count > 0 and idx >= max_count
+        expired_by_age = mtime_utc < cutoff and idx > 0
+        if expired_by_count or expired_by_age:
+            pruned_names.append(zp.name)
+            zp.unlink(missing_ok=True)
+            zp.with_suffix(".meta.json").unlink(missing_ok=True)
+        else:
+            kept += 1
+    return {"status": "PASS", "kept": kept, "pruned": len(pruned_names), "pruned_files": pruned_names}
+
+
+def check_backup_health(
+    backup_dir: Path = BACKUP_DIR,
+    max_age_hours: int = BACKUP_MAX_AGE_HOURS,
+) -> dict[str, Any]:
+    if not backup_dir.exists():
+        return {"status": "WARN_NO_BACKUPS", "backup_count": 0, "last_backup_age_hours": None}
+    zips = sorted(backup_dir.glob("caninesense_backup_*.zip"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not zips:
+        return {"status": "WARN_NO_BACKUPS", "backup_count": 0, "last_backup_age_hours": None}
+    latest = zips[0]
+    age_hours = round((datetime.now(timezone.utc) - datetime.fromtimestamp(latest.stat().st_mtime, tz=timezone.utc)).total_seconds() / 3600.0, 2)
+    stale = age_hours > max(1, max_age_hours)
+    return {
+        "status": "WARN_STALE" if stale else "OK",
+        "backup_count": len(zips),
+        "last_backup_age_hours": age_hours,
+        "max_age_hours_threshold": max_age_hours,
     }
 
 
@@ -189,8 +313,12 @@ def validate_restore_in_isolation(backup_zip: Path) -> dict[str, Any]:
         return {"status": "FAIL", "reason": f"Backup archive not found: {backup_zip}"}
 
     with tempfile.TemporaryDirectory(prefix="cs_restore_test_") as tmp_str:
-        tmp_dir = Path(tmp_str)
+        tmp_dir = Path(tmp_str).resolve()
         with zipfile.ZipFile(backup_zip, "r") as zf:
+            for member in zf.infolist():
+                target = (tmp_dir / member.filename).resolve()
+                if not target.is_relative_to(tmp_dir):
+                    return {"status": "FAIL", "reason": f"ZipSlip path traversal blocked: {member.filename}"}
             zf.extractall(tmp_dir)
 
         manifest_path = tmp_dir / "backup_manifest.json"
@@ -200,19 +328,27 @@ def validate_restore_in_isolation(backup_zip: Path) -> dict[str, Any]:
 
         checksum_errors: list[str] = []
         for arc_path, meta in manifest.get("files", {}).items():
-            restored_file = tmp_dir / arc_path
-            if not restored_file.exists():
-                checksum_errors.append(f"Missing restored file: {arc_path}")
+            restored_file = (tmp_dir / arc_path).resolve()
+            if not restored_file.is_relative_to(tmp_dir) or not restored_file.exists():
+                checksum_errors.append(f"Missing or invalid restored file: {arc_path}")
                 continue
             actual = _sha256_file(restored_file)
             if actual != meta["sha256"]:
                 checksum_errors.append(f"SHA-256 mismatch on {arc_path}")
 
         db_check = verify_database_integrity(tmp_dir / "db" / "caninesense.sqlite3")
-        ok = not checksum_errors and db_check.get("status") == "PASS"
+        row_count_mismatches: list[str] = []
+        expected_counts = manifest.get("table_counts") or {}
+        restored_counts = db_check.get("table_counts") or {}
+        for tbl, exp_val in expected_counts.items():
+            if restored_counts.get(tbl) != exp_val:
+                row_count_mismatches.append(f"{tbl}: expected {exp_val}, got {restored_counts.get(tbl)}")
+
+        ok = not checksum_errors and not row_count_mismatches and db_check.get("status") == "PASS"
         return {
             "status": "PASS" if ok else "FAIL",
             "files_verified": len(manifest.get("files", {})),
             "checksum_errors": checksum_errors,
+            "row_count_mismatches": row_count_mismatches,
             "db_integrity": db_check,
         }

@@ -49,7 +49,20 @@ _MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("002_priority7_experimental_tables", "Study participants, experimental cues, schedules, behavioural trials, independent reviews"),
     ("003_phase13_durability_and_governance", "Schema migrations, reviewer invitations, trial preregistrations, adverse events"),
     ("004_phase14_persistence_and_dr", "Provider-independent DATABASE_URL engine abstraction, backup retention, DR verification"),
+    ("005_phase15_migration_readiness", "Object-storage adapter interface, PostgreSQL DDL compatibility verification, Phase 15 health telemetry"),
 )
+
+LATEST_MIGRATION_VERSION = _MIGRATIONS[-1][0]
+
+
+def get_applied_migrations() -> list[str]:
+    from . import models
+
+    try:
+        with SessionLocal() as session:
+            return [m.version for m in session.query(models.SchemaMigration).order_by(models.SchemaMigration.version).all()]
+    except Exception:
+        return []
 
 
 def apply_migrations() -> None:

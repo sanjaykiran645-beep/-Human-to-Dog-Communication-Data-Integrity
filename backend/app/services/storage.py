@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 import shutil
 import tempfile
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
-from ..config import STORAGE_DIR, STORAGE_PROVIDER, USER_STORAGE_QUOTA_BYTES
+from ..config import MAX_UPLOAD_BYTES, STORAGE_DIR, STORAGE_PROVIDER, USER_STORAGE_QUOTA_BYTES
 
 _SAFE = re.compile(r"[^a-zA-Z0-9._-]+")
 
@@ -232,3 +236,234 @@ def cleanup_stale_temp_files(storage_dir: Path | None = None, max_age_seconds: i
         except OSError:
             pass
     return removed
+
+
+ALLOWED_OBJECT_MIME_TYPES = {
+    "audio/wav",
+    "audio/x-wav",
+    "audio/wave",
+    "audio/mpeg",
+    "audio/mp3",
+    "audio/mp4",
+    "audio/m4a",
+    "audio/ogg",
+    "audio/webm",
+    "audio/flac",
+    "audio/x-flac",
+    "application/octet-stream",
+    "image/png",
+}
+
+
+@dataclass
+class ObjectMetadata:
+    object_key: str
+    owner_id: str
+    content_type: str
+    size_bytes: int
+    sha256: str
+    created_at_utc: str
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+class ObjectStorageAdapter(Protocol):
+    """Provider-independent object-storage contract supporting S3/R2 migration without rewrites."""
+
+    provider_name: str
+
+    def put_object(
+        self,
+        object_key: str,
+        data: bytes,
+        *,
+        owner_id: str,
+        content_type: str = "application/octet-stream",
+        metadata: dict[str, Any] | None = None,
+    ) -> ObjectMetadata: ...
+
+    def get_object(self, object_key: str, *, expected_owner_id: str | None = None) -> bytes: ...
+    def head_object(self, object_key: str, *, expected_owner_id: str | None = None) -> ObjectMetadata | None: ...
+    def delete_object(self, object_key: str, *, expected_owner_id: str | None = None) -> bool: ...
+    def list_objects(self, prefix: str, *, expected_owner_id: str | None = None) -> list[ObjectMetadata]: ...
+    def verify_object_sha256(self, object_key: str, expected_sha256: str, *, expected_owner_id: str | None = None) -> bool: ...
+
+
+class LocalObjectStorageAdapter:
+    """Atomic local object-storage implementation enforcing ownership, MIME, size, quota, and SHA-256."""
+
+    provider_name = "local"
+
+    def __init__(self, root_dir: Path | None = None) -> None:
+        self._backend = LocalStorageBackend(root_dir=root_dir)
+
+    @property
+    def root(self) -> Path:
+        return self._backend.root
+
+    @staticmethod
+    def _clean_key(object_key: str) -> str:
+        clean = object_key.replace("\\", "/").lstrip("/")
+        if not clean or ".." in Path(clean).parts or clean.endswith(".objmeta.json"):
+            raise PermissionError("Invalid object key")
+        return clean
+
+    @staticmethod
+    def _assert_owner(object_key: str, expected_owner_id: str | None, meta_owner: str | None = None) -> None:
+        if not expected_owner_id:
+            return
+        prefix = f"{expected_owner_id}/"
+        if not object_key.startswith(prefix) or (meta_owner is not None and meta_owner != expected_owner_id):
+            raise PermissionError("Cross-user object access blocked")
+
+    def _meta_path(self, data_path: Path) -> Path:
+        return data_path.with_name(f"{data_path.name}.objmeta.json")
+
+    def put_object(
+        self,
+        object_key: str,
+        data: bytes,
+        *,
+        owner_id: str,
+        content_type: str = "application/octet-stream",
+        metadata: dict[str, Any] | None = None,
+    ) -> ObjectMetadata:
+        clean = self._clean_key(object_key)
+        self._assert_owner(clean, owner_id)
+        ct_norm = (content_type or "application/octet-stream").split(";")[0].strip().lower()
+        if ct_norm not in ALLOWED_OBJECT_MIME_TYPES:
+            raise ValueError(f"Unsupported MIME type: {ct_norm}")
+        if len(data) > MAX_UPLOAD_BYTES:
+            raise ValueError(f"Object exceeds max upload limit ({MAX_UPLOAD_BYTES} bytes)")
+        used = self._backend.user_usage_bytes(owner_id)
+        if used + len(data) > USER_STORAGE_QUOTA_BYTES:
+            mb_limit = USER_STORAGE_QUOTA_BYTES // (1024 * 1024)
+            raise StorageQuotaExceededError(f"User storage quota exceeded ({mb_limit} MB limit).")
+
+        dest = self._backend._safe_rel_path(clean)
+        digest = hashlib.sha256(data).hexdigest()
+        meta = ObjectMetadata(
+            object_key=clean,
+            owner_id=owner_id,
+            content_type=ct_norm,
+            size_bytes=len(data),
+            sha256=digest,
+            created_at_utc=datetime.now(timezone.utc).isoformat(),
+            metadata=dict(metadata or {}),
+        )
+        self._backend.write_bytes_atomic(dest, data)
+        meta_bytes = json.dumps(
+            {
+                "object_key": meta.object_key,
+                "owner_id": meta.owner_id,
+                "content_type": meta.content_type,
+                "size_bytes": meta.size_bytes,
+                "sha256": meta.sha256,
+                "created_at_utc": meta.created_at_utc,
+                "metadata": meta.metadata,
+            },
+            indent=2,
+        ).encode("utf-8")
+        self._backend.write_bytes_atomic(self._meta_path(dest), meta_bytes)
+        return meta
+
+    def head_object(self, object_key: str, *, expected_owner_id: str | None = None) -> ObjectMetadata | None:
+        clean = self._clean_key(object_key)
+        self._assert_owner(clean, expected_owner_id)
+        data_path = self._backend._safe_rel_path(clean)
+        if not data_path.is_file():
+            return None
+        mp = self._meta_path(data_path)
+        if mp.is_file():
+            raw = json.loads(mp.read_text(encoding="utf-8"))
+            self._assert_owner(clean, expected_owner_id, raw.get("owner_id"))
+            return ObjectMetadata(
+                object_key=clean,
+                owner_id=raw.get("owner_id", clean.split("/", 1)[0]),
+                content_type=raw.get("content_type", "application/octet-stream"),
+                size_bytes=int(raw.get("size_bytes", data_path.stat().st_size)),
+                sha256=str(raw.get("sha256", "")),
+                created_at_utc=str(raw.get("created_at_utc", "")),
+                metadata=dict(raw.get("metadata") or {}),
+            )
+        raw_bytes = data_path.read_bytes()
+        return ObjectMetadata(
+            object_key=clean,
+            owner_id=clean.split("/", 1)[0],
+            content_type="application/octet-stream",
+            size_bytes=len(raw_bytes),
+            sha256=hashlib.sha256(raw_bytes).hexdigest(),
+            created_at_utc=datetime.fromtimestamp(data_path.stat().st_mtime, tz=timezone.utc).isoformat(),
+            metadata={},
+        )
+
+    def get_object(self, object_key: str, *, expected_owner_id: str | None = None) -> bytes:
+        meta = self.head_object(object_key, expected_owner_id=expected_owner_id)
+        if meta is None:
+            raise FileNotFoundError(object_key)
+        return self._backend.read_bytes(meta.object_key)
+
+    def delete_object(self, object_key: str, *, expected_owner_id: str | None = None) -> bool:
+        clean = self._clean_key(object_key)
+        self._assert_owner(clean, expected_owner_id)
+        data_path = self._backend._safe_rel_path(clean)
+        mp = self._meta_path(data_path)
+        deleted = self._backend.delete_rel(clean)
+        if mp.is_file():
+            mp.unlink(missing_ok=True)
+        return deleted
+
+    def list_objects(self, prefix: str, *, expected_owner_id: str | None = None) -> list[ObjectMetadata]:
+        clean_prefix = prefix.replace("\\", "/").lstrip("/")
+        self._assert_owner(clean_prefix, expected_owner_id)
+        root_res = self.root.resolve()
+        search_root = self._backend._safe_rel_path(clean_prefix) if clean_prefix else root_res
+        if not search_root.exists():
+            return []
+        out: list[ObjectMetadata] = []
+        for f in sorted(search_root.rglob("*")):
+            if not f.is_file() or f.name.startswith(".tmp_") or f.name.endswith(".objmeta.json"):
+                continue
+            key = str(f.resolve().relative_to(root_res).as_posix())
+            meta = self.head_object(key, expected_owner_id=expected_owner_id)
+            if meta is not None:
+                out.append(meta)
+        return out
+
+    def verify_object_sha256(self, object_key: str, expected_sha256: str, *, expected_owner_id: str | None = None) -> bool:
+        data = self.get_object(object_key, expected_owner_id=expected_owner_id)
+        return hashlib.sha256(data).hexdigest() == expected_sha256
+
+
+class S3CompatibleObjectStorageStub:
+    """Fail-closed placeholder for future owner-approved S3/R2 object storage without billing."""
+
+    provider_name = "s3_compatible_unconfigured"
+
+    def _fail(self) -> Any:
+        raise StorageUnavailableError(
+            "External object storage is not activated. Zero-cost policy prohibits connecting paid/billing storage without owner approval."
+        )
+
+    def put_object(self, *_args: Any, **_kwargs: Any) -> ObjectMetadata:
+        return self._fail()
+
+    def get_object(self, *_args: Any, **_kwargs: Any) -> bytes:
+        return self._fail()
+
+    def head_object(self, *_args: Any, **_kwargs: Any) -> ObjectMetadata | None:
+        return self._fail()
+
+    def delete_object(self, *_args: Any, **_kwargs: Any) -> bool:
+        return self._fail()
+
+    def list_objects(self, *_args: Any, **_kwargs: Any) -> list[ObjectMetadata]:
+        return self._fail()
+
+    def verify_object_sha256(self, *_args: Any, **_kwargs: Any) -> bool:
+        return self._fail()
+
+
+def get_object_storage_adapter(root_dir: Path | None = None) -> ObjectStorageAdapter:
+    if STORAGE_PROVIDER == "local":
+        return LocalObjectStorageAdapter(root_dir=root_dir)
+    return S3CompatibleObjectStorageStub()

@@ -57,20 +57,24 @@ def test_backup_isolated_restore_sha256_and_orphan_detection(client, user_a, tmp
     assert st_orphan["orphaned_files_count"] == 1
     orphan.unlink()
 
-    # 5. Detect SHA-256 tamper & missing file
+    # 5. Detect SHA-256 tamper & missing file (restore original bytes cleanly afterward)
     with db.SessionLocal() as session:
         rec_row = session.get(models.Recording, rec_id)
         assert rec_row is not None
         orig_file = config.STORAGE_DIR / rec_row.original_path
-        orig_file.write_bytes(b"TAMPERED")
-        st_tamper = durability.audit_storage_integrity(session, config.STORAGE_DIR)
-        assert st_tamper["status"] == "FAIL"
-        assert st_tamper["sha256_mismatches_count"] == 1
+        orig_bytes = orig_file.read_bytes()
+        try:
+            orig_file.write_bytes(b"TAMPERED")
+            st_tamper = durability.audit_storage_integrity(session, config.STORAGE_DIR)
+            assert st_tamper["status"] == "FAIL"
+            assert st_tamper["sha256_mismatches_count"] == 1
 
-        orig_file.unlink()
-        st_missing = durability.audit_storage_integrity(session, config.STORAGE_DIR)
-        assert st_missing["status"] == "FAIL"
-        assert st_missing["missing_files_count"] >= 1
+            orig_file.unlink()
+            st_missing = durability.audit_storage_integrity(session, config.STORAGE_DIR)
+            assert st_missing["status"] == "FAIL"
+            assert st_missing["missing_files_count"] >= 1
+        finally:
+            storage.atomic_write_bytes(orig_file, orig_bytes)
 
 
 def test_sqlite_restart_persistence_simulation(client, user_a):

@@ -1,15 +1,15 @@
 ﻿{
-    "generated_at_utc":  "2026-11-18T15:09:09Z",
+    "generated_at_utc":  "2026-11-18T15:52:56Z",
     "repo_root":  "E:\\CanineSense_AI_Complete_Project (1)\\CanineSense_AI",
     "git":  {
                 "git_available":  true,
                 "branch":  "ref: refs/heads/main",
-                "head_sha":  "5dd48eb6c51da066c9e841e9c7c36e32f3abeb43",
-                "origin_main_sha":  "5dd48eb6c51da066c9e841e9c7c36e32f3abeb43",
+                "head_sha":  "1672010f6ff94c0b5ed7f82634defd7b629b5498",
+                "origin_main_sha":  "1672010f6ff94c0b5ed7f82634defd7b629b5498",
                 "gh_pages_sha":  "3c866a9954504c07e600ae560d8c585062a218d5",
                 "origin_gh_pages_sha":  "3c866a9954504c07e600ae560d8c585062a218d5",
                 "working_tree_dirty":  true,
-                "dirty_files_count":  15,
+                "dirty_files_count":  14,
                 "remote_url":  "https://github.com/sanjaykiran645-beep/-Human-to-Dog-Communication-Data-Integrity.git"
             },
     "apk_sha256":  "E17BD6DD6221DDB2A78E99817355BCA409F2F6945910F4BEC854585686AA34AC",
@@ -17,13 +17,13 @@
                                        "SECURITY RISK":  1,
                                        "OBSOLETE":  1,
                                        "REQUIRES OWNER INPUT":  2,
-                                       "PASS":  678,
+                                       "PASS":  735,
                                        "MISSING":  0,
                                        "UNUSED":  0,
                                        "DUPLICATE":  17,
                                        "DEFECTIVE":  1
                                    },
-    "total_files_audited":  700,
+    "total_files_audited":  757,
     "findings":  [
                      {
                          "id":  "RT-INFRA-01",
@@ -246,7 +246,7 @@
                   {
                       "path":  "engine_a_metrics.json",
                       "bytes":  5290,
-                      "last_write_utc":  "2026-11-18T12:55:03Z",
+                      "last_write_utc":  "2026-11-18T15:47:28Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -364,15 +364,15 @@
                   },
                   {
                       "path":  "RED_TEAM_AUDIT.json",
-                      "bytes":  242650,
-                      "last_write_utc":  "2026-11-18T14:59:40Z",
+                      "bytes":  259707,
+                      "last_write_utc":  "2026-11-18T15:43:20Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
                   {
                       "path":  "RED_TEAM_AUDIT.md",
                       "bytes":  2097,
-                      "last_write_utc":  "2026-11-18T14:59:40Z",
+                      "last_write_utc":  "2026-11-18T15:43:20Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -434,8 +434,8 @@
                   },
                   {
                       "path":  "backend/app/db.py",
-                      "bytes":  2908,
-                      "last_write_utc":  "2026-11-18T15:03:43Z",
+                      "bytes":  3387,
+                      "last_write_utc":  "2026-11-18T15:42:02Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -448,8 +448,8 @@
                   },
                   {
                       "path":  "backend/app/main.py",
-                      "bytes":  7158,
-                      "last_write_utc":  "2026-11-18T15:04:40Z",
+                      "bytes":  7830,
+                      "last_write_utc":  "2026-11-18T15:42:16Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -616,8 +616,8 @@
                   },
                   {
                       "path":  "backend/app/services/durability.py",
-                      "bytes":  14057,
-                      "last_write_utc":  "2026-11-18T15:04:35Z",
+                      "bytes":  15614,
+                      "last_write_utc":  "2026-11-18T15:42:11Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -646,6 +646,13 @@
                       "path":  "backend/app/services/intent.py",
                       "bytes":  12936,
                       "last_write_utc":  "2026-11-15T17:29:40Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "backend/app/services/migration_prep.py",
+                      "bytes":  7919,
+                      "last_write_utc":  "2026-11-18T15:42:18Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -679,8 +686,8 @@
                   },
                   {
                       "path":  "backend/app/services/storage.py",
-                      "bytes":  7607,
-                      "last_write_utc":  "2026-11-18T15:04:29Z",
+                      "bytes":  16889,
+                      "last_write_utc":  "2026-11-18T15:42:07Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -931,8 +938,8 @@
                   },
                   {
                       "path":  "backend/tests/test_data_durability.py",
-                      "bytes":  4964,
-                      "last_write_utc":  "2026-11-18T07:20:02Z",
+                      "bytes":  5175,
+                      "last_write_utc":  "2026-11-18T15:51:55Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -968,6 +975,13 @@
                       "path":  "backend/tests/test_phase14_security.py",
                       "bytes":  9531,
                       "last_write_utc":  "2026-11-18T15:08:02Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "backend/tests/test_phase15_migration_readiness.py",
+                      "bytes":  4703,
+                      "last_write_utc":  "2026-11-18T15:42:50Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -3772,6 +3786,76 @@
                       "reason":  "Verified on disk"
                   },
                   {
+                      "path":  "docs/CANINESENSE_PHASE14_ANDROID_BUILD_REPORT.md",
+                      "bytes":  2819,
+                      "last_write_utc":  "2026-11-18T15:36:18Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "docs/CANINESENSE_PHASE14_DATA_PERSISTENCE_REPORT.md",
+                      "bytes":  6648,
+                      "last_write_utc":  "2026-11-18T15:35:48Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "docs/CANINESENSE_PHASE14_DEPLOYMENT_TRACEABILITY.md",
+                      "bytes":  3873,
+                      "last_write_utc":  "2026-11-18T15:35:54Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "docs/CANINESENSE_PHASE14_DISASTER_RECOVERY_REPORT.md",
+                      "bytes":  3563,
+                      "last_write_utc":  "2026-11-18T15:35:50Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "docs/CANINESENSE_PHASE14_MASTER_RELEASE_AUDIT.md",
+                      "bytes":  5982,
+                      "last_write_utc":  "2026-11-18T15:35:45Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "docs/CANINESENSE_PHASE14_OWNER_APPROVAL_REQUIRED.md",
+                      "bytes":  2320,
+                      "last_write_utc":  "2026-11-18T15:36:25Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "docs/CANINESENSE_PHASE14_REMAINING_BLOCKERS.md",
+                      "bytes":  1904,
+                      "last_write_utc":  "2026-11-18T15:36:27Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "docs/CANINESENSE_PHASE14_SCIENTIFIC_INTEGRITY_REPORT.md",
+                      "bytes":  2718,
+                      "last_write_utc":  "2026-11-18T15:36:20Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "docs/CANINESENSE_PHASE14_SECURITY_FINAL_AUDIT.md",
+                      "bytes":  4983,
+                      "last_write_utc":  "2026-11-18T15:35:52Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "docs/CANINESENSE_PHASE14_TEST_RESULTS.json",
+                      "bytes":  3297,
+                      "last_write_utc":  "2026-11-18T15:36:23Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
                       "path":  "docs/CANINESENSE_PRIORITY_6_FINAL_REPORT.md",
                       "bytes":  11970,
                       "last_write_utc":  "2026-11-15T16:10:05Z",
@@ -3830,7 +3914,7 @@
                   {
                       "path":  "docs/engine_a_metrics.json",
                       "bytes":  5290,
-                      "last_write_utc":  "2026-11-18T12:55:03Z",
+                      "last_write_utc":  "2026-11-18T15:47:28Z",
                       "classification":  "DUPLICATE",
                       "reason":  "Duplicate of root documentation file"
                   },
@@ -4381,6 +4465,13 @@
                       "reason":  "Verified on disk"
                   },
                   {
+                      "path":  "logs/android-readiness-20261118-204708.log",
+                      "bytes":  297,
+                      "last_write_utc":  "2026-11-18T15:17:08Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
                       "path":  "logs/data-integrity-20261118-124843.log",
                       "bytes":  5290,
                       "last_write_utc":  "2026-11-18T07:19:03Z",
@@ -4398,6 +4489,27 @@
                       "path":  "logs/data-integrity-20261118-182112.log",
                       "bytes":  1592,
                       "last_write_utc":  "2026-11-18T12:51:40Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/data-integrity-20261118-203912.log",
+                      "bytes":  1592,
+                      "last_write_utc":  "2026-11-18T15:09:32Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/data-integrity-20261118-204826.log",
+                      "bytes":  1592,
+                      "last_write_utc":  "2026-11-18T15:18:45Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/data-integrity-20261118-211336.log",
+                      "bytes":  1592,
+                      "last_write_utc":  "2026-11-18T15:43:56Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4444,16 +4556,23 @@
                       "reason":  "Verified on disk"
                   },
                   {
+                      "path":  "logs/deploy-recovery-20261118-204929.log",
+                      "bytes":  1048,
+                      "last_write_utc":  "2026-11-18T15:19:36Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
                       "path":  "logs/latest-regression-results.json",
-                      "bytes":  6180,
-                      "last_write_utc":  "2026-11-18T15:03:18Z",
+                      "bytes":  6233,
+                      "last_write_utc":  "2026-11-18T15:51:27Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
                   {
                       "path":  "logs/latest-release-verify.json",
-                      "bytes":  2729,
-                      "last_write_utc":  "2026-11-18T14:45:59Z",
+                      "bytes":  2849,
+                      "last_write_utc":  "2026-11-18T15:21:28Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4472,9 +4591,23 @@
                       "reason":  "Verified on disk"
                   },
                   {
+                      "path":  "logs/ml-improvement-20261118-204210.log",
+                      "bytes":  824,
+                      "last_write_utc":  "2026-11-18T15:13:21Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/ml-improvement-20261118-211616.log",
+                      "bytes":  824,
+                      "last_write_utc":  "2026-11-18T15:47:29Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
                       "path":  "logs/phase13-android-readiness.json",
                       "bytes":  1556,
-                      "last_write_utc":  "2026-11-18T13:00:09Z",
+                      "last_write_utc":  "2026-11-18T15:17:08Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4508,29 +4641,43 @@
                   },
                   {
                       "path":  "logs/phase13-audit-20261118-203907.log",
+                      "bytes":  718,
+                      "last_write_utc":  "2026-11-18T15:09:10Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase13-audit-20261118-211317.log",
+                      "bytes":  718,
+                      "last_write_utc":  "2026-11-18T15:43:20Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase13-audit-20261118-212255.log",
                       "bytes":  488,
-                      "last_write_utc":  "2026-11-18T15:09:09Z",
+                      "last_write_utc":  "2026-11-18T15:52:57Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
                   {
                       "path":  "logs/phase13-audit-summary.json",
-                      "bytes":  418,
-                      "last_write_utc":  "2026-11-18T14:59:40Z",
+                      "bytes":  419,
+                      "last_write_utc":  "2026-11-18T15:43:20Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
                   {
                       "path":  "logs/phase13-data-integrity.json",
-                      "bytes":  4824,
-                      "last_write_utc":  "2026-11-18T12:51:40Z",
+                      "bytes":  8402,
+                      "last_write_utc":  "2026-11-18T15:43:56Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
                   {
                       "path":  "logs/phase13-ml-evaluation.json",
                       "bytes":  469,
-                      "last_write_utc":  "2026-11-18T12:55:04Z",
+                      "last_write_utc":  "2026-11-18T15:47:29Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4558,14 +4705,175 @@
                   {
                       "path":  "logs/phase13-security-hardening.json",
                       "bytes":  352,
-                      "last_write_utc":  "2026-11-18T12:53:03Z",
+                      "last_write_utc":  "2026-11-18T15:45:14Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase14-android-20261118-204707.log",
+                      "bytes":  590,
+                      "last_write_utc":  "2026-11-18T15:17:08Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase14-android.json",
+                      "bytes":  1607,
+                      "last_write_utc":  "2026-11-18T15:17:09Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase14-deployment-20261118-204710.log",
+                      "bytes":  3590,
+                      "last_write_utc":  "2026-11-18T15:17:24Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase14-deployment-20261118-205116.log",
+                      "bytes":  3806,
+                      "last_write_utc":  "2026-11-18T15:21:28Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase14-deployment.json",
+                      "bytes":  1323,
+                      "last_write_utc":  "2026-11-18T15:21:34Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase14-persistence-20261118-203911.log",
+                      "bytes":  2182,
+                      "last_write_utc":  "2026-11-18T15:10:13Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase14-persistence-20261118-204825.log",
+                      "bytes":  2189,
+                      "last_write_utc":  "2026-11-18T15:19:07Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase14-persistence-20261118-211335.log",
+                      "bytes":  2189,
+                      "last_write_utc":  "2026-11-18T15:44:18Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase14-persistence.json",
+                      "bytes":  1065,
+                      "last_write_utc":  "2026-11-18T15:44:18Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
                   {
                       "path":  "logs/phase14-release-20261118-203906.log",
-                      "bytes":  576,
-                      "last_write_utc":  "2026-11-18T15:09:09Z",
+                      "bytes":  6335,
+                      "last_write_utc":  "2026-11-18T15:17:31Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase14-release-summary.json",
+                      "bytes":  1662,
+                      "last_write_utc":  "2026-11-18T15:17:31Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase14-security-20261118-204014.log",
+                      "bytes":  5274,
+                      "last_write_utc":  "2026-11-18T15:12:09Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase14-security-20261118-211419.log",
+                      "bytes":  5274,
+                      "last_write_utc":  "2026-11-18T15:46:15Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase14-security.json",
+                      "bytes":  389,
+                      "last_write_utc":  "2026-11-18T15:46:15Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase15-audit-20261118-211316.log",
+                      "bytes":  1432,
+                      "last_write_utc":  "2026-11-18T15:43:20Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase15-audit-20261118-212254.log",
+                      "bytes":  0,
+                      "last_write_utc":  "2026-11-18T15:52:55Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase15-audit.json",
+                      "bytes":  428,
+                      "last_write_utc":  "2026-11-18T15:43:20Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase15-backup-verify-20261118-211334.log",
+                      "bytes":  640,
+                      "last_write_utc":  "2026-11-18T15:44:18Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase15-backup-verify.json",
+                      "bytes":  1190,
+                      "last_write_utc":  "2026-11-18T15:44:18Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase15-migration-prep-20261118-211321.log",
+                      "bytes":  4961,
+                      "last_write_utc":  "2026-11-18T15:43:34Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase15-migration-readiness.json",
+                      "bytes":  16155,
+                      "last_write_utc":  "2026-11-18T15:43:34Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase15-release-20261118-211315.log",
+                      "bytes":  3363,
+                      "last_write_utc":  "2026-11-18T15:51:27Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase15-release-20261118-212253.log",
+                      "bytes":  91,
+                      "last_write_utc":  "2026-11-18T15:52:53Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/phase15-release-summary.json",
+                      "bytes":  1399,
+                      "last_write_utc":  "2026-11-18T15:51:27Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4627,8 +4935,22 @@
                   },
                   {
                       "path":  "logs/redteam-audit-20261118-203909.log",
+                      "bytes":  342,
+                      "last_write_utc":  "2026-11-18T15:09:10Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/redteam-audit-20261118-211318.log",
+                      "bytes":  342,
+                      "last_write_utc":  "2026-11-18T15:43:20Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/redteam-audit-20261118-212256.log",
                       "bytes":  212,
-                      "last_write_utc":  "2026-11-18T15:09:09Z",
+                      "last_write_utc":  "2026-11-18T15:52:57Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4678,6 +5000,20 @@
                       "path":  "logs/regression-20261118-202941.log",
                       "bytes":  57503,
                       "last_write_utc":  "2026-11-18T15:03:18Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/regression-20261118-204322.log",
+                      "bytes":  58041,
+                      "last_write_utc":  "2026-11-18T15:17:06Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/regression-20261118-211729.log",
+                      "bytes":  60237,
+                      "last_write_utc":  "2026-11-18T15:51:27Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4745,6 +5081,20 @@
                       "reason":  "Verified on disk"
                   },
                   {
+                      "path":  "logs/release-verify-20261118-204710.log",
+                      "bytes":  1811,
+                      "last_write_utc":  "2026-11-18T15:17:24Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/release-verify-20261118-205116.log",
+                      "bytes":  1919,
+                      "last_write_utc":  "2026-11-18T15:21:28Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
                       "path":  "logs/security-hardening-20261118-125044.log",
                       "bytes":  4708,
                       "last_write_utc":  "2026-11-18T07:21:42Z",
@@ -4755,6 +5105,20 @@
                       "path":  "logs/security-hardening-20261118-182141.log",
                       "bytes":  4708,
                       "last_write_utc":  "2026-11-18T12:53:03Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/security-hardening-20261118-204015.log",
+                      "bytes":  4708,
+                      "last_write_utc":  "2026-11-18T15:11:09Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "logs/security-hardening-20261118-211420.log",
+                      "bytes":  4708,
+                      "last_write_utc":  "2026-11-18T15:45:14Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4866,7 +5230,7 @@
                   {
                       "path":  "scripts/CanineSense-Phase14-Persistence.ps1",
                       "bytes":  4098,
-                      "last_write_utc":  "2026-11-18T15:08:44Z",
+                      "last_write_utc":  "2026-11-18T15:17:55Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },
@@ -4881,6 +5245,41 @@
                       "path":  "scripts/CanineSense-Phase14-Security.ps1",
                       "bytes":  4638,
                       "last_write_utc":  "2026-11-18T15:08:46Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "scripts/CanineSense-Phase15-Android-Readiness.ps1",
+                      "bytes":  894,
+                      "last_write_utc":  "2026-11-18T15:42:59Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "scripts/CanineSense-Phase15-Audit.ps1",
+                      "bytes":  2022,
+                      "last_write_utc":  "2026-11-18T15:42:52Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "scripts/CanineSense-Phase15-Backup-Verify.ps1",
+                      "bytes":  1860,
+                      "last_write_utc":  "2026-11-18T15:42:57Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "scripts/CanineSense-Phase15-Migration-Prepare.ps1",
+                      "bytes":  5256,
+                      "last_write_utc":  "2026-11-18T15:42:54Z",
+                      "classification":  "PASS",
+                      "reason":  "Verified on disk"
+                  },
+                  {
+                      "path":  "scripts/CanineSense-Phase15-Release.ps1",
+                      "bytes":  3423,
+                      "last_write_utc":  "2026-11-18T15:43:02Z",
                       "classification":  "PASS",
                       "reason":  "Verified on disk"
                   },

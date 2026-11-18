@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from . import SYNTH_MODEL_VERSION, BEHAVIOR_MODEL_VERSION, MODEL_VERSION, __version__
 from .config import BACKUP_DIR, BACKUP_MAX_AGE_HOURS, DB_BACKEND, IS_EPHEMERAL_STORAGE, STORAGE_PROVIDER
-from .db import init_db
+from .db import LATEST_MIGRATION_VERSION, get_applied_migrations, init_db
 from .routers import analytics, auth, communicate, dogs, experiments, recordings
 from .services.audio import decoder_status, find_ffmpeg
 from .services.durability import check_backup_health
@@ -99,6 +99,10 @@ def health() -> dict:
     # Public endpoint: never expose host filesystem paths or tool build strings.
     dec = {k: v for k, v in dec.items() if k not in {"ffmpeg_path", "ffmpeg_version"}}
     bkp = check_backup_health(BACKUP_DIR, BACKUP_MAX_AGE_HOURS)
+    applied = get_applied_migrations()
+    mig_ver = applied[-1] if applied else LATEST_MIGRATION_VERSION
+    durable_storage = not IS_EPHEMERAL_STORAGE
+    durable_backup = False if IS_EPHEMERAL_STORAGE else (bkp["backup_count"] > 0 and bkp["status"] == "OK")
     return {
         "status": "ok" if dec["soundfile_wav"] else "degraded",
         "version": __version__,
@@ -110,7 +114,13 @@ def health() -> dict:
         "persistence": {
             "provider": STORAGE_PROVIDER,
             "database_backend": DB_BACKEND,
-            "durable_across_redeploy": not IS_EPHEMERAL_STORAGE,
+            "storage_backend": STORAGE_PROVIDER,
+            "persistent_storage_available": durable_storage,
+            "durable_backup_available": durable_backup,
+            "last_verified_backup": bkp.get("last_verified_backup"),
+            "migration_version": mig_ver,
+            "data_durability_status": "DURABLE" if durable_storage else "BLOCKED_EPHEMERAL",
+            "durable_across_redeploy": durable_storage,
             "backup_status": bkp["status"],
             "backup_count": bkp["backup_count"],
             "last_backup_age_hours": bkp["last_backup_age_hours"],

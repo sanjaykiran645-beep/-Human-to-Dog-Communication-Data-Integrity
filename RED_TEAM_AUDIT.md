@@ -1,11 +1,11 @@
 ﻿# CanineSense AI — Automated Red-Team Audit
 
-- **Generated UTC:** 2026-11-18T15:09:09Z
+- **Generated UTC:** 2026-11-18T15:52:56Z
 - **Repo Root:** `E:\CanineSense_AI_Complete_Project (1)\CanineSense_AI`
-- **Git HEAD:** `5dd48eb6c51da066c9e841e9c7c36e32f3abeb43` (branch ref: `ref: refs/heads/main`)
+- **Git HEAD:** `1672010f6ff94c0b5ed7f82634defd7b629b5498` (branch ref: `ref: refs/heads/main`)
 - **GitHub Pages Ref:** `3c866a9954504c07e600ae560d8c585062a218d5`
 - **APK SHA-256:** `E17BD6DD6221DDB2A78E99817355BCA409F2F6945910F4BEC854585686AA34AC`
-- **Total Files Audited (excluding build/git/cache):** 700
+- **Total Files Audited (excluding build/git/cache):** 757
 
 ## Classification Totals
 
@@ -14,7 +14,7 @@
 | SECURITY RISK | 1 |
 | OBSOLETE | 1 |
 | REQUIRES OWNER INPUT | 2 |
-| PASS | 678 |
+| PASS | 735 |
 | MISSING | 0 |
 | UNUSED | 0 |
 | DUPLICATE | 17 |

@@ -156,7 +156,7 @@ def audit_storage_integrity(db: Session, storage_dir: Path = STORAGE_DIR) -> dic
     if storage_dir.exists():
         root_res = storage_dir.resolve()
         for f in storage_dir.rglob("*"):
-            if not f.is_file() or f.name.startswith(".tmp_"):
+            if not f.is_file() or f.name.startswith(".tmp_") or f.name.endswith(".objmeta.json"):
                 continue
             rel_str = str(f.resolve().relative_to(root_res))
             if rel_str not in referenced_rel_paths:
@@ -293,18 +293,49 @@ def check_backup_health(
     max_age_hours: int = BACKUP_MAX_AGE_HOURS,
 ) -> dict[str, Any]:
     if not backup_dir.exists():
-        return {"status": "WARN_NO_BACKUPS", "backup_count": 0, "last_backup_age_hours": None}
+        return {"status": "WARN_NO_BACKUPS", "backup_count": 0, "last_backup_age_hours": None, "last_verified_backup": None}
     zips = sorted(backup_dir.glob("caninesense_backup_*.zip"), key=lambda p: p.stat().st_mtime, reverse=True)
     if not zips:
-        return {"status": "WARN_NO_BACKUPS", "backup_count": 0, "last_backup_age_hours": None}
+        return {"status": "WARN_NO_BACKUPS", "backup_count": 0, "last_backup_age_hours": None, "last_verified_backup": None}
     latest = zips[0]
     age_hours = round((datetime.now(timezone.utc) - datetime.fromtimestamp(latest.stat().st_mtime, tz=timezone.utc)).total_seconds() / 3600.0, 2)
     stale = age_hours > max(1, max_age_hours)
+    last_verified_iso = datetime.fromtimestamp(latest.stat().st_mtime, tz=timezone.utc).isoformat()
+    meta_path = latest.with_suffix(".meta.json")
+    if meta_path.is_file():
+        try:
+            meta_obj = json.loads(meta_path.read_text(encoding="utf-8"))
+            if meta_obj.get("created_at_utc"):
+                last_verified_iso = str(meta_obj["created_at_utc"])
+        except Exception:
+            pass
     return {
         "status": "WARN_STALE" if stale else "OK",
         "backup_count": len(zips),
         "last_backup_age_hours": age_hours,
+        "last_verified_backup": last_verified_iso,
         "max_age_hours_threshold": max_age_hours,
+    }
+
+
+def verify_backup_archive(backup_zip: Path) -> dict[str, Any]:
+    """Read-only verification of backup archive zip, metadata sidecar SHA-256, and isolated restore."""
+    if not backup_zip.exists():
+        return {"status": "FAIL", "reason": f"Backup archive not found: {backup_zip}"}
+    actual_zip_sha = _sha256_file(backup_zip)
+    meta_path = backup_zip.with_suffix(".meta.json")
+    sidecar_match: bool | None = None
+    if meta_path.is_file():
+        meta_obj = json.loads(meta_path.read_text(encoding="utf-8"))
+        sidecar_match = meta_obj.get("backup_sha256") == actual_zip_sha
+        if not sidecar_match:
+            return {"status": "FAIL", "reason": "Backup archive SHA-256 does not match .meta.json sidecar"}
+    restore_rep = validate_restore_in_isolation(backup_zip)
+    return {
+        "status": restore_rep.get("status", "FAIL"),
+        "backup_sha256": actual_zip_sha,
+        "sidecar_verified": sidecar_match,
+        "isolated_restore": restore_rep,
     }
 
 

@@ -262,6 +262,13 @@ def _analyze_impl(upload: UploadFile, dog_id: str | None, source: str, user: mod
         raise HTTPException(status_code=500, detail="Analysis failed. The recording was not saved.") from exc
 
     try:
+        # Durable backends: every recording artifact must be in the bucket before the DB row exists.
+        storage.persist_tree(folder)
+    except Exception:
+        storage.delete_recording_tree(user.id, rec_id)
+        raise
+
+    try:
         rec = models.Recording(
             id=rec_id,
             user_id=user.id,
@@ -592,6 +599,8 @@ def delete_recording(
     db: Session = Depends(get_db),
 ) -> dict:
     rec = _recording_owned(db, user, recording_id)
+    # Durable backends: purge remote objects first so a bucket failure surfaces (503) and can be retried.
+    storage.purge_remote_recording_tree(user.id, recording_id)
     db.query(models.DogResponse).filter(
         models.DogResponse.recording_id == rec.id,
         models.DogResponse.user_id == user.id,
@@ -603,7 +612,7 @@ def delete_recording(
     db.delete(rec)
     audit.log(db, action="recording.delete", entity="recording", user_id=user.id, entity_id=recording_id)
     db.commit()
-    storage.delete_recording_tree(user.id, recording_id)
+    storage.delete_recording_tree(user.id, recording_id, include_remote=False)
     return {"ok": True}
 
 
@@ -629,6 +638,7 @@ def _media(user: models.User, rec: models.Recording, kind: str) -> FileResponse:
                 wave_p = proc_path.parent / "waveform.png"
                 spec_p = proc_path.parent / "spectrogram.png"
                 ensure_plots(proc_path, wave_p, spec_p)
+                storage.persist_files(wave_p, spec_p)
                 path = storage.resolve_owned(user.id, stored)
             except Exception:
                 raise HTTPException(status_code=404, detail="Media not found") from None

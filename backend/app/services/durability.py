@@ -17,6 +17,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from .. import models
+from . import storage
 from ..config import (
     BACKUP_DIR,
     BACKUP_MAX_AGE_HOURS,
@@ -105,6 +106,22 @@ def audit_storage_integrity(db: Session, storage_dir: Path = STORAGE_DIR) -> dic
     sha256_mismatches: list[dict[str, str]] = []
     referenced_rel_paths: set[str] = set()
 
+    # Durable (S3/R2) backends: the bucket is the source of truth, so a file that is absent from the local
+    # cache (fresh container disk) but present in the bucket is NOT missing.
+    remote_inv: dict[str, int] | None = None
+    if storage_dir.resolve() == STORAGE_DIR.resolve():
+        remote_inv = storage.remote_inventory()
+
+    def _present(rel_p: str, full_p: Path) -> bool:
+        if full_p.is_file():
+            return True
+        return remote_inv is not None and Path(rel_p).as_posix() in remote_inv
+
+    def _sha(rel_p: str, full_p: Path) -> str | None:
+        if full_p.is_file():
+            return _sha256_file(full_p)
+        return storage.remote_object_sha256(Path(rel_p).as_posix())
+
     recs = list(db.scalars(select(models.Recording)))
     for r in recs:
         for field_name, rel_p in (
@@ -120,12 +137,12 @@ def audit_storage_integrity(db: Session, storage_dir: Path = STORAGE_DIR) -> dic
             norm_rel = str(Path(rel_p))
             referenced_rel_paths.add(norm_rel)
             full_p = (storage_dir / rel_p).resolve()
-            if not full_p.exists() or not full_p.is_file():
+            if not _present(rel_p, full_p):
                 missing_files.append({"entity": "recording", "id": r.id, "field": field_name, "path": norm_rel})
             elif field_name == "original_path" and r.sha256:
-                actual_sha = _sha256_file(full_p)
+                actual_sha = _sha(rel_p, full_p)
                 if actual_sha != r.sha256:
-                    sha256_mismatches.append({"recording_id": r.id, "expected": r.sha256, "actual": actual_sha})
+                    sha256_mismatches.append({"recording_id": r.id, "expected": r.sha256, "actual": actual_sha or ""})
 
     gens = list(db.scalars(select(models.GeneratedAudio)))
     for g in gens:
@@ -134,7 +151,7 @@ def audit_storage_integrity(db: Session, storage_dir: Path = STORAGE_DIR) -> dic
         norm_rel = str(Path(g.audio_path))
         referenced_rel_paths.add(norm_rel)
         full_p = (storage_dir / g.audio_path).resolve()
-        if not full_p.exists() or not full_p.is_file():
+        if not _present(g.audio_path, full_p):
             missing_files.append({"entity": "generated_audio", "id": g.id, "field": "audio_path", "path": norm_rel})
 
         # Track derived waveform/spectrogram plot files recorded in notes_json or lazily cached beside the audio.
@@ -151,18 +168,27 @@ def audit_storage_integrity(db: Session, storage_dir: Path = STORAGE_DIR) -> dic
         parent_rel = Path(g.audio_path).parent
         for suffix in ("_wave.png", "_spec.png"):
             lazy_rel = parent_rel / f"{g.id}{suffix}"
-            if (storage_dir / lazy_rel).exists():
+            if _present(str(lazy_rel), (storage_dir / lazy_rel).resolve()):
                 referenced_rel_paths.add(str(lazy_rel))
 
     orphaned_files: list[str] = []
+    seen_keys: set[str] = set()
     if storage_dir.exists():
         root_res = storage_dir.resolve()
         for f in storage_dir.rglob("*"):
             if not f.is_file() or f.name.startswith(".tmp_") or f.name.endswith(".objmeta.json"):
                 continue
             rel_str = str(f.resolve().relative_to(root_res))
+            seen_keys.add(Path(rel_str).as_posix())
             if rel_str not in referenced_rel_paths:
                 orphaned_files.append(rel_str)
+    if remote_inv is not None:
+        referenced_posix = {Path(p).as_posix() for p in referenced_rel_paths}
+        for key in sorted(remote_inv):
+            if key in seen_keys or key.endswith(".objmeta.json"):
+                continue
+            if key not in referenced_posix:
+                orphaned_files.append(key)
 
     ok = not missing_files and not sha256_mismatches
     return {

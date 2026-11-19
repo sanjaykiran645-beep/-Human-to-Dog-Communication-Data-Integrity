@@ -381,6 +381,8 @@ def delete_account(
 ) -> dict:
     """Full user erasure: removes DB entities, stored files, private references, and revokes the caller JWT."""
     uid = user.id
+    # Durable backends: purge every remote object first so a bucket failure surfaces (503) and is retryable.
+    storage.purge_remote_user_tree(uid)
     user_trial_ids = select(models.BehaviouralTrial.id).where(models.BehaviouralTrial.user_id == uid)
     db.query(models.BlindListeningSubmission).filter(models.BlindListeningSubmission.user_id == uid).delete()
     db.query(models.TrialReviewerInvitation).filter(
@@ -407,7 +409,7 @@ def delete_account(
     db.query(models.AuditEvent).filter(models.AuditEvent.user_id == uid).delete()
     db.delete(user)
     db.commit()
-    storage.delete_user_tree(uid)
+    storage.delete_user_tree(uid, include_remote=False)
     # Also erase this user's private reference-library uploads (audio + manifest rows).
     from ..services.reference_library import purge_user_references
 

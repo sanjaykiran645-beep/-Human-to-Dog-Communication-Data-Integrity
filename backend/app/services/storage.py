@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
+import mimetypes
 import os
 import re
 import shutil
@@ -23,6 +25,8 @@ from ..config import (
     STORAGE_REGION,
     USER_STORAGE_QUOTA_BYTES,
 )
+
+log = logging.getLogger(__name__)
 
 _SAFE = re.compile(r"[^a-zA-Z0-9._-]+")
 
@@ -134,12 +138,31 @@ class LocalStorageBackend:
         return total
 
 
+_s3_backend: "S3WriteThroughBackend | None" = None
+
+
 def get_storage_backend() -> StorageBackend:
-    if STORAGE_PROVIDER != "local":
-        raise StorageUnavailableError(
-            f"Unsupported storage provider '{STORAGE_PROVIDER}'. Configure an owner-approved provider adapter before switching."
-        )
-    return LocalStorageBackend()
+    """Return the active storage backend.
+
+    ``local`` keeps the original behaviour. ``s3`` / ``r2`` return a write-through backend: the local
+    ``STORAGE_DIR`` stays the working cache, every committed file is mirrored to the bucket, and files
+    missing locally (fresh container disk) are hydrated from the bucket on read.
+    """
+    global _s3_backend
+    if STORAGE_PROVIDER == "local":
+        return LocalStorageBackend()
+    if STORAGE_PROVIDER in {"s3", "r2"}:
+        if _s3_backend is None:
+            _s3_backend = S3WriteThroughBackend(S3CompatibleObjectStorageAdapter())
+        return _s3_backend
+    raise StorageUnavailableError(
+        f"Unsupported storage provider '{STORAGE_PROVIDER}'. Use 'local', 's3', or 'r2'."
+    )
+
+
+def _remote_backend() -> "S3WriteThroughBackend | None":
+    backend = get_storage_backend()
+    return backend if isinstance(backend, S3WriteThroughBackend) else None
 
 
 def ensure_storage_ready() -> None:
@@ -205,25 +228,119 @@ def resolve_owned(user_id: str, stored: str) -> Path:
     path = (STORAGE_DIR / stored).resolve()
     if not path.is_relative_to(root):
         raise PermissionError("path traversal blocked")
-    if not path.exists() or not path.is_file():
-        raise FileNotFoundError("file not found")
-    return path
+    if path.is_file():
+        return path
+    remote = _remote_backend()
+    if remote is not None and not path.exists():
+        # Fresh/empty container disk: hydrate from the bucket (ownership + SHA-256 verified).
+        key = path.relative_to(STORAGE_DIR.resolve()).as_posix()
+        hydrated = remote.hydrate(key, owner_id=user_id)
+        if hydrated is not None and hydrated.is_file():
+            return hydrated
+    raise FileNotFoundError("file not found")
 
 
 def rel(path: Path) -> str:
     return str(path.resolve().relative_to(STORAGE_DIR.resolve()))
 
 
-def delete_user_tree(user_id: str) -> None:
+def persist_files(*paths: Path) -> None:
+    """Mirror committed local files to the active remote backend (no-op for local storage)."""
+    remote = _remote_backend()
+    if remote is None:
+        return
+    for p in paths:
+        if p.is_file():
+            remote.persist_file(p)
+
+
+def persist_tree(directory: Path) -> None:
+    """Mirror every committed file under ``directory`` to the active remote backend (no-op for local)."""
+    remote = _remote_backend()
+    if remote is None or not directory.is_dir():
+        return
+    for f in sorted(directory.rglob("*")):
+        if f.is_file() and not f.name.startswith(".tmp_"):
+            remote.persist_file(f)
+
+
+def _validate_owner_segment(user_id: str) -> None:
+    if not user_id or "/" in user_id or "\\" in user_id or user_id in {".", ".."} or ".." in user_id:
+        raise PermissionError("Invalid storage owner id")
+
+
+def purge_remote_user_tree(user_id: str) -> int:
+    """Strictly delete every remote object under ``{user_id}/``. Raises StorageUnavailableError on failure."""
+    _validate_owner_segment(user_id)
+    remote = _remote_backend()
+    return remote.purge_prefix(f"{user_id}/", owner_id=user_id) if remote is not None else 0
+
+
+def purge_remote_recording_tree(user_id: str, recording_id: str) -> int:
+    _validate_owner_segment(user_id)
+    _validate_owner_segment(recording_id)
+    remote = _remote_backend()
+    if remote is None:
+        return 0
+    return remote.purge_prefix(f"{user_id}/recordings/{recording_id}/", owner_id=user_id)
+
+
+def purge_generated_best_effort(user_id: str, generated_id: str) -> None:
+    """Remove a generated-audio triple (wav + waveform + spectrogram) from the bucket; logged on failure."""
+    try:
+        _validate_owner_segment(user_id)
+        _validate_owner_segment(generated_id)
+        remote = _remote_backend()
+        if remote is not None:
+            remote.purge_prefix(f"{user_id}/generated/{generated_id}", owner_id=user_id)
+            remote.forget_prefix(f"{user_id}/generated/{generated_id}")
+    except (StorageUnavailableError, PermissionError):
+        log.warning("Remote cleanup failed for generated audio %s/%s", user_id, generated_id, exc_info=True)
+
+
+def delete_user_tree(user_id: str, *, include_remote: bool = True) -> None:
     path = STORAGE_DIR / user_id
     if path.exists():
         shutil.rmtree(path, ignore_errors=True)
+    remote = _remote_backend()
+    if remote is not None:
+        remote.forget_prefix(f"{user_id}/")
+        if include_remote:
+            purge_remote_user_tree(user_id)
 
 
-def delete_recording_tree(user_id: str, recording_id: str) -> None:
+def delete_recording_tree(user_id: str, recording_id: str, *, include_remote: bool = True) -> None:
+    """Delete a recording's local files and (best effort, logged) its remote objects.
+
+    Used for failure cleanup; explicit delete endpoints call ``purge_remote_recording_tree`` first so a
+    remote failure is surfaced instead of leaving orphaned objects.
+    """
     path = STORAGE_DIR / user_id / "recordings" / recording_id
     if path.exists():
         shutil.rmtree(path, ignore_errors=True)
+    remote = _remote_backend()
+    if remote is not None:
+        remote.forget_prefix(f"{user_id}/recordings/{recording_id}/")
+        if include_remote:
+            try:
+                purge_remote_recording_tree(user_id, recording_id)
+            except StorageUnavailableError:
+                log.warning(
+                    "Remote cleanup failed for recording %s/%s; objects may be orphaned", user_id, recording_id, exc_info=True
+                )
+
+
+def remote_inventory() -> dict[str, int] | None:
+    """Return ``{relative_key: size_bytes}`` for the whole bucket prefix, or None for local storage."""
+    remote = _remote_backend()
+    if remote is None:
+        return None
+    return remote.inventory()
+
+
+def remote_object_sha256(key: str) -> str | None:
+    remote = _remote_backend()
+    return remote.object_sha256(key) if remote is not None else None
 
 
 def cleanup_stale_temp_files(storage_dir: Path | None = None, max_age_seconds: int = 3600) -> int:
@@ -481,27 +598,55 @@ class S3CompatibleObjectStorageAdapter:
     def _s3_key(self, clean_key: str) -> str:
         return f"{self.prefix}{clean_key}"
 
+    def list_keys(self, prefix: str, *, expected_owner_id: str | None = None) -> list[tuple[str, int]]:
+        """Cheap listing (no per-object HEAD): returns ``[(relative_key, size_bytes)]`` under ``prefix``."""
+        clean_prefix = prefix.replace("\\", "/").lstrip("/")
+        LocalObjectStorageAdapter._assert_owner(clean_prefix, expected_owner_id)
+        client = self._get_client()
+        out: list[tuple[str, int]] = []
+        token: str | None = None
+        try:
+            while True:
+                params: dict[str, Any] = {"Bucket": self.bucket, "Prefix": self._s3_key(clean_prefix)}
+                if token:
+                    params["ContinuationToken"] = token
+                resp = client.list_objects_v2(**params)
+                for obj in resp.get("Contents", []) or []:
+                    rel_key = self._strip_prefix(str(obj.get("Key", "")))
+                    if rel_key:
+                        out.append((rel_key, int(obj.get("Size", 0))))
+                if not resp.get("IsTruncated"):
+                    break
+                token = resp.get("NextContinuationToken")
+        except StorageUnavailableError:
+            raise
+        except Exception as exc:
+            raise StorageUnavailableError(f"S3/R2 list_objects_v2 failed: {exc}") from exc
+        return out
+
+    def purge_prefix(self, prefix: str, *, expected_owner_id: str | None = None) -> int:
+        """Delete every object under ``prefix`` (must be owner-scoped). Returns the number deleted."""
+        clean_prefix = prefix.replace("\\", "/").lstrip("/")
+        if not clean_prefix or ".." in Path(clean_prefix).parts:
+            raise PermissionError("Invalid object prefix")
+        LocalObjectStorageAdapter._assert_owner(clean_prefix, expected_owner_id)
+        client = self._get_client()
+        deleted = 0
+        for key, _size in self.list_keys(clean_prefix, expected_owner_id=expected_owner_id):
+            try:
+                client.delete_object(Bucket=self.bucket, Key=self._s3_key(key))
+            except Exception as exc:
+                raise StorageUnavailableError(f"S3/R2 delete_object failed: {exc}") from exc
+            deleted += 1
+        return deleted
+
     def _strip_prefix(self, full_key: str) -> str:
         if self.prefix and full_key.startswith(self.prefix):
             return full_key[len(self.prefix) :]
         return full_key
 
     def _user_usage_bytes(self, owner_id: str) -> int:
-        client = self._get_client()
-        s3_pref = self._s3_key(f"{owner_id}/")
-        total = 0
-        token: str | None = None
-        while True:
-            params: dict[str, Any] = {"Bucket": self.bucket, "Prefix": s3_pref}
-            if token:
-                params["ContinuationToken"] = token
-            resp = client.list_objects_v2(**params)
-            for obj in resp.get("Contents", []) or []:
-                total += int(obj.get("Size", 0))
-            if not resp.get("IsTruncated"):
-                break
-            token = resp.get("NextContinuationToken")
-        return total
+        return sum(size for _key, size in self.list_keys(f"{owner_id}/"))
 
     def put_object(
         self,
@@ -623,6 +768,134 @@ class S3CompatibleObjectStorageAdapter:
     def verify_object_sha256(self, object_key: str, expected_sha256: str, *, expected_owner_id: str | None = None) -> bool:
         data = self.get_object(object_key, expected_owner_id=expected_owner_id)
         return hashlib.sha256(data).hexdigest() == expected_sha256
+
+
+class S3WriteThroughBackend:
+    """Durable S3/R2-backed storage with the local ``STORAGE_DIR`` as a working cache.
+
+    * Object keys are the user-scoped relative paths (``{user_id}/recordings/{id}/processed.wav``); the
+      adapter adds the configured bucket prefix.
+    * ``persist_file`` uploads a committed local file (with owner metadata and SHA-256).
+    * ``hydrate`` fetches a missing file back into the local cache, verifying owner and SHA-256.
+    * ``purge_prefix`` deletes every remote object under an owner-scoped prefix.
+    """
+
+    provider_name = "s3"
+
+    def __init__(self, adapter: S3CompatibleObjectStorageAdapter, root_dir: Path | None = None) -> None:
+        self.adapter = adapter
+        self._local = LocalStorageBackend(root_dir=root_dir)
+        self._mirrored: dict[str, tuple[int, int]] = {}
+
+    @property
+    def root(self) -> Path:
+        return self._local.root
+
+    def ensure_available(self) -> None:
+        self._local.ensure_available()
+        self.adapter._get_client()  # raises StorageUnavailableError when bucket/boto3 is not configured
+
+    # -- local working-copy operations -------------------------------------------------------------
+    def write_bytes_atomic(self, dest: Path, data: bytes) -> None:
+        self._local.write_bytes_atomic(dest, data)
+
+    def read_bytes(self, rel_path: str) -> bytes:
+        try:
+            return self._local.read_bytes(rel_path)
+        except FileNotFoundError:
+            key = Path(rel_path).as_posix()
+            owner = key.split("/", 1)[0]
+            if self.hydrate(key, owner_id=owner) is None:
+                raise
+            return self._local.read_bytes(rel_path)
+
+    def exists(self, rel_path: str) -> bool:
+        if self._local.exists(rel_path):
+            return True
+        key = Path(rel_path).as_posix()
+        try:
+            return self.adapter.head_object(key, expected_owner_id=key.split("/", 1)[0]) is not None
+        except PermissionError:
+            return False
+
+    def delete_rel(self, rel_path: str) -> bool:
+        key = Path(rel_path).as_posix()
+        owner = key.split("/", 1)[0]
+        local_deleted = self._local.delete_rel(rel_path)
+        self._mirrored.pop(key, None)
+        remote_deleted = self.adapter.delete_object(key, expected_owner_id=owner)
+        return local_deleted or remote_deleted
+
+    # -- remote operations -------------------------------------------------------------------------
+    @staticmethod
+    def _content_type(path: Path) -> str:
+        guessed = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        if guessed in {"audio/x-wav", "audio/wave", "audio/vnd.wave"}:
+            guessed = "audio/wav"
+        return guessed if guessed in ALLOWED_OBJECT_MIME_TYPES else "application/octet-stream"
+
+    def key_for(self, path: Path) -> str:
+        return path.resolve().relative_to(self.root.resolve()).as_posix()
+
+    def put_bytes(self, key: str, data: bytes, *, owner_id: str, content_type: str = "application/octet-stream") -> None:
+        self.adapter.put_object(key, data, owner_id=owner_id, content_type=content_type)
+
+    def put_file(self, path: Path) -> None:
+        self.persist_file(path)
+
+    def persist_file(self, path: Path) -> None:
+        key = self.key_for(path)
+        parts = key.split("/")
+        if len(parts) < 2 or path.name.startswith(".tmp_") or path.name.endswith(".objmeta.json"):
+            raise ValueError(f"Refusing to persist non user-scoped storage key: {key}")
+        st = path.stat()
+        sig = (st.st_size, st.st_mtime_ns)
+        if self._mirrored.get(key) == sig:
+            return
+        self.put_bytes(key, path.read_bytes(), owner_id=parts[0], content_type=self._content_type(path))
+        self._mirrored[key] = sig
+
+    def hydrate(self, key: str, *, owner_id: str) -> Path | None:
+        """Fetch ``key`` into the local cache. Returns the local path, or None when it is not in the bucket."""
+        key = Path(key).as_posix()
+        meta = self.adapter.head_object(key, expected_owner_id=owner_id)
+        if meta is None:
+            return None
+        data = self.adapter.get_object(key, expected_owner_id=owner_id)
+        if meta.sha256 and hashlib.sha256(data).hexdigest() != meta.sha256:
+            raise StorageUnavailableError(f"Remote object failed SHA-256 verification: {key}")
+        dest = self._local._safe_rel_path(key)
+        self._local.write_bytes_atomic(dest, data)
+        st = dest.stat()
+        self._mirrored[key] = (st.st_size, st.st_mtime_ns)
+        return dest
+
+    def purge_prefix(self, prefix: str, *, owner_id: str) -> int:
+        return self.adapter.purge_prefix(prefix, expected_owner_id=owner_id)
+
+    def forget_prefix(self, prefix: str) -> None:
+        for k in [k for k in self._mirrored if k.startswith(prefix)]:
+            self._mirrored.pop(k, None)
+
+    def inventory(self) -> dict[str, int]:
+        return {k: s for k, s in self.adapter.list_keys("")}
+
+    def object_sha256(self, key: str) -> str | None:
+        key = Path(key).as_posix()
+        owner = key.split("/", 1)[0]
+        meta = self.adapter.head_object(key, expected_owner_id=owner)
+        if meta is None:
+            return None
+        if meta.sha256:
+            return meta.sha256
+        return hashlib.sha256(self.adapter.get_object(key, expected_owner_id=owner)).hexdigest()
+
+    # -- StorageBackend usage / listing ------------------------------------------------------------
+    def list_user_keys(self, user_id: str) -> list[str]:
+        return sorted(k for k, _s in self.adapter.list_keys(f"{user_id}/", expected_owner_id=user_id))
+
+    def user_usage_bytes(self, user_id: str) -> int:
+        return self.adapter._user_usage_bytes(user_id)
 
 
 class S3CompatibleObjectStorageStub:

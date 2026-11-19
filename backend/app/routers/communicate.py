@@ -669,6 +669,14 @@ def generate(
         sf.write(str(path), y.astype(np.float32), int(params["sr"]), subtype="PCM_16")
         validation = validate_generated_wav(path, expected_sr=int(params["sr"]))
         write_plots(y, int(params["sr"]), wave_path, spec_path)
+        # Durable backends: mirror to the bucket before the DB row is written.
+        storage.persist_files(path, wave_path, spec_path)
+    except (storage.StorageUnavailableError, storage.StorageQuotaExceededError):
+        path.unlink(missing_ok=True)
+        wave_path.unlink(missing_ok=True)
+        spec_path.unlink(missing_ok=True)
+        storage.purge_generated_best_effort(user.id, gen_id)
+        raise
     except Exception as exc:
         path.unlink(missing_ok=True)
         wave_path.unlink(missing_ok=True)
@@ -775,6 +783,7 @@ def generate(
         path.unlink(missing_ok=True)
         wave_path.unlink(missing_ok=True)
         spec_path.unlink(missing_ok=True)
+        storage.purge_generated_best_effort(user.id, gen_id)
         raise HTTPException(status_code=500, detail="Failed to persist generated audio record.") from exc
 
     parsed["reference_category"] = params.get("requested_category")
@@ -867,6 +876,9 @@ def get_generated_media(
     target_path = wave_path if kind == "waveform" else spec_path
     try:
         ensure_plots(wav_path, wave_path, spec_path)
+        storage.persist_files(wave_path, spec_path)
+    except storage.StorageUnavailableError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail="Could not render media plot") from exc
     return FileResponse(target_path, media_type="image/png", filename=target_path.name)
@@ -1147,6 +1159,12 @@ def record_response(
     except Exception as exc:
         storage.delete_recording_tree(user.id, rec_id)
         raise HTTPException(status_code=500, detail="Response analysis failed.") from exc
+
+    try:
+        storage.persist_tree(folder)
+    except Exception:
+        storage.delete_recording_tree(user.id, rec_id)
+        raise
 
     try:
         rec = models.Recording(

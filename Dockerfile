@@ -50,11 +50,9 @@ COPY --from=frontend-builder /build/frontend/dist /app/frontend/dist
 # Copy bundled reference library (134 approved canine vocalizations + manifest) & evaluation samples
 COPY data/reference_library /app/data/reference_library
 COPY data/evaluation_samples /app/data/evaluation_samples
-COPY data/models /app/data/models
-COPY data/releases /app/data/releases
 
-# Prepare data storage directories
-RUN mkdir -p /app/data/storage /app/data/scratch
+# Prepare runtime data directories (no unbuilt APK or quarantined models baked in)
+RUN mkdir -p /app/data/storage /app/data/scratch /app/data/models/candidates /app/data/releases
 
 EXPOSE 8000
 

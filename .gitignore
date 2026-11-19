@@ -18,6 +18,8 @@ frontend/.env.*.local
 
 # Runtime databases, audio storage & data directory
 data/
+!data/evaluation_samples/
+!data/evaluation_samples/blind_listening_manifest.json
 *.sqlite3
 *.sqlite3-shm
 *.sqlite3-wal

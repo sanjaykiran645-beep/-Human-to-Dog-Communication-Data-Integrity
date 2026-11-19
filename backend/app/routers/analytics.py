@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections import Counter
 
 import numpy as np
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+
+log = logging.getLogger("caninesense.analytics")
 
 from .. import BEHAVIOR_MODEL_VERSION, MODEL_VERSION, SYNTH_MODEL_VERSION, models
 from ..db import get_db
@@ -46,9 +49,18 @@ def summary(user: models.User = Depends(get_current_user), db: Session = Depends
             .limit(8)
         )
     )
+    recent_rec_ids = [a.recording_id for a in recent if a.recording_id]
+    recs_by_id = (
+        {
+            r.id: r
+            for r in db.scalars(select(models.Recording).where(models.Recording.id.in_(recent_rec_ids)))
+        }
+        if recent_rec_ids
+        else {}
+    )
     recent_out = []
     for a in recent:
-        rec = db.get(models.Recording, a.recording_id)
+        rec = recs_by_id.get(a.recording_id)
         recent_out.append(
             {
                 "analysis_id": a.id,
@@ -112,7 +124,7 @@ def validation_card(user: models.User = Depends(get_current_user), db: Session =
                 if val is not None and np.isfinite(float(val)) and float(val) > 0:
                     f0s.append(float(val))
             except Exception:
-                pass
+                log.warning("Failed parsing features_json for analysis %s", a.id, exc_info=True)
 
         intel = resolve_breed_intelligence(dog.breed, dog.weight_kg, dog.age_years, sex=dog.sex)
         prior_f0_range = list(intel["vocalization_profile"]["f0_range_hz"])
@@ -153,6 +165,7 @@ def validation_card(user: models.User = Depends(get_current_user), db: Session =
             try:
                 q = json.loads(r.quality_json)
             except Exception:
+                log.warning("Failed parsing quality_json for recording %s", r.id, exc_info=True)
                 q = {}
         cons_lbl = q.get("consensus_label")
         anns = q.get("independent_annotations") or []
@@ -161,21 +174,25 @@ def validation_card(user: models.User = Depends(get_current_user), db: Session =
             if cons_lbl and cons_lbl != "disputed"
             else (anns[0].get("vocalization_label") if anns else None)
         )
+        # Never manufacture self-referential ground truth from unannotated model predictions.
+        if not human_lbl:
+            continue
         resolved_path = ""
         if r and r.processed_path:
             try:
                 resolved_path = str(storage.resolve_owned(user.id, r.processed_path))
             except Exception:
+                log.warning("Unable to resolve processed_path for recording %s", r.id, exc_info=True)
                 resolved_path = ""
         eval_records.append(
             {
                 "dog_id": a.dog_id or (r.dog_id if r else None) or f"rec_{a.recording_id}",
-                "label": human_lbl or a.vocalization,
+                "label": human_lbl,
                 "pred_label": a.vocalization,
                 "confidence": a.confidence,
                 "abstained": a.abstained,
                 "path": resolved_path,
-                "is_fixture": human_lbl is None,
+                "is_fixture": False,
             }
         )
 
@@ -200,6 +217,22 @@ def export_data(user: models.User = Depends(get_current_user), db: Session = Dep
     recs = list(db.scalars(select(models.Recording).where(models.Recording.user_id == user.id)))
     ans = list(db.scalars(select(models.Analysis).where(models.Analysis.user_id == user.id)))
     gens = list(db.scalars(select(models.GeneratedAudio).where(models.GeneratedAudio.user_id == user.id)))
+    participants = list(db.scalars(select(models.StudyParticipant).where(models.StudyParticipant.user_id == user.id)))
+    cues = list(db.scalars(select(models.ExperimentalCue).where(models.ExperimentalCue.user_id == user.id)))
+    schedules = list(db.scalars(select(models.TrialSchedule).where(models.TrialSchedule.user_id == user.id)))
+    trials = list(db.scalars(select(models.BehaviouralTrial).where(models.BehaviouralTrial.user_id == user.id)))
+    reviews = list(
+        db.scalars(
+            select(models.TrialIndependentReview).where(models.TrialIndependentReview.reviewer_user_id == user.id)
+        )
+    )
+    preregistrations = list(
+        db.scalars(select(models.TrialPreregistration).where(models.TrialPreregistration.user_id == user.id))
+    )
+    adverse_events = list(db.scalars(select(models.TrialAdverseEvent).where(models.TrialAdverseEvent.user_id == user.id)))
+    blind_subs = list(
+        db.scalars(select(models.BlindListeningSubmission).where(models.BlindListeningSubmission.user_id == user.id))
+    )
     return {
         "user": {"id": user.id, "email": user.email, "name": user.name, "created_at": user.created_at.isoformat()},
         "dogs": [
@@ -246,6 +279,96 @@ def export_data(user: models.User = Depends(get_current_user), db: Session = Dep
             }
             for g in gens
         ],
+        "study_participants": [
+            {
+                "id": p.id,
+                "pseudonym": p.pseudonym,
+                "breed": p.breed,
+                "sex": p.sex,
+                "owner_consent_confirmed": p.owner_consent_confirmed,
+                "welfare_review_confirmed": p.welfare_review_confirmed,
+                "created_at": p.created_at.isoformat() if p.created_at else None,
+            }
+            for p in participants
+        ],
+        "experimental_cues": [
+            {
+                "id": c.id,
+                "cue_label": c.cue_label,
+                "target_intention": c.target_intention,
+                "action_category": c.action_category,
+                "peak_spl_dba": c.peak_spl_dba,
+                "sha256": c.sha256,
+                "created_at": c.created_at.isoformat() if c.created_at else None,
+            }
+            for c in cues
+        ],
+        "trial_schedules": [
+            {
+                "id": s.id,
+                "participant_id": s.participant_id,
+                "cue_id": s.cue_id,
+                "session_number": s.session_number,
+                "planned_conditions": json.loads(s.planned_conditions_json or "[]"),
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+            }
+            for s in schedules
+        ],
+        "behavioural_trials": [
+            {
+                "id": t.id,
+                "participant_id": t.participant_id,
+                "session_id": t.session_id,
+                "experimental_condition": t.experimental_condition,
+                "outcome_category": t.outcome_category,
+                "measured_spl_dba": t.measured_spl_dba,
+                "freezing_observed": t.freezing_observed,
+                "abort_triggered": t.abort_triggered,
+                "created_at": t.created_at.isoformat() if t.created_at else None,
+            }
+            for t in trials
+        ],
+        "trial_independent_reviews": [
+            {
+                "id": rev.id,
+                "trial_id": rev.trial_id,
+                "scored_outcome_category": rev.scored_outcome_category,
+                "is_blind_to_condition": rev.is_blind_to_condition,
+                "created_at": rev.created_at.isoformat() if rev.created_at else None,
+            }
+            for rev in reviews
+        ],
+        "trial_preregistrations": [
+            {
+                "id": pr.id,
+                "study_title": pr.study_title,
+                "protocol_version": pr.protocol_version,
+                "locked_at": pr.locked_at.isoformat() if pr.locked_at else None,
+            }
+            for pr in preregistrations
+        ],
+        "trial_adverse_events": [
+            {
+                "id": ae.id,
+                "participant_id": ae.participant_id,
+                "severity": ae.severity,
+                "session_aborted": ae.session_aborted,
+                "created_at": ae.created_at.isoformat() if ae.created_at else None,
+            }
+            for ae in adverse_events
+        ],
+        "blind_listening_submissions": [
+            {
+                "id": b.id,
+                "sample_id": b.sample_id,
+                "blind_code": b.blind_code,
+                "perceived_category": b.perceived_category,
+                "naturalness_score": b.naturalness_score,
+                "artifact_severity_score": b.artifact_severity_score,
+                "created_at": b.created_at.isoformat() if b.created_at else None,
+            }
+            for b in blind_subs
+        ],
         "note": "Audio binaries are not inlined. Delete account to remove stored audio.",
     }
 
@@ -259,6 +382,7 @@ def delete_account(
     """Full user erasure: removes DB entities, stored files, private references, and revokes the caller JWT."""
     uid = user.id
     user_trial_ids = select(models.BehaviouralTrial.id).where(models.BehaviouralTrial.user_id == uid)
+    db.query(models.BlindListeningSubmission).filter(models.BlindListeningSubmission.user_id == uid).delete()
     db.query(models.TrialReviewerInvitation).filter(
         (models.TrialReviewerInvitation.study_owner_user_id == uid)
         | (models.TrialReviewerInvitation.invited_by_user_id == uid)

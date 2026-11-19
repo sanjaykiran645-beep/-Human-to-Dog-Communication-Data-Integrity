@@ -5,44 +5,54 @@ import { api, historyCacheKey } from "../api";
 export default function History() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
-
-  async function load() {
-    setLoading(true);
-    try {
-      const serverRecs = await api<any[]>("/api/recordings").catch(() => null);
-      const cacheKey = historyCacheKey();
-      const cached: any[] = JSON.parse(localStorage.getItem(cacheKey) || "[]");
-      // Only explicitly tagged offline-fallback analyses are ever shown from the browser cache.
-      const localRecs = cached.filter((x: any) => x?.unsynced_local_fallback === true);
-      const seen = new Set<string>();
-      const merged: any[] = [];
-      // When the backend answered, SQLite is authoritative; otherwise show tagged local fallbacks only.
-      for (const r of [...(Array.isArray(serverRecs) ? serverRecs : []), ...localRecs]) {
-        const key = r.id || `${r.original_filename}_${r.created_at}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          merged.push(r);
-        }
-      }
-      setItems(merged);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [reloadTick, setReloadTick] = useState(0);
 
   useEffect(() => {
-    load();
-  }, []);
+    let cancelled = false;
+    (async () => {
+      try {
+        const serverRecs = await api<any[]>("/api/recordings");
+        if (cancelled) return;
+        const cacheKey = historyCacheKey();
+        const cached: any[] = JSON.parse(localStorage.getItem(cacheKey) || "[]");
+        const localRecs = cached.filter((x: any) => x?.unsynced_local_fallback === true);
+        const seen = new Set<string>();
+        const merged: any[] = [];
+        for (const r of [...(Array.isArray(serverRecs) ? serverRecs : []), ...localRecs]) {
+          const key = r.id || `${r.original_filename}_${r.created_at}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            merged.push(r);
+          }
+        }
+        setItems(merged);
+        setErr(null);
+      } catch (e: any) {
+        if (!cancelled) {
+          setErr(String(e?.message || "Failed to load saved recordings."));
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadTick]);
 
   async function removeItem(id: string) {
+    setErr(null);
     try {
-      await api(`/api/recordings/${id}`, { method: "DELETE" }).catch(() => {});
-    } catch {}
-    const cacheKey = historyCacheKey();
-    const localRecs = JSON.parse(localStorage.getItem(cacheKey) || "[]").filter((x: any) => x.id !== id);
-    localStorage.setItem(cacheKey, JSON.stringify(localRecs));
-    setItems((prev) => prev.filter((x) => x.id !== id));
+      await api(`/api/recordings/${id}`, { method: "DELETE" });
+      const cacheKey = historyCacheKey();
+      const localRecs = JSON.parse(localStorage.getItem(cacheKey) || "[]").filter((x: any) => x.id !== id);
+      localStorage.setItem(cacheKey, JSON.stringify(localRecs));
+      setItems((prev) => prev.filter((x) => x.id !== id));
+    } catch (e: any) {
+      setErr(String(e?.message || "Could not delete recording from server."));
+    }
   }
 
   const filtered = items.filter((r) => {
@@ -56,6 +66,23 @@ export default function History() {
   return (
     <div className="stack-lg" style={{ maxWidth: 1020, margin: "0 auto" }}>
       <div className="card stack" style={{ padding: 28, borderRadius: 20 }}>
+        {err && (
+          <div className="alert alert-error row" style={{ justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+            <span>{err}</span>
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={() => {
+                setErr(null);
+                setLoading(true);
+                setReloadTick((n) => n + 1);
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 24 }}>Saved Vocalization History ({filtered.length})</h2>

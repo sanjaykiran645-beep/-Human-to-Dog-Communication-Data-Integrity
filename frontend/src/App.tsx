@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import Layout from "./Layout";
-import { getToken } from "./api";
+import { DEMO_MODE_ENABLED, clearSession, getToken } from "./api";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -24,7 +24,11 @@ import NotFound from "./pages/NotFound";
 import CookieBanner from "./components/CookieBanner";
 
 function Private({ children }: { children: ReactNode }) {
-  if (!getToken()) return <Navigate to="/login" replace />;
+  const tok = getToken();
+  if (!tok || (!DEMO_MODE_ENABLED && tok === "cs_demo_token_offline_preview")) {
+    if (tok === "cs_demo_token_offline_preview") clearSession();
+    return <Navigate to="/login" replace />;
+  }
   return <>{children}</>;
 }
 

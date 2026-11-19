@@ -197,3 +197,86 @@ def test_long_bark_train_not_howl():
     feats = extract_features(y, sr)
     result = classify(feats, {"status": "ok"})
     assert result["vocalization"] == "bark"
+
+
+def test_batch3_ml_validation_card_excludes_unannotated_and_trials_paginated(client, user_a, tmp_path):
+    from app.ml.evaluate import evaluate_dog_independent_generalization
+
+    hdr = auth_header(user_a["token"])
+    wav = write_bursts(tmp_path / "unannotated.wav")
+    with wav.open("rb") as fh:
+        rec = client.post(
+            "/api/recordings/analyze",
+            headers=hdr,
+            files={"file": ("unannotated.wav", fh, "audio/wav")},
+        )
+    assert rec.status_code == 200
+
+    # validation-card must report zero evaluated annotated records rather than 100% self-accuracy
+    vc = client.get("/api/analytics/validation-card", headers=hdr)
+    assert vc.status_code == 200
+    gc = vc.json()["generalization_calibration"]
+    assert gc["n_total_records"] == 0
+    assert gc["n_test_records"] == 0
+    assert gc["accuracy"] == 0.0
+
+    # Direct evaluator check: is_fixture rows ignored
+    fixture_eval = evaluate_dog_independent_generalization(
+        [{"dog_id": "d1", "label": "bark", "pred_label": "bark", "is_fixture": True}]
+    )
+    assert fixture_eval["n_total_records"] == 0
+    assert fixture_eval["n_test_records"] == 0
+
+    # Trials endpoint exposes X-Total-Count and supports limit/offset pagination
+    p_id = client.post(
+        "/api/experiments/participants",
+        headers=hdr,
+        json={"pseudonym": "PAG-DOG", "owner_consent_confirmed": True, "welfare_review_confirmed": True},
+    ).json()["id"]
+    for idx in range(1, 4):
+        assert (
+            client.post(
+                "/api/experiments/trials",
+                headers=hdr,
+                json={
+                    "participant_id": p_id,
+                    "session_id": "sess-pag",
+                    "trial_order_in_session": idx,
+                    "experimental_condition": "target_engine_b_cue",
+                    "measured_spl_dba": 62.0,
+                    "outcome_category": "attention_only",
+                },
+            ).status_code
+            == 201
+        )
+    page1 = client.get("/api/experiments/trials?limit=2&offset=0", headers=hdr)
+    page2 = client.get("/api/experiments/trials?limit=2&offset=2", headers=hdr)
+    assert page1.status_code == 200 and page2.status_code == 200
+    assert int(page1.headers["X-Total-Count"]) >= 3
+    assert len(page1.json()) == 2
+    assert len(page2.json()) >= 1
+
+
+def test_batch5_quarantined_candidate_gate_and_apk_disabled(client, tmp_path: Path, monkeypatch):
+    import joblib
+    from app import config
+    from app.services.inference import HeuristicModel
+
+    # 1. Broken candidate rf_candidate.joblib must not be active in candidates/
+    assert not (config.ROOT / "data" / "models" / "candidates" / "rf_candidate.joblib").exists()
+
+    # 2. Even if promoted=True, model with balanced_accuracy < 0.90 is refused by HeuristicModel
+    cand_dir = tmp_path / "models" / "candidates"
+    cand_dir.mkdir(parents=True, exist_ok=True)
+    joblib.dump(
+        {"promoted": True, "model": object(), "label_encoder": object(), "metrics": {"balanced_accuracy": 0.3438}},
+        cand_dir / "rf_candidate.joblib",
+    )
+    import app.services.inference as inf_mod
+
+    monkeypatch.setattr(inf_mod, "DATA_DIR", tmp_path)
+    assert HeuristicModel()._load_promoted_supervised() is None
+
+    # 3. Stale APK is no longer served as active release when unbuilt
+    apk_res = client.get("/api/download/apk")
+    assert apk_res.status_code == 503

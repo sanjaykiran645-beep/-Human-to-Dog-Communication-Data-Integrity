@@ -1,138 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { api, getToken, getBackendUrl, historyCacheKey } from "../api";
+import { api } from "../api";
 import type { Dog } from "../api";
 
-async function decodeAudioLocally(file: File | Blob, dog?: Dog | null) {
-  const arrayBuf = await file.arrayBuffer();
-  const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
-  const ctx = new Ctx();
-  let f0 = 365;
-  let rms = 0.16;
-  let onset = 3.1;
-  let durationSec = 2.8;
-
-  try {
-    const audioBuf = await ctx.decodeAudioData(arrayBuf.slice(0));
-    durationSec = Math.max(0.8, Number(audioBuf.duration.toFixed(1)));
-    const chan = audioBuf.getChannelData(0);
-    const sr = audioBuf.sampleRate;
-
-    let sumSq = 0;
-    let zc = 0;
-    let bursts = 0;
-    const step = Math.max(1, Math.floor(chan.length / 48000));
-    let prev = 0;
-    for (let i = 0; i < chan.length; i += step) {
-      const s = chan[i];
-      sumSq += s * s;
-      if ((s >= 0 && prev < 0) || (s < 0 && prev >= 0)) zc++;
-      if (Math.abs(s) > 0.25 && Math.abs(prev) <= 0.25) bursts++;
-      prev = s;
-    }
-    const count = Math.ceil(chan.length / step);
-    rms = Math.sqrt(sumSq / Math.max(1, count));
-    const zcr = zc / Math.max(1, count);
-    f0 = Math.round(Math.min(620, Math.max(135, 145 + zcr * (sr * 0.045))));
-    onset = Number(Math.min(5.8, Math.max(1.2, (bursts / durationSec) * 0.35 + rms * 9)).toFixed(1));
-  } catch {
-    // Never fabricate features from undecodable audio.
-    try {
-      await ctx.close();
-    } catch {}
-    throw new Error("Audio container could not be decoded to PCM waveform. Please upload a valid WAV, MP3, M4A, OGG, or WebM audio file.");
-  } finally {
-    try {
-      await ctx.close();
-    } catch {}
-  }
-
-  const breedName = dog?.breed || "General Canine";
-  let vocal = "bark";
-  let title = "High-Pitch Stranger / Intruder Alert";
-  let spoken = '"Alert! I see an unfamiliar person or sudden movement near our boundary - come check immediately!"';
-  let why = `High fundamental pitch (${f0} Hz) combined with rapid vocal bursts (${onset}/sec) is a primary canine alarm signal triggered when a dog detects a stranger, potential intruder, or boundary motion.`;
-  let action = "Check the door, gate, or window calmly. Once verified safe, open Communicate and play 'Stand Down / No Stranger Danger'.";
-  let acc = 95;
-
-  if (f0 >= 430) {
-    vocal = "whine";
-    title = "High-Pitch Stress / Clinic or Urgent Need";
-    spoken = '"I feel anxious or urgently need your help (bathroom, water, or comfort)!"';
-    why = `Elevated narrow-band pitch (${f0} Hz) signals acute emotional tension, clinic nervousness, or an urgent physical request.`;
-    action = "Reassure your dog, check water/bathroom needs, and play the 'Calm For Vet / Grooming Exam' signal.";
-    acc = 94;
-  } else if (f0 <= 210) {
-    vocal = "growl";
-    title = "Deep Territorial / Defensive Warning";
-    spoken = '"Stay back! I am guarding my territory and warning a perceived threat not to approach."';
-    why = `Low resonant frequency (${f0} Hz) projects authority and establishes a protective boundary.`;
-    action = "Step calmly between your dog and the trigger to show leadership, then play a grounding 'Stay / Wait' cue.";
-    acc = 94;
-  } else if (durationSec >= 4.2 && f0 >= 290 && f0 <= 410 && onset < 2.3) {
-    vocal = "howl";
-    title = "Pack Call / Separation Vocalization";
-    spoken = '"Where is everyone? I am calling out to locate my family or pack!"';
-    why = `Sustained harmonic contour (${durationSec}s at ${f0} Hz) carries over distance to reconnect with companions.`;
-    action = "Offer calm companionship or play the 'Good Dog / Affection' cue.";
-    acc = 93;
-  } else if (f0 >= 240 && f0 <= 335) {
-    vocal = "bark";
-    title = "Excited Social Greeting / Play Invitation";
-    spoken = '"I am super happy and energized! Pay attention to me or let us play right now!"';
-    why = `Mid-range upbeat harmonic pitch (${f0} Hz) matches social greeting and play-bow vocalizations.`;
-    action = "Engage with a brief play session, walk, or positive praise.";
-    acc = 93;
-  }
-
-  const safetyGate = f0 >= 400 || vocal === "whine" || vocal === "howl" || durationSec >= 3 || rms >= 0.12 || onset >= 3.5;
-
-  return {
-    duration_sec: durationSec,
-    unsynced_local_fallback: true,
-    dog_profile: {
-      name: dog?.name || "Active Companion",
-      breed: breedName,
-      intelligence_tier: "Breed-Calibrated Heuristic Profile",
-    },
-    analysis: {
-      vocalization: vocal,
-      confidence: acc / 100,
-      features: { f0_mean: f0, onset_rate: onset, rms },
-      behavior: { arousal_label: f0 > 340 || rms > 0.14 ? "High" : "Moderate" },
-      scenario: {
-        title,
-        hypothesis_label: "Rule-Based Bioacoustic Hypothesis (Unvalidated Without Visual Context)",
-        spoken_meaning: spoken,
-        why_purpose: why,
-        owner_action: action,
-        accuracy_pct: acc,
-        heuristic_rule_match_pct: acc,
-        alternatives: [
-          { title: "High-excitement play / barrier frustration", note: "Excited calls share pitch and burst rate with alerting." },
-          { title: "Acute startle, fear, or pain", note: "Fear and pain vocalizations overlap acoustically and cannot be excluded from audio alone." },
-        ],
-        clinical_safety_notice: safetyGate
-          ? "⚠️ Clinical Safety Notice: Acoustic features alone cannot rule out physical pain, internal discomfort, or medical distress. Never ignore persistent whining or sudden vocal changes—consult a licensed veterinarian if accompanied by lethargy, pacing, or guarding posture."
-          : null,
-      },
-    },
-  };
-}
-
-
-function persistAnalysisLocally(data: any, fname: string) {
-  try {
-    const key = historyCacheKey();
-    const existing: any[] = JSON.parse(localStorage.getItem(key) || "[]");
-    const entry = {
-      ...data,
-      id: data.id || `local_${Date.now()}`,
-      original_filename: data.original_filename || fname,
-      created_at: data.created_at || new Date().toISOString(),
-    };
-    const filtered = existing.filter((x: any) => x.id !== entry.id);
-    localStorage.setItem(key, JSON.stringify([entry, ...filtered].slice(0, 100)));
-  } catch {}
+function extensionForMime(mimeType: string): string {
+  const m = (mimeType || "").toLowerCase();
+  if (m.includes("mp4") || m.includes("m4a")) return "m4a";
+  if (m.includes("ogg")) return "ogg";
+  if (m.includes("wav")) return "wav";
+  if (m.includes("mpeg") || m.includes("mp3")) return "mp3";
+  return "webm";
 }
 
 export default function Analyze() {
@@ -160,15 +36,15 @@ export default function Analyze() {
         setDogs(list || []);
         if (list && list.length > 0) setDogId(list[0].id);
       })
-      .catch(() => {});
+      .catch((e: any) => {
+        setErr(String(e?.message || "Failed to load companion profiles."));
+      });
 
     return () => {
       if (timerRef.current) window.clearInterval(timerRef.current);
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
   }, []);
-
-  const activeDog = dogs.find((d) => d.id === dogId) || null;
 
   async function runAnalysis(file: File | Blob, mode: "mic" | "upload") {
     setErr(null);
@@ -183,41 +59,26 @@ export default function Analyze() {
       const timeoutId = window.setTimeout(() => controller.abort(), 30000);
       try {
         const fd = new FormData();
-        fd.append("file", file, (file as File).name || "clip.wav");
+        const fallbackName =
+          mode === "mic" ? `mic-recording.${extensionForMime(file.type)}` : "recording.wav";
+        fd.append("file", file, (file as File).name || fallbackName);
         if (dogId) fd.append("dog_id", dogId);
         fd.append("source", mode === "mic" ? "microphone" : "upload");
 
-        const token = getToken();
-        const resp = await fetch(`${getBackendUrl()}/api/recordings/quick-analyze`, {
+        const serverData = await api<any>("/api/recordings/analyze", {
           method: "POST",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
           body: fd,
           signal: controller.signal,
         });
         window.clearTimeout(timeoutId);
-        if (resp.ok) {
-          // Backend SQLite is authoritative: server results are not duplicated into the local cache.
-          const serverData = await resp.json();
-          setRecResult(serverData);
-          return;
-        }
-        if (resp.status >= 400 && resp.status < 500) {
-          // Rejected by the server (e.g. 400/413/422 undecodable or unsafe file): never fabricate a result.
-          let detail = "Audio could not be analyzed.";
-          try {
-            const j = await resp.json();
-            if (j?.detail) detail = String(j.detail);
-          } catch {}
-          throw new Error(detail);
-        }
+        setRecResult(serverData);
       } catch (e: any) {
         window.clearTimeout(timeoutId);
-        if (e?.name !== "AbortError" && e instanceof Error && !(e instanceof TypeError)) throw e;
+        if (e?.name === "AbortError") {
+          throw new Error("Audio analysis timed out. Please retry with a shorter clip.");
+        }
+        throw e;
       }
-
-      const localDecoded = await decodeAudioLocally(file, activeDog);
-      persistAnalysisLocally(localDecoded, (file as File).name || 'recording.wav');
-      setRecResult(localDecoded);
     } catch (e: any) {
       setErr(String(e?.message || "Could not analyze audio."));
     } finally {
@@ -239,6 +100,13 @@ export default function Analyze() {
       return;
     }
 
+    if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setErr(
+        "Live microphone recording is not supported in this browser/WebView. Please use Upload Dog Audio File (WAV, MP3, M4A, OGG, or WEBM)."
+      );
+      return;
+    }
+
     try {
       setErr(null);
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -253,7 +121,8 @@ export default function Analyze() {
 
       mr.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunksRef.current, { type: mr.mimeType || "audio/webm" });
+        const mime = mr.mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type: mime });
         await runAnalysis(blob, "mic");
       };
 
@@ -264,7 +133,9 @@ export default function Analyze() {
         setSecs((s) => s + 1);
       }, 1000);
     } catch {
-      setErr("Microphone access was blocked by the browser. Click the lock icon in the address bar to allow Microphone, or use Upload Dog Audio File.");
+      setErr(
+        "Microphone access was blocked by the browser. Click the lock icon in the address bar to allow Microphone, or use Upload Dog Audio File."
+      );
     }
   }
 

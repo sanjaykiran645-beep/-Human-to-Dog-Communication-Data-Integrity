@@ -583,8 +583,8 @@ function scaleBurstsForDog(bursts: CanineBurstSpec[], dog?: Dog): CanineBurstSpe
   }
   if (dog.sex) {
     const sl = dog.sex.toLowerCase();
-    if (sl.startsWith("f")) scale *= 1.04;
-    else if (sl.startsWith("m")) scale *= 0.97;
+    if (sl.startsWith("f")) scale *= 1.08;
+    else if (sl.startsWith("m")) scale *= 0.91;
   }
   const tractScale = Math.pow(scale, 0.28);
   return bursts.map((item) => ({
@@ -652,7 +652,9 @@ export default function Communicate() {
         setDogs(list || []);
         if (list && list.length > 0) setDogId(list[0].id);
       })
-      .catch(() => {});
+      .catch((e: any) => {
+        setErr(String(e?.message || "Failed to load dog profiles."));
+      });
 
     return () => {
       if (latestBlobRef.current && latestBlobRef.current.startsWith("blob:")) {
@@ -750,7 +752,6 @@ export default function Communicate() {
       setDisplayInput(customTitle || cue.label);
       setRefAudioUrl(null);
       setRefAssetLabel(null);
-      localStorage.setItem("cs_comm_count", String(Number(localStorage.getItem("cs_comm_count") || 0) + 1));
 
       let resolvedUrl: string | null = null;
       let resolvedSamples: Float32Array | null = null;

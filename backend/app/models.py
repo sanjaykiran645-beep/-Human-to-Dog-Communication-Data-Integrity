@@ -236,7 +236,9 @@ class BehaviouralTrial(Base):
     abort_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_valid: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     exclusion_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-    observer_user_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    observer_user_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     correction_audit_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
@@ -256,7 +258,9 @@ class TrialIndependentReview(Base):
     review_notes: Mapped[str | None] = mapped_column(Text, nullable=True, default="")
     disagreement_with_primary: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     adjudicated_category: Mapped[str | None] = mapped_column(String(40), nullable=True)
-    adjudicator_user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    adjudicator_user_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
@@ -317,4 +321,32 @@ class TrialAdverseEvent(Base):
     session_aborted: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     vet_followup_notes: Mapped[str | None] = mapped_column(Text, nullable=True, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class BlindListeningSubmission(Base):
+    __tablename__ = "blind_listening_submissions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    sample_id: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    blind_code: Mapped[str] = mapped_column(String(24), nullable=False)
+    reviewer_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    sounds_like_genuine_dog: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    perceived_category: Mapped[str] = mapped_column(String(40), nullable=False)
+    naturalness_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    artifact_severity_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True, default="")
+    intended_category: Mapped[str] = mapped_column(String(40), nullable=False)
+    generation_method: Mapped[str] = mapped_column(String(60), nullable=False)
+    output_classification: Mapped[str] = mapped_column(String(40), nullable=False)
+    category_matched: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class RevokedToken(Base):
+    __tablename__ = "revoked_tokens"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    expires_at: Mapped[float] = mapped_column(Float, nullable=False, index=True)
+    revoked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 

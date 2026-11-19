@@ -3,6 +3,8 @@ import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
 import Logo from "../Logo";
 
+const CURRENT_YEAR = new Date().getFullYear();
+
 export default function Contact() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -265,7 +267,7 @@ export default function Contact() {
       </main>
 
       <footer className="land-foot" style={{ maxWidth: 960, margin: "0 auto 30px", width: "100%", padding: "0 24px" }}>
-        <span>&copy; {new Date().getFullYear()} CanineSense AI Bioacoustics</span>
+        <span>&copy; {CURRENT_YEAR} CanineSense AI Bioacoustics</span>
         <div className="row" style={{ gap: 16 }}>
           <Link to="/privacy-policy">Privacy Policy</Link>
           <Link to="/terms-of-service">Terms of Service</Link>

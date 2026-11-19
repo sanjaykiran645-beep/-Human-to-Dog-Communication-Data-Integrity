@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from app import config, db
+from app import config, db, models
 from app.services import durability, migration_prep, storage
 
 
@@ -103,5 +103,135 @@ def test_phase15_backup_verify_command_and_health_telemetry(client, tmp_path: Pa
         "durable_across_redeploy",
     ):
         assert key in pers, f"Missing /api/health persistence key: {key}"
-    assert pers["migration_version"] == "005_phase15_migration_readiness"
+    assert pers["migration_version"] == db.LATEST_MIGRATION_VERSION
     assert str(config.DATA_DIR) not in str(pers)
+
+
+def test_batch1_s3_adapter_blind_db_export_audit_and_secret_fail_fast(client, user_a, user_b, monkeypatch):
+    import io
+    import json
+    import uuid
+
+    # 1. S3CompatibleObjectStorageAdapter roundtrip & tenant guard with mocked boto3 client
+    class _FakeS3Client:
+        def __init__(self):
+            self.objects: dict[str, dict] = {}
+
+        def put_object(self, Bucket, Key, Body, ContentType, Metadata):  # noqa: N803
+            self.objects[(Bucket, Key)] = {"Body": Body, "ContentType": ContentType, "Metadata": Metadata}
+
+        def head_object(self, Bucket, Key):  # noqa: N803
+            item = self.objects.get((Bucket, Key))
+            if not item:
+                exc = RuntimeError("NotFound")
+                exc.response = {"Error": {"Code": "404"}}  # type: ignore[attr-defined]
+                raise exc
+            return {
+                "ContentType": item["ContentType"],
+                "ContentLength": len(item["Body"]),
+                "Metadata": item["Metadata"],
+            }
+
+        def get_object(self, Bucket, Key):  # noqa: N803
+            item = self.objects[(Bucket, Key)]
+            return {"Body": io.BytesIO(item["Body"])}
+
+        def delete_object(self, Bucket, Key):  # noqa: N803
+            self.objects.pop((Bucket, Key), None)
+
+        def list_objects_v2(self, Bucket, Prefix, ContinuationToken=None):  # noqa: N803
+            contents = [
+                {"Key": k, "Size": len(v["Body"])}
+                for (b, k), v in sorted(self.objects.items())
+                if b == Bucket and k.startswith(Prefix)
+            ]
+            return {"Contents": contents, "IsTruncated": False}
+
+    s3 = storage.S3CompatibleObjectStorageAdapter(
+        bucket="cs-test-bucket", prefix="prod-test/", client=_FakeS3Client()
+    )
+    payload = b"RIFF\x24\x00\x00\x00WAVEfmt "
+    meta = s3.put_object("u1/recs/r1.wav", payload, owner_id="u1", content_type="audio/wav")
+    assert s3.get_object("u1/recs/r1.wav", expected_owner_id="u1") == payload
+    assert s3.verify_object_sha256("u1/recs/r1.wav", meta.sha256, expected_owner_id="u1") is True
+    assert len(s3.list_objects("u1/", expected_owner_id="u1")) == 1
+    with pytest.raises(PermissionError):
+        s3.get_object("u1/recs/r1.wav", expected_owner_id="u2")
+    assert s3.delete_object("u1/recs/r1.wav", expected_owner_id="u1") is True
+    assert s3.head_object("u1/recs/r1.wav", expected_owner_id="u1") is None
+
+    # 2. Blind listening DB isolation + full export + deletion erasure
+    hdr_a = {"Authorization": f"Bearer {user_a['token']}"}
+    hdr_b = {"Authorization": f"Bearer {user_b['token']}"}
+    sub_res = client.post(
+        "/api/communicate/blind-test/submit",
+        headers=hdr_a,
+        json={
+            "sample_id": "blind_001",
+            "reviewer_id": "rev-a",
+            "sounds_like_genuine_dog": True,
+            "perceived_category": "BARK",
+            "naturalness_score": 4,
+            "artifact_severity_score": 1,
+            "notes": "user_a private rating",
+        },
+    )
+    assert sub_res.status_code == 200, sub_res.text
+    sub_id = sub_res.json()["submission_id"]
+
+    bt_b = client.get("/api/communicate/blind-test", headers=hdr_b).json()
+    assert all(s["submission_id"] != sub_id for s in bt_b["submissions"])
+
+    part_res = client.post(
+        "/api/experiments/participants",
+        headers=hdr_a,
+        json={"pseudonym": "EXP-BATCH1", "owner_consent_confirmed": True, "welfare_review_confirmed": True},
+    )
+    assert part_res.status_code == 201
+    exp = client.get("/api/account/export", headers=hdr_a)
+    assert exp.status_code == 200
+    exp_body = exp.json()
+    assert any(p["pseudonym"] == "EXP-BATCH1" for p in exp_body["study_participants"])
+    assert any(b["id"] == sub_id for b in exp_body["blind_listening_submissions"])
+
+    # Manifest must not contain Windows drive paths
+    manifest_raw = json.loads(
+        (Path(__file__).resolve().parents[2] / "data" / "evaluation_samples" / "blind_listening_manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert all(":\\" not in s.get("wav_path", "") for s in manifest_raw["blind_samples"])
+
+    # 3. audit_storage_integrity must fail when recording has empty original_path/processed_path
+    with db.SessionLocal() as session:
+        empty_rec = models.Recording(
+            id=str(uuid.uuid4()),
+            user_id=user_a["user"]["id"],
+            original_filename="broken.wav",
+            original_path="",
+            processed_path="",
+            content_type="audio/wav",
+            sha256="0" * 64,
+            file_size=128,
+            duration_sec=1.0,
+            sample_rate=22050,
+            channels=1,
+            quality_status="ok",
+        )
+        session.add(empty_rec)
+        session.commit()
+        rep = durability.audit_storage_integrity(session, config.STORAGE_DIR)
+        assert rep["status"] == "FAIL"
+        assert any(m["id"] == empty_rec.id and m["path"] == "<EMPTY>" for m in rep["missing_files"])
+        session.delete(empty_rec)
+        session.commit()
+
+    # 4. Production secret fail-fast check
+    monkeypatch.setattr(config, "ENV", "production")
+    monkeypatch.delenv("CANINESENSE_SECRET_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="CANINESENSE_SECRET_KEY"):
+        config._load_or_create_secret()
+
+    # 5. Relative CANINESENSE_DATA_DIR resolves to ROOT/data, not CWD
+    monkeypatch.setenv("CANINESENSE_DATA_DIR", "./data")
+    assert config._resolve_repo_path("CANINESENSE_DATA_DIR", config.ROOT / "data") == (config.ROOT / "data").resolve()

@@ -46,7 +46,7 @@ export default function ValidationLab() {
   const [selectedParticipantId, setSelectedParticipantId] = useState("");
   const [selectedCueId, setSelectedCueId] = useState("");
   const [sessionNum, setSessionNum] = useState(1);
-  const [randomSeed, setRandomSeed] = useState(Math.floor(Math.random() * 899999 + 100000));
+  const [randomSeed, setRandomSeed] = useState(421905);
   const [totalScheduleTrials, setTotalScheduleTrials] = useState(10);
   const [activeSchedule, setActiveSchedule] = useState<TrialSchedule | null>(null);
 
@@ -74,22 +74,18 @@ export default function ValidationLab() {
 
   const backendUrl = getBackendUrl() || "";
 
-  useEffect(() => {
-    loadAll();
-  }, []);
-
   async function loadAll() {
     setLoading(true);
     setErr(null);
     try {
       const [pRes, cRes, tRes, mRes, invRes, asgRes, preRes] = await Promise.all([
-        api<StudyParticipant[]>("/api/experiments/participants").catch(() => []),
-        api<ExperimentalCue[]>("/api/experiments/cues").catch(() => []),
-        api<BehaviouralTrial[]>("/api/experiments/trials").catch(() => []),
-        api<ExperimentalMetrics>("/api/experiments/metrics").catch(() => null),
-        api<{ incoming: any[]; outgoing: any[] }>("/api/experiments/invitations").catch(() => ({ incoming: [], outgoing: [] })),
-        api<any[]>("/api/experiments/assigned-trials").catch(() => []),
-        api<any[]>("/api/experiments/preregistrations").catch(() => []),
+        api<StudyParticipant[]>("/api/experiments/participants"),
+        api<ExperimentalCue[]>("/api/experiments/cues"),
+        api<BehaviouralTrial[]>("/api/experiments/trials"),
+        api<ExperimentalMetrics>("/api/experiments/metrics"),
+        api<{ incoming: any[]; outgoing: any[] }>("/api/experiments/invitations"),
+        api<any[]>("/api/experiments/assigned-trials"),
+        api<any[]>("/api/experiments/preregistrations"),
       ]);
       setParticipants(pRes || []);
       setCues(cRes || []);
@@ -98,18 +94,48 @@ export default function ValidationLab() {
       setInvitations(invRes || { incoming: [], outgoing: [] });
       setAssignedTrials(asgRes || []);
       setPreregistrations(preRes || []);
-      if (pRes?.length > 0 && !selectedParticipantId) {
-        setSelectedParticipantId(pRes[0].id);
-      }
-      if (cRes?.length > 0 && !selectedCueId) {
-        setSelectedCueId(cRes[0].id);
-      }
+      setSelectedParticipantId((prev) => prev || pRes?.[0]?.id || "");
+      setSelectedCueId((prev) => prev || cRes?.[0]?.id || "");
     } catch (e: any) {
-      setErr(e.message || "Failed to load experimental telemetry");
+      setErr(e?.message || "Failed to load experimental telemetry");
     } finally {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [pRes, cRes, tRes, mRes, invRes, asgRes, preRes] = await Promise.all([
+          api<StudyParticipant[]>("/api/experiments/participants"),
+          api<ExperimentalCue[]>("/api/experiments/cues"),
+          api<BehaviouralTrial[]>("/api/experiments/trials"),
+          api<ExperimentalMetrics>("/api/experiments/metrics"),
+          api<{ incoming: any[]; outgoing: any[] }>("/api/experiments/invitations"),
+          api<any[]>("/api/experiments/assigned-trials"),
+          api<any[]>("/api/experiments/preregistrations"),
+        ]);
+        if (cancelled) return;
+        setParticipants(pRes || []);
+        setCues(cRes || []);
+        setTrials(tRes || []);
+        setMetrics(mRes);
+        setInvitations(invRes || { incoming: [], outgoing: [] });
+        setAssignedTrials(asgRes || []);
+        setPreregistrations(preRes || []);
+        setSelectedParticipantId((prev) => prev || pRes?.[0]?.id || "");
+        setSelectedCueId((prev) => prev || cRes?.[0]?.id || "");
+      } catch (e: any) {
+        if (!cancelled) setErr(e?.message || "Failed to load experimental telemetry");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleRegisterParticipant(e: React.FormEvent) {
     e.preventDefault();

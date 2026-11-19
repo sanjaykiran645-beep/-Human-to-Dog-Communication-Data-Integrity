@@ -1,5 +1,6 @@
 import { Component } from "react";
 import type { ErrorInfo, ReactNode } from "react";
+import { clearSession } from "../api";
 
 interface Props {
   children: ReactNode;
@@ -37,8 +38,7 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   handleClearSession = () => {
     try {
-      localStorage.removeItem("cs_token");
-      localStorage.removeItem("cs_user");
+      clearSession();
     } catch {
       /* ignore */
     }

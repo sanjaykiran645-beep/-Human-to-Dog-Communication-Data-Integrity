@@ -15,3 +15,20 @@ services:
         generateValue: true
       - key: CANINESENSE_ACCESS_TOKEN_MINUTES
         value: "1440"
+      - key: CANINESENSE_TRUST_PROXY
+        value: "1"
+      # Wire external zero-cost or managed PostgreSQL + S3/R2 object storage via dashboard env vars:
+      - key: DATABASE_URL
+        sync: false
+      - key: CANINESENSE_STORAGE_PROVIDER
+        value: local
+      - key: CANINESENSE_STORAGE_BUCKET
+        sync: false
+      - key: CANINESENSE_STORAGE_ENDPOINT
+        sync: false
+      - key: CANINESENSE_S3_REGION
+        value: auto
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false

@@ -37,7 +37,17 @@ export default function Dogs() {
   }
 
   useEffect(() => {
-    load();
+    let cancelled = false;
+    api<Dog[]>("/api/dogs")
+      .then((list) => {
+        if (!cancelled) setDogs(list || []);
+      })
+      .catch((e: any) => {
+        if (!cancelled) setErr(e.message);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function submit(e: FormEvent) {
@@ -47,7 +57,6 @@ export default function Dogs() {
     setSavedMsg(null);
     setBusy(true);
     try {
-      const prevCount = dogs.length;
       await api<Dog>("/api/dogs", {
         method: "POST",
         body: JSON.stringify({
@@ -62,15 +71,9 @@ export default function Dogs() {
       setBreed("");
       setAge("");
       setWeight("");
-      if (prevCount >= 10) {
-        setSavedMsg(
-          `Profile saved with ${sex.toUpperCase()} heuristic calibration! Since your profiles exceeded 10, the starting 3 (oldest) profiles were automatically deleted.`
-        );
-      } else {
-        setSavedMsg(
-          `Profile saved! Heuristic prior active (${sex === "male" ? "Male x0.91 / -9% F0 prior" : "Female x1.08 / +8% F0 prior"}) & allometric breed estimate synced.`
-        );
-      }
+      setSavedMsg(
+        `Profile saved! Heuristic prior active (${sex === "male" ? "Male x0.91 / -9% F0 prior" : "Female x1.08 / +8% F0 prior"}) & allometric breed estimate synced.`
+      );
       await load();
     } catch (e: any) {
       setErr(e.message);

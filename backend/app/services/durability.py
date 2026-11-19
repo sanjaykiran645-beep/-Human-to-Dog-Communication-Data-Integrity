@@ -114,6 +114,8 @@ def audit_storage_integrity(db: Session, storage_dir: Path = STORAGE_DIR) -> dic
             ("spectrogram_path", r.spectrogram_path),
         ):
             if not rel_p:
+                if field_name in {"original_path", "processed_path"}:
+                    missing_files.append({"entity": "recording", "id": r.id, "field": field_name, "path": "<EMPTY>"})
                 continue
             norm_rel = str(Path(rel_p))
             referenced_rel_paths.add(norm_rel)

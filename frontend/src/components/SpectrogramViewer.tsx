@@ -72,18 +72,28 @@ export default function SpectrogramViewer({
     let createdWave: string | null = null;
     let createdSpec: string | null = null;
 
-    setSpecData(null);
-    setWaveUrl(null);
-    setSpecImgUrl(null);
-    setError("");
-    setHoverInfo(null);
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setSpecData(null);
+      setWaveUrl(null);
+      setSpecImgUrl(null);
+      setError("");
+      setHoverInfo(null);
+
+      if (!spectrogramDataPath && !spectrogramImagePath && !waveformPath) {
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+    });
 
     if (!spectrogramDataPath && !spectrogramImagePath && !waveformPath) {
-      setLoading(false);
-      return;
+      return () => {
+        cancelled = true;
+      };
     }
 
-    setLoading(true);
     const tasks: Promise<void>[] = [];
 
     if (spectrogramDataPath) {

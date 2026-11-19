@@ -63,29 +63,23 @@ export default function Layout() {
   const [open, setOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
   const onboardingKey = user?.id ? `cs_onboarding_done_${user.id}` : "cs_onboarding_done";
-  const [showWelcome, setShowWelcome] = useState<boolean>(() => { return false; // return false; //
+  const [showWelcome, setShowWelcome] = useState<boolean>(() => {
     const done = localStorage.getItem(onboardingKey) === "1" || localStorage.getItem("cs_onboarding_done") === "1";
     const isDashboard = loc.pathname === "/app" || loc.pathname === "/app/";
     return !done && isDashboard;
   });
 
   useEffect(() => {
-    const done = localStorage.getItem(onboardingKey) === "1" || localStorage.getItem("cs_onboarding_done") === "1";
-    const isDashboard = loc.pathname === "/app" || loc.pathname === "/app/";
-    if (!done && isDashboard) {
-      setShowWelcome(true);
-    }
-  }, [onboardingKey, loc.pathname]);
-
-  useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape" && showWelcome) {
-        dismissWelcome();
+        localStorage.setItem(onboardingKey, "1");
+        localStorage.setItem("cs_onboarding_done", "1");
+        setShowWelcome(false);
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [showWelcome]);
+  }, [showWelcome, onboardingKey]);
 
   function dismissWelcome() {
     localStorage.setItem(onboardingKey, "1");
@@ -276,15 +270,17 @@ export default function Layout() {
               />
             </form>
 
-            <a
-              href={`${getBackendUrl()}/api/download/apk`}
-              download="CanineSense_AI_v1.0.0.apk"
-              className="btn ghost"
-              style={{ padding: "6px 12px", fontSize: "0.78rem", whiteSpace: "nowrap" }}
-              title="Download CanineSense AI Android APK package"
-            >
-              Download APK
-            </a>
+            {import.meta.env.VITE_ANDROID_APK_AVAILABLE === "true" && (
+              <a
+                href={`${getBackendUrl()}/api/download/apk`}
+                download="CanineSense_AI_v1.0.0.apk"
+                className="btn ghost"
+                style={{ padding: "6px 12px", fontSize: "0.78rem", whiteSpace: "nowrap" }}
+                title="Download CanineSense AI Android APK package"
+              >
+                Download APK
+              </a>
+            )}
 
             <button
               type="button"

@@ -1,16 +1,14 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { FormEvent } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import Logo from "../Logo";
-import { api, getToken, setSession, startDemoSession } from "../api";
+import { api, DEMO_MODE_ENABLED, getToken, setSession, startDemoSession } from "../api";
 import type { User } from "../api";
 
 export default function Login() {
   const nav = useNavigate();
   const loc = useLocation();
-  const [mode, setMode] = useState<"login" | "register">(
-    loc.pathname === "/register" ? "register" : "login"
-  );
+  const mode: "login" | "register" = loc.pathname === "/register" ? "register" : "login";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -19,15 +17,9 @@ export default function Login() {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    setMode(loc.pathname === "/register" ? "register" : "login");
-    setErr("");
-  }, [loc.pathname]);
-
   if (getToken()) return <Navigate to="/app" replace />;
 
   function switchMode(next: "login" | "register") {
-    setMode(next);
     setErr("");
     nav(next === "register" ? "/register" : "/login");
   }
@@ -228,32 +220,34 @@ export default function Login() {
             </button>
           </p>
 
-          <div
-            style={{
-              marginTop: 22,
-              paddingTop: 16,
-              borderTop: "1px dashed var(--line-strong)",
-              textAlign: "center",
-            }}
-          >
-            <div className="kicker" style={{ fontSize: "0.72rem", marginBottom: 6 }}>
-              Interface Demonstration (No Backend Required)
-            </div>
-            <p className="tiny" style={{ color: "var(--muted)", margin: "0 0 10px", lineHeight: 1.4 }}>
-              Preview the bioacoustic lab interface in isolated offline mode using browser simulation. Real accounts and ML inference require a live FastAPI server.
-            </p>
-            <button
-              className="btn ghost wide"
-              type="button"
-              style={{ fontSize: "0.85rem", borderColor: "var(--taupe)" }}
-              onClick={() => {
-                startDemoSession();
-                nav("/app");
+          {DEMO_MODE_ENABLED && (
+            <div
+              style={{
+                marginTop: 22,
+                paddingTop: 16,
+                borderTop: "1px dashed var(--line-strong)",
+                textAlign: "center",
               }}
             >
-              Explore Offline Demo Tour (Simulated Preview)
-            </button>
-          </div>
+              <div className="kicker" style={{ fontSize: "0.72rem", marginBottom: 6 }}>
+                Interface Demonstration (No Backend Required)
+              </div>
+              <p className="tiny" style={{ color: "var(--muted)", margin: "0 0 10px", lineHeight: 1.4 }}>
+                Preview the bioacoustic lab interface in isolated offline mode using browser simulation. Real accounts and ML inference require a live FastAPI server.
+              </p>
+              <button
+                className="btn ghost wide"
+                type="button"
+                style={{ fontSize: "0.85rem", borderColor: "var(--taupe)" }}
+                onClick={() => {
+                  startDemoSession();
+                  nav("/app");
+                }}
+              >
+                Explore Offline Demo Tour (Simulated Preview)
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

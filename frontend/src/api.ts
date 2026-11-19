@@ -132,8 +132,11 @@ export function getUser(): User | null {
   }
 }
 
+export const DEMO_MODE_ENABLED =
+  import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO_TOUR === "true";
+
 export function isDemoSession(): boolean {
-  return getToken() === "cs_demo_token_offline_preview" && getUser()?.isDemo === true;
+  return DEMO_MODE_ENABLED && getToken() === "cs_demo_token_offline_preview" && getUser()?.isDemo === true;
 }
 
 export function setSession(token: string, user: User) {
@@ -153,6 +156,7 @@ export function historyCacheKey(): string {
 export function clearSession() {
   localStorage.removeItem(TOKEN);
   localStorage.removeItem(USER);
+  localStorage.removeItem("cs_comm_count");
   // Purge every cached history bucket (all users + legacy unscoped key) on logout.
   try {
     for (const k of Object.keys(localStorage)) {
@@ -163,6 +167,9 @@ export function clearSession() {
 export const clearAuth = clearSession;
 
 export function startDemoSession() {
+  if (!DEMO_MODE_ENABLED) {
+    throw new Error("Offline demo mode is disabled in production builds.");
+  }
   const demoUser: User = {
     id: "demo_guest",
     email: "guest@preview.local",
@@ -227,15 +234,18 @@ export function getBackendUrl(): string {
       return custom.replace(/\/+$/, "");
     }
 
-    if ((host === "localhost" || host === "127.0.0.1") && !isCapacitor) {
-      return window.location.origin;
-    }
-
     const configuredApi = String(
       import.meta.env.VITE_API_URL || import.meta.env.VITE_PRODUCTION_BACKEND_URL || ""
     ).trim();
 
-    if ((host.endsWith("github.io") || isCapacitor) && configuredApi) {
+    if (host === "localhost" || host === "127.0.0.1") {
+      if (isCapacitor && configuredApi) {
+        return configuredApi.replace(/\/+$/, "");
+      }
+      return window.location.origin;
+    }
+
+    if (configuredApi) {
       return configuredApi.replace(/\/+$/, "");
     }
 

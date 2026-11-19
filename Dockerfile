@@ -9,12 +9,12 @@ FROM --platform=linux/amd64 node:20-alpine AS frontend-builder
 WORKDIR /build/frontend
 
 # Copy dependencies first for layer caching
-COPY frontend/package.json ./
-RUN npm install --prefer-offline --no-audit
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --prefer-offline --no-audit
 
-# Copy source and build production bundle
+# Copy source, lint, and build production bundle
 COPY frontend/ ./
-RUN npm run build
+RUN npm run lint && npm run build
 
 # --- Stage 2: Production Python & Audio DSP Runtime ---
 FROM --platform=linux/amd64 python:3.12-slim-bookworm AS production
@@ -47,8 +47,9 @@ COPY backend /app/backend
 # Copy built frontend assets from stage 1
 COPY --from=frontend-builder /build/frontend/dist /app/frontend/dist
 
-# Copy bundled reference library (134 approved canine vocalizations + manifest)
+# Copy bundled reference library (134 approved canine vocalizations + manifest) & evaluation samples
 COPY data/reference_library /app/data/reference_library
+COPY data/evaluation_samples /app/data/evaluation_samples
 COPY data/models /app/data/models
 COPY data/releases /app/data/releases
 

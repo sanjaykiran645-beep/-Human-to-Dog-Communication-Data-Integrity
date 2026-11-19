@@ -299,6 +299,36 @@ def _apply_edge_taper(y: np.ndarray, sr: int, taper_ms: float = 8.0) -> np.ndarr
     return y
 
 
+def _pv_time_stretch(y: np.ndarray, rate: float, n_fft: int, hop_length: int) -> np.ndarray:
+    """Clean vectorized phase-vocoder time stretch in float64 without numba/librosa deprecation warnings."""
+    D = librosa.stft(np.asarray(y, dtype=np.float64), n_fft=n_fft, hop_length=hop_length)
+    n_bins, n_frames = D.shape
+    if n_frames < 2 or rate <= 0.0:
+        return np.asarray(y, dtype=np.float32)
+
+    time_steps = np.arange(0.0, n_frames - 1.0, float(rate), dtype=np.float64)
+    if time_steps.size == 0:
+        return np.asarray(y, dtype=np.float32)
+
+    phi_advance = np.linspace(0.0, np.pi * hop_length, n_bins, dtype=np.float64)
+    phase_acc = np.angle(D[:, 0])
+    d_stretch = np.zeros((n_bins, time_steps.size), dtype=np.complex128)
+
+    for idx, step in enumerate(time_steps):
+        col = int(np.floor(step))
+        alpha = step - col
+        bcol0 = D[:, col]
+        bcol1 = D[:, min(col + 1, n_frames - 1)]
+        mag = (1.0 - alpha) * np.abs(bcol0) + alpha * np.abs(bcol1)
+        d_stretch[:, idx] = mag * np.exp(1j * phase_acc)
+        dp = np.angle(bcol1) - np.angle(bcol0) - phi_advance
+        dp = dp - 2.0 * np.pi * np.round(dp / (2.0 * np.pi))
+        phase_acc = phase_acc + phi_advance + dp
+
+    out = librosa.istft(d_stretch, hop_length=hop_length, n_fft=n_fft)
+    return np.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32)
+
+
 def _apply_controlled_variation(
     y_ref: np.ndarray,
     sr: int,
@@ -366,10 +396,15 @@ def _apply_controlled_variation(
 
     if explicit_phase_vocoder and y.size >= 1024:
         y_pv = y.copy()
+        n_fft = min(1024, max(256, 1 << (max(256, y_pv.size // 4) - 1).bit_length()))
+        hop = n_fft // 4
         if abs(ts_rate - 1.0) >= 0.025:
-            y_pv = librosa.effects.time_stretch(y_pv, rate=ts_rate).astype(np.float32)
+            y_pv = _pv_time_stretch(y_pv, rate=ts_rate, n_fft=n_fft, hop_length=hop)
         if abs(st_shift) >= 0.12 and y_pv.size >= 1024:
-            y_pv = librosa.effects.pitch_shift(y_pv, sr=sr, n_steps=st_shift).astype(np.float32)
+            pitch_factor = float(2.0 ** (st_shift / 12.0))
+            y_stretched = _pv_time_stretch(y_pv, rate=1.0 / pitch_factor, n_fft=n_fft, hop_length=hop)
+            virtual_sr = max(4000, int(round(sr * pitch_factor)))
+            y_pv = librosa.resample(y_stretched, orig_sr=virtual_sr, target_sr=sr).astype(np.float32)
         # Naturalness gate: verify phase-vocoder candidate did not degrade spectral/timbre similarity
         pv_check = compare_with_reference(y_orig, y_pv, sr, ref_asset=ref_asset)
         if (

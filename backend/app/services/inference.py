@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Protocol
 
 import joblib
@@ -10,6 +11,8 @@ from .. import MODEL_VERSION
 from ..config import DATA_DIR
 from .classifier import ABSTAIN, ABSTAIN_MARGIN, ABSTAIN_MAX_PROB, CLASSES, classify as heuristic_classify
 from .features import feature_vector
+
+log = logging.getLogger("caninesense.inference")
 
 
 class VocalizationModel(Protocol):
@@ -32,11 +35,14 @@ class HeuristicModel:
             if self._sup_cache is not None and mtime == self._sup_mtime:
                 return self._sup_cache
             art = joblib.load(path)
-            if isinstance(art, dict) and art.get("promoted") and "model" in art and "label_encoder" in art:
+            metrics_meta = art.get("metrics") if isinstance(art, dict) else None
+            bal_acc = float(metrics_meta.get("balanced_accuracy", 0.0)) if isinstance(metrics_meta, dict) else 0.0
+            if isinstance(art, dict) and art.get("promoted") and bal_acc >= 0.90 and "model" in art and "label_encoder" in art:
                 self._sup_cache = art
                 self._sup_mtime = mtime
                 return art
         except Exception:
+            log.warning("Failed loading supervised candidate model at %s", path, exc_info=True)
             return None
         return None
 
@@ -98,6 +104,7 @@ class HeuristicModel:
             )
             return out
         except Exception:
+            log.exception("Supervised candidate prediction failed; falling back to heuristic baseline")
             return base
 
 

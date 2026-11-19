@@ -526,12 +526,25 @@ BREED_DB: dict[str, dict[str, Any]] = {
     },
 }
 
+import json
+import logging
+import threading
+import urllib.parse
+import urllib.request
+
+log = logging.getLogger("caninesense.breed_intelligence")
+
 _WIKI_CACHE: dict[str, str] = {}
+_WIKI_LOCK = threading.Lock()
+
 
 def _fetch_wikipedia_summary(breed_name: str) -> str:
     key = breed_name.strip().lower()
-    if not key or key in _WIKI_CACHE:
-        return _WIKI_CACHE.get(key, "")
+    if not key:
+        return ""
+    with _WIKI_LOCK:
+        if key in _WIKI_CACHE:
+            return _WIKI_CACHE[key]
     try:
         slug = urllib.parse.quote(breed_name.strip().title().replace(" ", "_"))
         url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{slug}"
@@ -540,11 +553,13 @@ def _fetch_wikipedia_summary(breed_name: str) -> str:
             if resp.status == 200:
                 data = json.loads(resp.read().decode("utf-8"))
                 extract = str(data.get("extract") or "")[:500]
-                _WIKI_CACHE[key] = extract
+                with _WIKI_LOCK:
+                    _WIKI_CACHE[key] = extract
                 return extract
-    except Exception:
-        pass
-    _WIKI_CACHE[key] = ""
+    except Exception as exc:
+        log.warning("Wikipedia summary lookup failed for %s: %s", breed_name, exc)
+    with _WIKI_LOCK:
+        _WIKI_CACHE[key] = ""
     return ""
 
 def resolve_breed_intelligence(

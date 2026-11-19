@@ -1,72 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { mediaUrl } from "../api";
-
-// Coordinator for all AudioPlayer instances so only one plays at a time
-interface AudioCoordinatorEntry {
-  id: string;
-  element: HTMLAudioElement;
-  onExternalPause: () => void;
-  onExternalStop: () => void;
-}
-
-const activeAudioEntries = new Map<string, AudioCoordinatorEntry>();
-type PlaybackStateListener = (isPlaying: boolean) => void;
-const playbackListeners = new Set<PlaybackStateListener>();
-
-function notifyPlaybackState() {
-  const isPlaying = Array.from(activeAudioEntries.values()).some(
-    (entry) => !entry.element.paused && !entry.element.ended && entry.element.currentTime > 0
-  );
-  playbackListeners.forEach((fn) => {
-    try {
-      fn(isPlaying);
-    } catch {
-      /* ignore */
-    }
-  });
-}
-
-export function subscribeAudioPlayback(listener: PlaybackStateListener): () => void {
-  playbackListeners.add(listener);
-  return () => {
-    playbackListeners.delete(listener);
-  };
-}
-
-export function pauseAllOtherAudio(currentId: string) {
-  activeAudioEntries.forEach((entry, id) => {
-    if (id !== currentId) {
-      try {
-        entry.onExternalPause();
-      } catch {
-        /* ignore */
-      }
-    }
-  });
-  notifyPlaybackState();
-}
-
-export function stopAllActiveAudio() {
-  activeAudioEntries.forEach((entry) => {
-    try {
-      entry.onExternalStop();
-    } catch {
-      /* ignore */
-    }
-  });
-  if (typeof document !== "undefined") {
-    document.querySelectorAll("audio, video").forEach((media) => {
-      try {
-        const el = media as HTMLMediaElement;
-        el.pause();
-        el.currentTime = 0;
-      } catch {
-        /* ignore */
-      }
-    });
-  }
-  notifyPlaybackState();
-}
+import {
+  activeAudioEntries,
+  notifyPlaybackState,
+  pauseAllOtherAudio,
+  type AudioCoordinatorEntry,
+} from "./audioCoordinator";
 
 export interface AudioPlayerProps {
   mediaPath?: string | null;
@@ -86,7 +25,7 @@ export default function AudioPlayer({
   onStatusChange,
 }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const playerId = useRef<string>(Math.random().toString(36).substring(2, 9));
+  const playerId = useId();
   const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -95,17 +34,22 @@ export default function AudioPlayer({
   const [duration, setDuration] = useState(0);
   const [reloadTick, setReloadTick] = useState(0);
 
-  function updateStatus(next: typeof status) {
+  const onStatusChangeRef = useRef(onStatusChange);
+  useEffect(() => {
+    onStatusChangeRef.current = onStatusChange;
+  }, [onStatusChange]);
+
+  const updateStatus = useCallback((next: "idle" | "loading" | "ready" | "playing" | "paused" | "stopped" | "ended" | "error") => {
     setStatus(next);
-    onStatusChange?.(next);
-  }
+    onStatusChangeRef.current?.(next);
+  }, []);
 
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
 
     const entry: AudioCoordinatorEntry = {
-      id: playerId.current,
+      id: playerId,
       element: el,
       onExternalPause: () => {
         if (!el.paused) {
@@ -121,55 +65,76 @@ export default function AudioPlayer({
       },
     };
 
-    activeAudioEntries.set(playerId.current, entry);
+    activeAudioEntries.set(playerId, entry);
     return () => {
-      activeAudioEntries.delete(playerId.current);
+      activeAudioEntries.delete(playerId);
       notifyPlaybackState();
     };
-  }, [resolvedUrl]);
+  }, [playerId, resolvedUrl, updateStatus]);
 
   useEffect(() => {
-    if (disabled && status === "playing" && audioRef.current) {
-      audioRef.current.pause();
-      updateStatus("paused");
-      notifyPlaybackState();
+    const el = audioRef.current;
+    if (disabled && status === "playing" && el) {
+      queueMicrotask(() => {
+        el.pause();
+        updateStatus("paused");
+        notifyPlaybackState();
+      });
     }
-  }, [disabled, status]);
+  }, [disabled, status, updateStatus]);
 
   useEffect(() => {
     let cancelled = false;
     let createdObjectUrl: string | null = null;
+    const el = audioRef.current;
 
-    // Stop any current playback on source change
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
+    if (el) {
+      el.pause();
+      el.currentTime = 0;
     }
-    setCurrentTime(0);
-    setDuration(0);
-    setError("");
 
     if (blobUrl) {
-      setResolvedUrl(blobUrl);
-      setLoading(false);
-      updateStatus("ready");
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setCurrentTime(0);
+        setDuration(0);
+        setError("");
+        setResolvedUrl(blobUrl);
+        setLoading(false);
+        updateStatus("ready");
+      });
       return () => {
-        if (audioRef.current) {
-          audioRef.current.pause();
+        cancelled = true;
+        if (el) {
+          el.pause();
         }
         notifyPlaybackState();
       };
     }
 
     if (!mediaPath) {
-      setResolvedUrl(null);
-      setLoading(false);
-      updateStatus("idle");
-      return;
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setCurrentTime(0);
+        setDuration(0);
+        setError("");
+        setResolvedUrl(null);
+        setLoading(false);
+        updateStatus("idle");
+      });
+      return () => {
+        cancelled = true;
+      };
     }
 
-    setLoading(true);
-    updateStatus("loading");
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setCurrentTime(0);
+      setDuration(0);
+      setError("");
+      setLoading(true);
+      updateStatus("loading");
+    });
 
     mediaUrl(mediaPath)
       .then((url) => {
@@ -192,20 +157,20 @@ export default function AudioPlayer({
 
     return () => {
       cancelled = true;
-      if (audioRef.current) {
-        audioRef.current.pause();
+      if (el) {
+        el.pause();
       }
       if (createdObjectUrl) {
         URL.revokeObjectURL(createdObjectUrl);
       }
       notifyPlaybackState();
     };
-  }, [mediaPath, blobUrl, reloadTick]);
+  }, [mediaPath, blobUrl, reloadTick, updateStatus]);
 
   function handlePlay() {
     const el = audioRef.current;
     if (!el || !resolvedUrl || disabled) return;
-    pauseAllOtherAudio(playerId.current);
+    pauseAllOtherAudio(playerId);
     el.play()
       .then(() => {
         updateStatus("playing");
@@ -239,7 +204,7 @@ export default function AudioPlayer({
   function handleReplay() {
     const el = audioRef.current;
     if (!el || !resolvedUrl || disabled) return;
-    pauseAllOtherAudio(playerId.current);
+    pauseAllOtherAudio(playerId);
     el.currentTime = 0;
     setCurrentTime(0);
     el.play()
@@ -342,7 +307,7 @@ export default function AudioPlayer({
         onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
         onPlay={() => {
           updateStatus("playing");
-          pauseAllOtherAudio(playerId.current);
+          pauseAllOtherAudio(playerId);
           notifyPlaybackState();
         }}
         onPause={() => {

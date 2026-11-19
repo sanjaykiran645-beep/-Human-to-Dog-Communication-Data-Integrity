@@ -13,7 +13,6 @@ or experimental DSP output.
 
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -25,11 +24,9 @@ from scipy.signal import butter, filtfilt, medfilt
 from ..config import TARGET_SR
 from .reference_library import (
     CATEGORY_FALLBACK_ORDER,
-    SUPPORTED_REFERENCE_CATEGORIES,
     build_or_load_reference_library,
     category_to_legacy_profile,
     compute_reference_acoustic_profile,
-    get_reference_asset,
     is_reference_accessible,
     normalize_category,
 )

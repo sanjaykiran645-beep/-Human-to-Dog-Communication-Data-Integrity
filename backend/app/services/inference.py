@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 import joblib
-import numpy as np
 
 from .. import MODEL_VERSION
 from ..config import DATA_DIR

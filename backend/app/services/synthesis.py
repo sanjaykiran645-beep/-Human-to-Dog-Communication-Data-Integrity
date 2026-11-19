@@ -1,4 +1,4 @@
-﻿"""
+"""
 Engine B â€” Parametric DSP Fallback & WAV Validation Utilities.
 
 NOTE: The primary Engine B generation strategy is now Reference-Driven Generation

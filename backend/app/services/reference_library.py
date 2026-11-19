@@ -12,7 +12,6 @@ import csv
 import hashlib
 import json
 import os
-import shutil
 import threading
 import uuid
 import zipfile
@@ -25,7 +24,7 @@ import numpy as np
 import soundfile as sf
 
 from ..config import ROOT, TARGET_SR
-from .audio import _decode_any, assess_quality, preprocess, sniff_format
+from .audio import _decode_any, preprocess, sniff_format
 
 REPO_DATA_DIR = ROOT / "data"
 # Tests (and sandboxes) point this at a throw-away copy so they can never mutate the real library.

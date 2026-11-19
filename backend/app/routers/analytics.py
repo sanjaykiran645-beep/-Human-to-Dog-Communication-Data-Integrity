@@ -6,7 +6,7 @@ import json
 from collections import Counter
 
 import numpy as np
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -15,7 +15,7 @@ from ..db import get_db
 from ..deps import get_current_user
 from ..ml.evaluate import CANONICAL_6_CLASSES, evaluate_dog_independent_generalization
 from ..security import revoke_token
-from ..services import audit, storage
+from ..services import storage
 from ..services.breed_intelligence import resolve_breed_intelligence
 
 router = APIRouter(prefix="/api", tags=["analytics"])

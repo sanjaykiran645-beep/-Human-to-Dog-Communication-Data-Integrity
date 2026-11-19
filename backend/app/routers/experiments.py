@@ -11,11 +11,10 @@ import json
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from typing import Any
 
 import numpy as np
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -23,19 +22,17 @@ from sqlalchemy.orm import Session
 from .. import models
 from ..db import get_db
 from ..deps import get_current_user
-from ..services import audit, storage
-from ..services.synthesis import synthesize, validate_generated_wav
+from ..services import audit
+from ..services.synthesis import synthesize
 from ..services.trial_service import (
     ACTION_CATEGORIES,
     EXPERIMENTAL_CONDITIONS,
     MAX_PLAYBACK_SPL_DBA,
     OUTCOME_CATEGORIES,
     PROTOCOL_VERSION,
-    WELFARE_DISTRESS_INDICATORS,
     compute_experimental_metrics,
     export_pseudonymous_research_archive,
     generate_counterbalanced_schedule,
-    synthesize_control_audio,
 )
 
 router = APIRouter(prefix="/api/experiments", tags=["experiments"])
@@ -306,7 +303,6 @@ def register_experimental_cue(
         )
     except Exception:
         # Fallback to smooth synthetic audio
-        import soundfile as sf
         sr = 22050
         t = np.linspace(0, payload.duration_sec, int(sr * payload.duration_sec), endpoint=False)
         y = 0.4 * np.sin(2 * np.pi * payload.f0_hz * t)

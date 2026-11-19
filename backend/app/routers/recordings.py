@@ -20,7 +20,7 @@ from ..config import MAX_UPLOAD_BYTES
 from ..db import get_db
 from ..deps import get_current_user, limit_analyze
 from ..services import audit, storage
-from ..services.audio import AudioError, load_processed, write_and_decode
+from ..services.audio import AudioError, write_and_decode
 from ..services.behavior import estimate_behavior
 from ..services.breed_intelligence import resolve_breed_intelligence
 from ..services.explain import explain

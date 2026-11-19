@@ -4,7 +4,7 @@
 
 const CACHE_NAME = "caninesense-shell-v2";
 
-self.addEventListener("install", (event) => {
+self.addEventListener("install", () => {
   self.skipWaiting();
 });
 

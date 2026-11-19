@@ -522,21 +522,33 @@ def log_behavioural_trial(
 
 @router.get("/trials")
 def list_trials(
+    response: Response,
     participant_id: str | None = None,
     session_id: str | None = None,
     condition: str | None = None,
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
     user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[dict[str, Any]]:
-    stmt = select(models.BehaviouralTrial).where(models.BehaviouralTrial.user_id == user.id)
-    if participant_id:
-        stmt = stmt.where(models.BehaviouralTrial.participant_id == participant_id)
-    if session_id:
-        stmt = stmt.where(models.BehaviouralTrial.session_id == session_id)
-    if condition:
-        stmt = stmt.where(models.BehaviouralTrial.experimental_condition == condition)
+    from sqlalchemy import func
 
-    trials = list(db.scalars(stmt.order_by(models.BehaviouralTrial.playback_timestamp.desc()).limit(300)))
+    base_stmt = select(models.BehaviouralTrial).where(models.BehaviouralTrial.user_id == user.id)
+    if participant_id:
+        base_stmt = base_stmt.where(models.BehaviouralTrial.participant_id == participant_id)
+    if session_id:
+        base_stmt = base_stmt.where(models.BehaviouralTrial.session_id == session_id)
+    if condition:
+        base_stmt = base_stmt.where(models.BehaviouralTrial.experimental_condition == condition)
+
+    total_count = int(db.scalar(select(func.count()).select_from(base_stmt.subquery())) or 0)
+    response.headers["X-Total-Count"] = str(total_count)
+
+    trials = list(
+        db.scalars(
+            base_stmt.order_by(models.BehaviouralTrial.playback_timestamp.desc()).offset(offset).limit(limit)
+        )
+    )
     return [
         {
             "id": t.id,

@@ -216,6 +216,13 @@ def evaluate_dog_independent_generalization(
     and compute a 5-bin calibration reliability diagram (ECE), Brier score, per-class F1,
     and abstention rate on held-out dogs.
     """
+    # Filter out synthetic/fixture/unlabeled rows BEFORE checking empty records.
+    records = [
+        rec
+        for rec in records
+        if not rec.get("is_fixture")
+        and bool(rec.get("label") or rec.get("vocalization_label") or rec.get("true_label"))
+    ]
     if not records:
         empty_bins = [
             {

@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from collections import defaultdict
 import hashlib
 import json
+import logging
 import uuid
 from pathlib import Path
 
@@ -13,7 +14,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from .. import BEHAVIOR_MODEL_VERSION, MODEL_VERSION, models
 from ..config import MAX_UPLOAD_BYTES
@@ -26,8 +27,11 @@ from ..services.breed_intelligence import resolve_breed_intelligence
 from ..services.explain import explain
 from ..services.features import extract_features
 from ..services.inference import predict_vocalization
+from ..services.scenario_intelligence import evaluate_acoustic_scenario
 from ..services.spectrogram import SpectrogramError, compute_spectrogram_from_file
 from ..services.viz import ensure_plots, write_plots
+
+log = logging.getLogger("caninesense.recordings")
 
 router = APIRouter(prefix="/api", tags=["recordings"])
 
@@ -48,7 +52,37 @@ def _recording_owned(db: Session, user: models.User, recording_id: str) -> model
     return rec
 
 
-def _serialize_recording(rec: models.Recording, analysis: models.Analysis | None = None) -> dict:
+def _dog_profile_summary(dog: models.Dog | None, intel: dict | None = None) -> dict:
+    if dog is None and intel is None:
+        return {
+            "name": "Active Companion",
+            "breed": "Mixed Canine",
+            "sex": "unknown",
+        }
+    resolved = intel or resolve_breed_intelligence(
+        breed=dog.breed if dog else None,
+        weight_kg=dog.weight_kg if dog else None,
+        age_years=dog.age_years if dog else None,
+        fetch_remote=False,
+        sex=dog.sex if dog else "unknown",
+    )
+    return {
+        "id": dog.id if dog else None,
+        "name": dog.name if dog else "Active Companion",
+        "breed": resolved.get("canonical_breed") or (dog.breed if dog and dog.breed else "Canine"),
+        "sex": (dog.sex if dog and dog.sex else "unknown"),
+        "intelligence_tier": resolved.get("intelligence_tier"),
+        "intelligence_rank": resolved.get("intelligence_rank"),
+        "temperament": ", ".join((resolved.get("temperament") or [])[:4]),
+        "clinical_notes": resolved.get("clinical_notes", ""),
+    }
+
+
+def _serialize_recording(
+    rec: models.Recording,
+    analysis: models.Analysis | None = None,
+    dog: models.Dog | None = None,
+) -> dict:
     out = {
         "id": rec.id,
         "dog_id": rec.dog_id,
@@ -71,13 +105,16 @@ def _serialize_recording(rec: models.Recording, analysis: models.Analysis | None
             "spectrogram_data": f"/api/recordings/{rec.id}/spectrogram-data",
         },
     }
+    if dog is not None:
+        out["dog_profile"] = _dog_profile_summary(dog)
     if analysis:
         out["analysis"] = _serialize_analysis(analysis)
     return out
 
 
 def _serialize_analysis(a: models.Analysis) -> dict:
-    return {
+    behavior = json.loads(a.behavior_json or "{}")
+    out = {
         "id": a.id,
         "recording_id": a.recording_id,
         "dog_id": a.dog_id,
@@ -89,12 +126,15 @@ def _serialize_analysis(a: models.Analysis) -> dict:
         "probabilities": json.loads(a.probabilities_json or "{}"),
         "alternatives": json.loads(a.alternatives_json or "[]"),
         "features": json.loads(a.features_json or "{}"),
-        "behavior": json.loads(a.behavior_json or "{}"),
+        "behavior": behavior,
         "explanation": json.loads(a.explanation_json or "{}"),
         "limitations": json.loads(a.limitations_json or "[]"),
         "scientific_validation_status": "unvalidated_heuristic",
         "created_at": a.created_at.isoformat() if a.created_at else None,
     }
+    if isinstance(behavior, dict) and behavior.get("scenario"):
+        out["scenario"] = behavior["scenario"]
+    return out
 
 
 def _dog_personal_f0_baseline(db: Session | None, dog: models.Dog | None) -> tuple[float | None, float | None]:
@@ -114,7 +154,7 @@ def _dog_personal_f0_baseline(db: Session | None, dog: models.Dog | None) -> tup
                 if math.isfinite(fv) and fv > 0:
                     f0s.append(fv)
         except Exception:
-            pass
+            log.warning("Skipping corrupt features_json while computing F0 baseline for analysis %s", a.id, exc_info=True)
     if not f0s:
         return None, None
     mean_f0 = sum(f0s) / len(f0s)
@@ -130,6 +170,10 @@ def run_analysis_pipeline(
     db: Session | None = None,
 ) -> dict:
     features = extract_features(y, sr)
+    snr_db, hnr_db, clipping_ratio = _compute_real_snr_and_hnr(y, sr)
+    features["snr_db"] = snr_db
+    features["hnr"] = hnr_db
+    features["clipping_ratio"] = clipping_ratio
     classification = predict_vocalization(features, quality)
     dog_dict = None
     if dog is not None:
@@ -143,12 +187,14 @@ def run_analysis_pipeline(
                 dog.breed,
                 dog.weight_kg,
                 dog.age_years,
+                fetch_remote=False,
                 sex=dog.sex,
             ),
             "personal_f0_mean_hz": personal_mean_f0,
             "personal_f0_std_hz": personal_std_f0,
         }
     behavior = estimate_behavior(features, classification, dog_dict)
+    behavior["scenario"] = evaluate_acoustic_scenario(features, classification, dog_dict)
     explanation = explain(features, quality, classification, behavior)
     return {
         "features": features,
@@ -265,7 +311,7 @@ def _analyze_impl(upload: UploadFile, dog_id: str | None, source: str, user: mod
         storage.delete_recording_tree(user.id, rec_id)
         raise HTTPException(status_code=500, detail="Could not persist analysis record.") from exc
 
-    return _serialize_recording(rec, analysis)
+    return _serialize_recording(rec, analysis, dog=dog)
 
 
 @router.get("/recordings")
@@ -274,26 +320,22 @@ def list_recordings(
     user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[dict]:
-    stmt = select(models.Recording).where(models.Recording.user_id == user.id)
+    stmt = (
+        select(models.Recording)
+        .options(selectinload(models.Recording.analysis))
+        .where(models.Recording.user_id == user.id)
+    )
     if dog_id:
         _dog_or_none(db, user, dog_id)
         stmt = stmt.where(models.Recording.dog_id == dog_id)
     recs = list(db.scalars(stmt.order_by(models.Recording.created_at.desc()).limit(200)))
-    out = []
-    for rec in recs:
-        analysis = db.scalar(select(models.Analysis).where(models.Analysis.recording_id == rec.id))
-        rec_dict = _serialize_recording(rec, analysis)
-        if rec.dog_id:
-            d = db.get(models.Dog, rec.dog_id)
-            if d:
-                rec_dict["dog_profile"] = {
-                    "id": d.id,
-                    "name": d.name,
-                    "breed": d.breed or "Canine",
-                    "sex": d.sex or "unknown",
-                }
-        out.append(rec_dict)
-    return out
+    dog_ids = {rec.dog_id for rec in recs if rec.dog_id}
+    dogs_by_id = (
+        {d.id: d for d in db.scalars(select(models.Dog).where(models.Dog.id.in_(dog_ids)))}
+        if dog_ids
+        else {}
+    )
+    return [_serialize_recording(rec, rec.analysis, dog=dogs_by_id.get(rec.dog_id)) for rec in recs]
 
 
 class AnnotationIn(BaseModel):
@@ -718,250 +760,15 @@ def _compute_real_snr_and_hnr(arr, sr: int) -> tuple[float, float, float]:
     return snr_db, hnr_db, clipping_ratio
 
 
-def _extract_quick_pcm_features(arr, sr: int) -> tuple[dict, float, float, float, float]:
-    """Extract in-memory FFT spectral features, duration, empirical SNR/HNR, and clipping ratio."""
-    import numpy as np
-
-    duration_sec = round(max(0.8, len(arr) / float(sr)), 2)
-    rms = float(np.sqrt(np.mean(arr ** 2))) if len(arr) else 0.14
-    win = arr[: min(len(arr), sr * 3)]
-    spec = np.abs(np.fft.rfft(win))
-    freqs = np.fft.rfftfreq(len(win), 1.0 / sr)
-    band_mask = (freqs >= 95.0) & (freqs <= 980.0)
-    if np.any(band_mask) and np.sum(spec[band_mask]) > 0:
-        dom_f0 = float(freqs[band_mask][np.argmax(spec[band_mask])])
-        centroid = float(np.sum(freqs * spec) / (np.sum(spec) + 1e-9))
-    else:
-        dom_f0 = 330.0
-        centroid = 1420.0
-    env = np.abs(arr)
-    thr = max(0.08, float(np.mean(env) * 1.65))
-    crossings = int(np.sum((env[1:] > thr) & (env[:-1] <= thr)))
-    onset_rate = float(np.clip(crossings / max(duration_sec, 0.8), 1.1, 6.2))
-    snr_db, hnr_db, clipping_ratio = _compute_real_snr_and_hnr(arr, sr)
-    features = {
-        "f0_mean": round(dom_f0, 1),
-        "f0_cv": 0.16,
-        "rms": round(max(0.08, rms), 3),
-        "onset_rate": round(onset_rate, 2),
-        "spectral_centroid": round(centroid, 1),
-        "hnr": hnr_db,
-        "snr_db": snr_db,
-        "duration": duration_sec,
-    }
-    return features, duration_sec, snr_db, hnr_db, clipping_ratio
-
-
 @router.post("/recordings/quick-analyze")
 def quick_analyze_recording(
+    request: Request,
     request_file: UploadFile = File(..., alias="file"),
     dog_id: str | None = Form(default=None),
     source: str = Form(default="upload"),
     user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    """Zero-leakage, sub-250ms bioacoustic & scenario analyzer."""
-    import io
-    import wave
-    import numpy as np
-    from ..services.scenario_intelligence import evaluate_acoustic_scenario
-    from ..services.breed_intelligence import resolve_breed_intelligence
-
-    dog = _dog_or_none(db, user, dog_id)
-    raw_bytes = request_file.file.read(MAX_UPLOAD_BYTES + 1)
-    if not raw_bytes:
-        raise HTTPException(status_code=400, detail="Uploaded audio file is empty.")
-    if len(raw_bytes) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="Audio file exceeds maximum size limit.")
-    if not _validate_audio_magic_bytes(raw_bytes) or raw_bytes.startswith(b"MZ") or raw_bytes.startswith(b"#!/") or b"<script" in raw_bytes[:512].lower():
-        raise HTTPException(status_code=400, detail="Invalid audio file format rejected by security filter.")
-
-    intel = resolve_breed_intelligence(
-        dog.breed if dog else None,
-        dog.weight_kg if dog else None,
-        sex=dog.sex if dog else None,
-    )
-
-    # Fast in-memory WAV/PCM parser first (zero disk footprint, zero matplotlib lag)
-    features = None
-    classification = None
-    duration_sec = 2.5
-    snr_db, hnr_db, clipping_ratio = 12.0, 6.0, 0.0
-
-    if raw_bytes[:4] == b"RIFF" and b"WAVE" in raw_bytes[:12]:
-        try:
-            with wave.open(io.BytesIO(raw_bytes), "rb") as wf:
-                sr = wf.getframerate() or 16000
-                nframes = wf.getnframes()
-                sampwidth = wf.getsampwidth()
-                nchan = max(1, wf.getnchannels())
-                if nframes <= 0 or nframes * sampwidth * nchan > len(raw_bytes) or len(raw_bytes) < 128:
-                    raise ValueError("Corrupted or truncated WAV header")
-                pcm = wf.readframes(min(nframes, sr * 15))
-                if sampwidth == 2:
-                    arr = np.frombuffer(pcm, dtype=np.int16).astype(np.float32) / 32768.0
-                elif sampwidth == 4:
-                    arr = np.frombuffer(pcm, dtype=np.int32).astype(np.float32) / 2147483648.0
-                else:
-                    arr = (np.frombuffer(pcm, dtype=np.uint8).astype(np.float32) - 128.0) / 128.0
-                if nchan > 1:
-                    arr = arr[::nchan]
-                features, duration_sec, snr_db, hnr_db, clipping_ratio = _extract_quick_pcm_features(arr, int(sr))
-        except Exception:
-            features = None
-
-    if features is None:
-        try:
-            import soundfile as sf
-            arr, sr = sf.read(io.BytesIO(raw_bytes))
-            if arr.ndim > 1:
-                arr = arr.mean(axis=1)
-            arr = arr.astype(np.float32)
-            if arr.size < max(64, int(sr * 0.05)):
-                raise ValueError("Truncated or sub-minimum audio payload")
-            features, duration_sec, snr_db, hnr_db, clipping_ratio = _extract_quick_pcm_features(arr, int(sr))
-        except Exception:
-            # Compressed containers (MP3/M4A/OGG/WebM): decode to genuine PCM via soundfile/FFmpeg/librosa.
-            # Raw container bytes are NEVER reinterpreted as signal samples. Temp files are deleted immediately.
-            import tempfile
-            from pathlib import Path as _Path
-
-            try:
-                with tempfile.TemporaryDirectory(prefix="cs_qa_") as td:
-                    meta = write_and_decode(
-                        raw_bytes,
-                        _Path(td) / "orig",
-                        _Path(td) / "pcm.wav",
-                        request_file.filename or "clip.wav",
-                    )
-                arr = np.asarray(meta["y"], dtype=np.float32)
-                sr = int(meta["sr"])
-                if arr.size < 16 or not np.isfinite(arr).all():
-                    raise ValueError("no valid PCM samples")
-            except Exception:
-                raise HTTPException(
-                    status_code=422,
-                    detail="Audio container could not be decoded to PCM waveform. Please upload a valid WAV, MP3, M4A, OGG, or WebM audio file.",
-                )
-            features, duration_sec, snr_db, hnr_db, clipping_ratio = _extract_quick_pcm_features(arr, int(sr))
-
-    f0_val = float(features.get("f0_mean") or 330.0)
-    dur_val = float(features.get("duration") or 2.2)
-    onset_val = float(features.get("onset_rate") or 2.4)
-    if classification is None or classification.get("vocalization") in {None, "unknown"}:
-        vocal_guess = (
-            "whine"
-            if f0_val >= 420.0
-            else "growl"
-            if f0_val <= 200.0
-            else "howl"
-            if dur_val >= 4.0 and onset_val < 2.2
-            else "bark"
-        )
-        classification = {"vocalization": vocal_guess, "confidence": 0.95, "abstained": False}
-
-    personal_mean_f0, personal_std_f0 = _dog_personal_f0_baseline(db, dog)
-    dog_dict = {
-        "weight_kg": dog.weight_kg if dog else intel["default_weight_kg"],
-        "breed": dog.breed if dog else intel["canonical_breed"],
-        "sex": dog.sex if dog else "unknown",
-        "name": dog.name if dog else "Active Companion",
-        "breed_intelligence": intel,
-        "personal_f0_mean_hz": personal_mean_f0,
-        "personal_f0_std_hz": personal_std_f0,
-    }
-
-    scenario = evaluate_acoustic_scenario(features, classification, dog_dict)
-    behavior = estimate_behavior(features, classification, dog_dict)
-    behavior["scenario"] = scenario
-
-
-    # PERSIST RECORDING & ANALYSIS TO SQLITE SO HISTORY & ANALYTICS ALWAYS WORK
-    rec_row_id = str(uuid.uuid4())
-    sha_hex = hashlib.sha256(raw_bytes).hexdigest()
-    vocal_final = str(classification.get("vocalization") or "bark")
-    conf_final = float(scenario["confidence"])
-    probs = {vocal_final: conf_final, "bark": 0.15, "whine": 0.1, "growl": 0.08, "howl": 0.05}
-    probs[vocal_final] = conf_final
-
-    try:
-        rec_row = models.Recording(
-            id=rec_row_id,
-            user_id=user.id,
-            dog_id=dog.id if dog else None,
-            original_filename=request_file.filename or "recording.wav",
-            original_path="",
-            processed_path="",
-            spectrogram_path="",
-            waveform_path="",
-            content_type=request_file.content_type or "audio/wav",
-            duration_sec=float(duration_sec),
-            sample_rate=16000,
-            channels=1,
-            sha256=sha_hex,
-            file_size=len(raw_bytes),
-            quality_status="good" if snr_db >= 8.0 else "low_snr",
-            quality_json=json.dumps(
-                {
-                    "status": "good" if snr_db >= 8.0 else "low_snr",
-                    "snr_db": snr_db,
-                    "hnr_db": hnr_db,
-                    "clipping_ratio": clipping_ratio,
-                }
-            ),
-            source=source or "upload",
-        )
-        db.add(rec_row)
-        db.flush()
-
-        analysis_row = models.Analysis(
-            id=str(uuid.uuid4()),
-            user_id=user.id,
-            recording_id=rec_row.id,
-            dog_id=dog.id if dog else None,
-            model_version=MODEL_VERSION,
-            behavior_model_version=BEHAVIOR_MODEL_VERSION,
-            vocalization=vocal_final,
-            confidence=conf_final,
-            abstained=False,
-            probabilities_json=json.dumps(probs),
-            alternatives_json=json.dumps([{"vocalization": vocal_final, "probability": conf_final}]),
-            features_json=json.dumps(features),
-            behavior_json=json.dumps(behavior),
-            explanation_json=json.dumps({"summary": scenario["spoken_meaning"], "why": scenario["why_purpose"], "action": scenario["owner_action"]}),
-            limitations_json=json.dumps([]),
-        )
-        db.add(analysis_row)
-        audit.log(db, action="recording.analyze", entity="recording", user_id=user.id, entity_id=rec_row.id)
-        db.commit()
-    except Exception as exc:
-        db.rollback()
-        raise HTTPException(status_code=503, detail="Database persistence error; recording could not be saved.") from exc
-
-    return {
-        "id": rec_row_id,
-        "original_filename": request_file.filename or "recording.wav",
-        "duration_sec": duration_sec,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "dog_profile": {
-            "name": dog_dict["name"],
-            "breed": intel["canonical_breed"],
-            "sex": dog.sex if dog else "unknown",
-            "intelligence_tier": intel["intelligence_tier"],
-            "intelligence_rank": intel["intelligence_rank"],
-            "temperament": ", ".join(intel["temperament"][:4]),
-            "clinical_notes": intel.get("clinical_notes", ""),
-        },
-        "analysis": {
-            "vocalization": classification.get("vocalization") or "bark",
-            "confidence": scenario["confidence"],
-            "features": features,
-            "behavior": behavior,
-            "scenario": scenario,
-            "explanation": {
-                "summary": scenario["spoken_meaning"],
-                "why": scenario["why_purpose"],
-                "action": scenario["owner_action"],
-            },
-        },
-    }
+    """Compatibility alias routed directly through the full Engine A pipeline, quotas, and media storage."""
+    limit_analyze(request)
+    return _analyze_impl(request_file, dog_id, source, user, db)

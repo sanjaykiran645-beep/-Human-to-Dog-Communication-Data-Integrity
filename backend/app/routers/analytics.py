@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections import Counter
 
 import numpy as np
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+
+log = logging.getLogger("caninesense.analytics")
 
 from .. import BEHAVIOR_MODEL_VERSION, MODEL_VERSION, SYNTH_MODEL_VERSION, models
 from ..db import get_db
@@ -46,9 +49,18 @@ def summary(user: models.User = Depends(get_current_user), db: Session = Depends
             .limit(8)
         )
     )
+    recent_rec_ids = [a.recording_id for a in recent if a.recording_id]
+    recs_by_id = (
+        {
+            r.id: r
+            for r in db.scalars(select(models.Recording).where(models.Recording.id.in_(recent_rec_ids)))
+        }
+        if recent_rec_ids
+        else {}
+    )
     recent_out = []
     for a in recent:
-        rec = db.get(models.Recording, a.recording_id)
+        rec = recs_by_id.get(a.recording_id)
         recent_out.append(
             {
                 "analysis_id": a.id,
@@ -112,7 +124,7 @@ def validation_card(user: models.User = Depends(get_current_user), db: Session =
                 if val is not None and np.isfinite(float(val)) and float(val) > 0:
                     f0s.append(float(val))
             except Exception:
-                pass
+                log.warning("Failed parsing features_json for analysis %s", a.id, exc_info=True)
 
         intel = resolve_breed_intelligence(dog.breed, dog.weight_kg, dog.age_years, sex=dog.sex)
         prior_f0_range = list(intel["vocalization_profile"]["f0_range_hz"])
@@ -153,6 +165,7 @@ def validation_card(user: models.User = Depends(get_current_user), db: Session =
             try:
                 q = json.loads(r.quality_json)
             except Exception:
+                log.warning("Failed parsing quality_json for recording %s", r.id, exc_info=True)
                 q = {}
         cons_lbl = q.get("consensus_label")
         anns = q.get("independent_annotations") or []
@@ -161,21 +174,25 @@ def validation_card(user: models.User = Depends(get_current_user), db: Session =
             if cons_lbl and cons_lbl != "disputed"
             else (anns[0].get("vocalization_label") if anns else None)
         )
+        # Never manufacture self-referential ground truth from unannotated model predictions.
+        if not human_lbl:
+            continue
         resolved_path = ""
         if r and r.processed_path:
             try:
                 resolved_path = str(storage.resolve_owned(user.id, r.processed_path))
             except Exception:
+                log.warning("Unable to resolve processed_path for recording %s", r.id, exc_info=True)
                 resolved_path = ""
         eval_records.append(
             {
                 "dog_id": a.dog_id or (r.dog_id if r else None) or f"rec_{a.recording_id}",
-                "label": human_lbl or a.vocalization,
+                "label": human_lbl,
                 "pred_label": a.vocalization,
                 "confidence": a.confidence,
                 "abstained": a.abstained,
                 "path": resolved_path,
-                "is_fixture": human_lbl is None,
+                "is_fixture": False,
             }
         )
 

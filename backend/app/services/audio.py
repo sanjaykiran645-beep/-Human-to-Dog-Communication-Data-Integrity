@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import shutil
 import subprocess
@@ -14,6 +15,9 @@ import numpy as np
 import soundfile as sf
 
 from ..config import ALLOWED_EXTENSIONS, MAX_DURATION_SEC, MAX_UPLOAD_BYTES, MIN_DURATION_SEC, TARGET_SR
+from .storage import atomic_write_bytes
+
+log = logging.getLogger("caninesense.audio")
 
 _FFMPEG_CACHE: str | None | bool = False  # False = not probed
 
@@ -138,12 +142,12 @@ def sha256_bytes(data: bytes) -> str:
 
 def write_and_decode(data: bytes, dest_original: Path, dest_wav: Path, filename: str) -> dict[str, Any]:
     if len(data) > MAX_UPLOAD_BYTES:
-        raise AudioError("File exceeds 15 MB limit.", "too_large")
+        mb_limit = MAX_UPLOAD_BYTES // (1024 * 1024)
+        raise AudioError(f"File exceeds {mb_limit} MB limit.", "too_large")
     if len(data) < 64:
         raise AudioError("File is too small to be valid audio.", "too_small")
     fmt = sniff_format(data[:64], filename)
-    dest_original.parent.mkdir(parents=True, exist_ok=True)
-    dest_original.write_bytes(data)
+    atomic_write_bytes(dest_original, data)
 
     y, sr = _decode_any(dest_original, dest_wav, fmt)
 
@@ -187,14 +191,14 @@ def _decode_any(src: Path, dest_wav: Path, fmt: str) -> tuple[np.ndarray, int]:
             if y.ndim > 1:
                 y = np.mean(y, axis=1)
             return y.astype(np.float32), int(sr)
-        except Exception:
-            pass
+        except Exception as exc:
+            log.warning("soundfile decode failed for %s (%s); falling back to ffmpeg", src.name, exc)
     try:
         return _ffmpeg_decode(src, dest_wav)
     except AudioError:
         raise
-    except Exception:
-        pass
+    except Exception as exc:
+        log.warning("ffmpeg decode fallback failed for %s (%s); falling back to librosa", src.name, exc)
     try:
         import librosa
 

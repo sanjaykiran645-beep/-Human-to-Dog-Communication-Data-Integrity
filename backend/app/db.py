@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Generator
+import logging
 
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from .config import DATABASE_URL, DB_BACKEND, DB_PATH
+
+log = logging.getLogger("caninesense.db")
 
 
 class Base(DeclarativeBase):
@@ -63,6 +66,7 @@ def get_applied_migrations() -> list[str]:
         with SessionLocal() as session:
             return [m.version for m in session.query(models.SchemaMigration).order_by(models.SchemaMigration.version).all()]
     except Exception:
+        log.warning("Unable to query schema_migrations table", exc_info=True)
         return []
 
 

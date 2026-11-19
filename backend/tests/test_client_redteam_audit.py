@@ -178,31 +178,36 @@ def test_multi_user_idor_and_persistence_isolation(client, user_a, user_b, tmp_p
     assert client.get(f"/api/recordings/{rec_a_id}", headers=hdr_a).status_code == 200
 
 
-def test_fifo_10_dog_cap_and_gender_dimorphism(client, tmp_path: Path, monkeypatch):
+def test_dog_cap_explicit_409_and_gender_dimorphism(client, tmp_path: Path, monkeypatch):
     reg = client.post(
         "/api/auth/register",
-        json={"email": f"fifo-{os.urandom(4).hex()}@example.com", "password": "correcthorse", "name": "FIFO"},
+        json={"email": f"cap-{os.urandom(4).hex()}@example.com", "password": "correcthorse", "name": "Cap"},
     )
     assert reg.status_code == 200, reg.text
     hdr = auth_header(reg.json()["access_token"])
 
-    created_names = [f"FIFO-{i:02d}" for i in range(11)]
-    for name in created_names:
+    created_ids: list[str] = []
+    for i in range(10):
         r = client.post(
             "/api/dogs",
             headers=hdr,
-            json={"name": name, "breed": "Beagle", "sex": "male", "weight_kg": 11.5},
+            json={"name": f"CapDog-{i:02d}", "breed": "Beagle", "sex": "male", "weight_kg": 11.5},
         )
         assert r.status_code == 201, r.text
-        time.sleep(0.002)
+        created_ids.append(r.json()["id"])
 
-    dogs_after = client.get("/api/dogs", headers=hdr).json()
-    assert len(dogs_after) == 8
-    remaining_names = {d["name"] for d in dogs_after}
-    for pruned in created_names[:3]:
-        assert pruned not in remaining_names
-    for kept in created_names[3:]:
-        assert kept in remaining_names
+    # 11th dog must NOT silently delete older dogs; must fail with 409 Conflict
+    r_11 = client.post(
+        "/api/dogs",
+        headers=hdr,
+        json={"name": "CapDog-10", "breed": "Beagle", "sex": "male", "weight_kg": 11.5},
+    )
+    assert r_11.status_code == 409
+    assert len(client.get("/api/dogs", headers=hdr).json()) == 10
+
+    # Delete 3 profiles explicitly to make room for male/female test dogs
+    for did in created_ids[:3]:
+        assert client.delete(f"/api/dogs/{did}", headers=hdr).status_code == 200
 
     # Spy on resolve_breed_intelligence while running quick-analyze for male vs female dogs
     seen_sexes: list[str | None] = []
@@ -212,7 +217,9 @@ def test_fifo_10_dog_cap_and_gender_dimorphism(client, tmp_path: Path, monkeypat
         seen_sexes.append(kwargs.get("sex"))
         return orig_resolve(*args, **kwargs)
 
-    monkeypatch.setattr(breed_intel_mod, "resolve_breed_intelligence", spy_resolve)
+    import app.routers.recordings as rec_mod
+
+    monkeypatch.setattr(rec_mod, "resolve_breed_intelligence", spy_resolve)
 
     male_res = client.post(
         "/api/dogs",
@@ -246,13 +253,19 @@ def test_fifo_10_dog_cap_and_gender_dimorphism(client, tmp_path: Path, monkeypat
             files={"file": ("noisy_burst.wav", fh, "audio/wav")},
         )
 
-    assert qa_male.status_code == 200 and qa_female.status_code == 200
+    assert qa_male.status_code == 200, qa_male.text
+    assert qa_female.status_code == 200, qa_female.text
     assert "male" in seen_sexes and "female" in seen_sexes
 
     d_male = qa_male.json()
     d_female = qa_female.json()
+    assert d_male["sample_rate"] == 22050
     assert d_male["dog_profile"]["sex"] == "male"
     assert d_female["dog_profile"]["sex"] == "female"
+    # Verify real persisted media endpoints succeed (zero empty-path 404 regressions)
+    assert client.get(d_male["media_urls"]["processed"], headers=hdr).status_code == 200
+    assert client.get(d_male["media_urls"]["spectrogram"], headers=hdr).status_code == 200
+    assert client.get(d_male["media_urls"]["spectrogram_data"], headers=hdr).status_code == 200
 
     # Gender dimorphism F0 & formant calibration
     male_prior = orig_resolve("Beagle", 12.0, sex="male")

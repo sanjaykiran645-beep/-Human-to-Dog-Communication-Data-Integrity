@@ -29,7 +29,7 @@ def _enrich_dog_silently(data: dict) -> dict:
         breed=data.get("breed"),
         weight_kg=data.get("weight_kg"),
         age_years=data.get("age_years"),
-        fetch_remote=True,
+        fetch_remote=False,
         sex=sex_val,
     )
     if data.get("weight_kg") is None:
@@ -41,22 +41,14 @@ def _enrich_dog_silently(data: dict) -> dict:
         data["weight_kg"] = base_w
     return data
 
-def _enforce_max_10_dogs_fifo(db: Session, user_id: str) -> int:
-    """If user has more than 10 dog profiles, automatically delete the oldest 3 profiles."""
-    all_dogs = list(
-        db.scalars(
-            select(models.Dog)
-            .where(models.Dog.user_id == user_id)
-            .order_by(models.Dog.created_at.asc())
+
+def _ensure_under_dog_limit(db: Session, user_id: str, limit: int = 10) -> None:
+    count = len(list(db.scalars(select(models.Dog.id).where(models.Dog.user_id == user_id))))
+    if count >= limit:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Maximum of {limit} dog profiles per account reached. Delete an existing profile first.",
         )
-    )
-    deleted_count = 0
-    if len(all_dogs) > 10:
-        for old_dog in all_dogs[:3]:
-            db.delete(old_dog)
-            deleted_count += 1
-        db.flush()
-    return deleted_count
 
 @router.get("", response_model=list[schemas.DogOut])
 def list_dogs(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[models.Dog]:
@@ -64,11 +56,11 @@ def list_dogs(user: models.User = Depends(get_current_user), db: Session = Depen
 
 @router.post("", response_model=schemas.DogOut, status_code=201)
 def create_dog(payload: schemas.DogIn, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)) -> models.Dog:
+    _ensure_under_dog_limit(db, user.id, limit=10)
     raw = _enrich_dog_silently(payload.model_dump())
     dog = models.Dog(id=str(uuid.uuid4()), user_id=user.id, **raw)
     db.add(dog)
     db.flush()
-    _enforce_max_10_dogs_fifo(db, user.id)
     audit.log(db, action="dog.create", entity="dog", user_id=user.id, entity_id=dog.id)
     db.commit()
     db.refresh(dog)
@@ -86,6 +78,7 @@ def update_dog(dog_id: str, payload: schemas.DogIn, user: models.User = Depends(
         setattr(dog, k, v)
     audit.log(db, action="dog.update", entity="dog", user_id=user.id, entity_id=dog.id)
     db.commit()
+    db.refresh(dog)
     return dog
 
 @router.delete("/{dog_id}")

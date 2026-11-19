@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import Logo from "../Logo";
 import { getToken } from "../api";
 
+const CURRENT_YEAR = new Date().getFullYear();
+
 export default function Landing() {
   const inLab = Boolean(getToken());
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -155,7 +157,7 @@ export default function Landing() {
           <div>
             <div style={{ fontWeight: 600, fontSize: "1.05rem" }}>CanineSense AI</div>
             <div className="tiny" style={{ color: "var(--muted)", marginTop: 2 }}>
-              Open-Access Bioacoustics Research Initiative · &copy; {new Date().getFullYear()}
+              Open-Access Bioacoustics Research Initiative · &copy; {CURRENT_YEAR}
             </div>
           </div>
           <div className="tiny" style={{ color: "var(--ink-2)", display: "flex", gap: 16, flexWrap: "wrap" }}>

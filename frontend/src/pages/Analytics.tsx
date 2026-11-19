@@ -7,30 +7,43 @@ export default function Analytics() {
   const [recs, setRecs] = useState<any[]>([]);
   const [comms, setComms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  const [reloadTick, setReloadTick] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
     Promise.all([
-      api<Dog[]>("/api/dogs").catch(() => []),
-      api<any[]>("/api/recordings").catch(() => []),
-      api<any[]>("/api/communicate").catch(() => []),
-    ]).then(([d, r, c]) => {
-      const cached: any[] = JSON.parse(localStorage.getItem(historyCacheKey()) || "[]");
-      // Backend is authoritative; only explicitly tagged offline fallbacks supplement it.
-      const localRecs = cached.filter((x: any) => x?.unsynced_local_fallback === true);
-      const seen = new Set<string>();
-      const mergedRecs: any[] = [];
-      for (const item of [...(r || []), ...localRecs]) {
-        if (item?.id && !seen.has(item.id)) {
-          seen.add(item.id);
-          mergedRecs.push(item);
+      api<Dog[]>("/api/dogs"),
+      api<any[]>("/api/recordings"),
+      api<any[]>("/api/communicate"),
+    ])
+      .then(([d, r, c]) => {
+        if (cancelled) return;
+        const cached: any[] = JSON.parse(localStorage.getItem(historyCacheKey()) || "[]");
+        const localRecs = cached.filter((x: any) => x?.unsynced_local_fallback === true);
+        const seen = new Set<string>();
+        const mergedRecs: any[] = [];
+        for (const item of [...(r || []), ...localRecs]) {
+          if (item?.id && !seen.has(item.id)) {
+            seen.add(item.id);
+            mergedRecs.push(item);
+          }
         }
-      }
-      setDogs(d || []);
-      setRecs(mergedRecs);
-      setComms(c || []);
-      setLoading(false);
-    });
-  }, []);
+        setDogs(d || []);
+        setRecs(mergedRecs);
+        setComms(c || []);
+        setErr(null);
+      })
+      .catch((e: any) => {
+        if (!cancelled) setErr(String(e?.message || "Failed to load analytics data."));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadTick]);
 
   const counts: Record<string, number> = { BARK: 0, WHINE: 0, GROWL: 0, HOWL: 0, YIP: 0 };
   let totalF0 = 0;
@@ -59,6 +72,23 @@ export default function Analytics() {
           Live telemetry across your saved dog analyses, vocal frequency distributions, and gender-calibrated profiles.
         </p>
 
+        {err && (
+          <div className="alert alert-error row" style={{ justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+            <span>{err}</span>
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={() => {
+                setErr(null);
+                setLoading(true);
+                setReloadTick((n) => n + 1);
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {loading ? (
           <p className="muted">Calculating analytics...</p>
         ) : (
@@ -81,7 +111,7 @@ export default function Analytics() {
               <div style={{ padding: 18, borderRadius: 14, background: "rgba(0,0,0,0.03)" }}>
                 <div className="muted" style={{ fontSize: 12 }}>Translator Signals Sent</div>
                 <div style={{ fontSize: 28, fontWeight: 800, marginTop: 4 }}>
-                  {comms.length + Number(localStorage.getItem("cs_comm_count") || 0)}
+                  {comms.length}
                 </div>
               </div>
             </div>

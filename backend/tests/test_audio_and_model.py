@@ -255,3 +255,28 @@ def test_batch3_ml_validation_card_excludes_unannotated_and_trials_paginated(cli
     assert int(page1.headers["X-Total-Count"]) >= 3
     assert len(page1.json()) == 2
     assert len(page2.json()) >= 1
+
+
+def test_batch5_quarantined_candidate_gate_and_apk_disabled(client, tmp_path: Path, monkeypatch):
+    import joblib
+    from app import config
+    from app.services.inference import HeuristicModel
+
+    # 1. Broken candidate rf_candidate.joblib must not be active in candidates/
+    assert not (config.ROOT / "data" / "models" / "candidates" / "rf_candidate.joblib").exists()
+
+    # 2. Even if promoted=True, model with balanced_accuracy < 0.90 is refused by HeuristicModel
+    cand_dir = tmp_path / "models" / "candidates"
+    cand_dir.mkdir(parents=True, exist_ok=True)
+    joblib.dump(
+        {"promoted": True, "model": object(), "label_encoder": object(), "metrics": {"balanced_accuracy": 0.3438}},
+        cand_dir / "rf_candidate.joblib",
+    )
+    import app.services.inference as inf_mod
+
+    monkeypatch.setattr(inf_mod, "DATA_DIR", tmp_path)
+    assert HeuristicModel()._load_promoted_supervised() is None
+
+    # 3. Stale APK is no longer served as active release when unbuilt
+    apk_res = client.get("/api/download/apk")
+    assert apk_res.status_code == 503

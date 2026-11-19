@@ -156,9 +156,12 @@ APK_RELEASE_PATH = Path(__file__).resolve().parents[2] / "data" / "releases" / "
 @app.get("/api/download/apk")
 @app.get("/caninesense-ai.apk")
 def download_apk():
-    """Serve the packaged CanineSense AI Android APK bundle."""
+    """Serve the packaged CanineSense AI Android APK bundle when an up-to-date signed release exists."""
     if not APK_RELEASE_PATH.exists():
-        raise HTTPException(status_code=404, detail="APK release package not found")
+        raise HTTPException(
+            status_code=503,
+            detail="Signed Android APK release is unavailable until JDK 17+ / Android SDK 34 build toolchain is provisioned.",
+        )
     return FileResponse(
         APK_RELEASE_PATH,
         media_type="application/vnd.android.package-archive",

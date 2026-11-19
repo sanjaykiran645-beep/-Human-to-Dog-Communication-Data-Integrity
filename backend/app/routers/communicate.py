@@ -625,9 +625,9 @@ def generate(
         if dog.sex:
             sex_l = dog.sex.strip().lower()
             if sex_l.startswith("f"):
-                scale *= 1.04
+                scale *= 1.08
             elif sex_l.startswith("m"):
-                scale *= 0.97
+                scale *= 0.91
         base_calc = calculate_synthesis_parameters(vocalization=target, intent=intent)
         eff_pitch_hz = float(max(60.0, min(2000.0, round(float(base_calc["f0_base_hz"]) * scale, 2))))
         dog_pitch_note = {

@@ -2,6 +2,8 @@ import { Link } from "react-router-dom";
 import Logo from "../Logo";
 import { getToken } from "../api";
 
+const CURRENT_YEAR = new Date().getFullYear();
+
 export default function NotFound() {
   const inLab = Boolean(getToken());
 
@@ -54,7 +56,7 @@ export default function NotFound() {
       </main>
 
       <footer className="land-foot" style={{ maxWidth: 960, margin: "0 auto 30px", width: "100%", padding: "0 24px" }}>
-        <span>&copy; {new Date().getFullYear()} CanineSense AI Bioacoustics</span>
+        <span>&copy; {CURRENT_YEAR} CanineSense AI Bioacoustics</span>
         <div className="row" style={{ gap: 16 }}>
           <Link to="/privacy-policy">Privacy Policy</Link>
           <Link to="/terms-of-service">Terms of Service</Link>

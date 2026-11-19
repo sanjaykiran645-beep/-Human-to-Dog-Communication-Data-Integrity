@@ -9,24 +9,55 @@ export default function Dashboard() {
   const [dogs, setDogs] = useState<Dog[]>([]);
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  const [reloadTick, setReloadTick] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
     localStorage.removeItem("cs_demo_mode");
     Promise.all([
-      api<Dog[]>("/api/dogs").catch(() => []),
-      api<Recording[]>("/api/recordings").catch(() => []),
-    ]).then(([d, r]) => {
-      setDogs(d || []);
-      setRecordings(r || []);
-      setLoading(false);
-    });
-  }, []);
+      api<Dog[]>("/api/dogs"),
+      api<Recording[]>("/api/recordings"),
+    ])
+      .then(([d, r]) => {
+        if (cancelled) return;
+        setDogs(d || []);
+        setRecordings(r || []);
+        setErr(null);
+      })
+      .catch((e: any) => {
+        if (cancelled) return;
+        setErr(String(e?.message || "Failed to load dashboard data from backend."));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadTick]);
 
   const activeDog = dogs[0] || null;
   const recentRecs = recordings.slice(0, 4);
 
   return (
     <div className="stack-lg" style={{ maxWidth: 1080, margin: "0 auto" }}>
+      {err && (
+        <div className="alert alert-error row" style={{ justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+          <span>{err}</span>
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={() => {
+              setErr(null);
+              setLoading(true);
+              setReloadTick((n) => n + 1);
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
       {/* Sleek Minimalist Hero Banner */}
       <div
         className="card"

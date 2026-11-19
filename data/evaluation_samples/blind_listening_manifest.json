@@ -1,0 +1,402 @@
+{
+  "version": "1.0",
+  "description": "CanineSense AI Blind Listening Evaluation Manifest (44 randomized blinded samples across 11 categories and 4 methods)",
+  "blind_samples": [
+    {
+      "sample_id": "blind_001",
+      "blind_code": "BLD-DC7FF7",
+      "category": "BARK",
+      "generation_method": "GENUINE_CANINE_CONTROL",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 9.35,
+      "wav_path": "reference_library/processed/c0575f0c-ba0f-4e80-ba6c-0f8b6f411fb4.wav"
+    },
+    {
+      "sample_id": "blind_002",
+      "blind_code": "BLD-0F130B",
+      "category": "BARK",
+      "generation_method": "METHOD_A_CONCATENATIVE",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 0.26,
+      "wav_path": "reference_library/processed/c0575f0c-ba0f-4e80-ba6c-0f8b6f411fb4-ev0.wav"
+    },
+    {
+      "sample_id": "blind_003",
+      "blind_code": "BLD-8A3884",
+      "category": "BARK",
+      "generation_method": "METHOD_B_CROSS_SYNTHESIS",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 0.26,
+      "wav_path": "reference_library/processed/c0575f0c-ba0f-4e80-ba6c-0f8b6f411fb4-ev1.wav"
+    },
+    {
+      "sample_id": "blind_004",
+      "blind_code": "BLD-C92C92",
+      "category": "BARK",
+      "generation_method": "METHOD_D_FORMANT",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 7.58,
+      "wav_path": "reference_library/processed/16766ded-26e1-497d-9178-88fdfe8b7d1e.wav"
+    },
+    {
+      "sample_id": "blind_005",
+      "blind_code": "BLD-959A33",
+      "category": "GROWL",
+      "generation_method": "GENUINE_CANINE_CONTROL",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 1.5,
+      "wav_path": "reference_library/processed/5733b901-abbc-59ec-a34b-895d62c00c83.wav"
+    },
+    {
+      "sample_id": "blind_006",
+      "blind_code": "BLD-24CBD8",
+      "category": "GROWL",
+      "generation_method": "METHOD_A_CONCATENATIVE",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 1.3,
+      "wav_path": "reference_library/processed/ceb13150-1785-5659-b00e-c338fdfa759d.wav"
+    },
+    {
+      "sample_id": "blind_007",
+      "blind_code": "BLD-5B9B7B",
+      "category": "GROWL",
+      "generation_method": "METHOD_B_CROSS_SYNTHESIS",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 7.41,
+      "wav_path": "reference_library/processed/aa9b55a2-bb6f-56d1-9470-5a37784db79f.wav"
+    },
+    {
+      "sample_id": "blind_008",
+      "blind_code": "BLD-FBF944",
+      "category": "GROWL",
+      "generation_method": "METHOD_D_FORMANT",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 1.5,
+      "wav_path": "reference_library/processed/5733b901-abbc-59ec-a34b-895d62c00c83.wav"
+    },
+    {
+      "sample_id": "blind_009",
+      "blind_code": "BLD-46AA6D",
+      "category": "HOWL",
+      "generation_method": "GENUINE_CANINE_CONTROL",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 1.92,
+      "wav_path": "reference_library/processed/f17da90d-7b28-4df5-8e69-2c885848104d.wav"
+    },
+    {
+      "sample_id": "blind_010",
+      "blind_code": "BLD-0E46C1",
+      "category": "HOWL",
+      "generation_method": "METHOD_A_CONCATENATIVE",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 0.94,
+      "wav_path": "reference_library/processed/f17da90d-7b28-4df5-8e69-2c885848104d-ev0.wav"
+    },
+    {
+      "sample_id": "blind_011",
+      "blind_code": "BLD-3EEFEF",
+      "category": "HOWL",
+      "generation_method": "METHOD_B_CROSS_SYNTHESIS",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 2.35,
+      "wav_path": "reference_library/processed/3f38d332-3cb8-417b-90cf-79d060359aca.wav"
+    },
+    {
+      "sample_id": "blind_012",
+      "blind_code": "BLD-1070BB",
+      "category": "HOWL",
+      "generation_method": "METHOD_D_FORMANT",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 1.75,
+      "wav_path": "reference_library/processed/1da0366c-68b0-56f1-8e95-1ab26e97b998.wav"
+    },
+    {
+      "sample_id": "blind_013",
+      "blind_code": "BLD-68DD2D",
+      "category": "WHINE",
+      "generation_method": "GENUINE_CANINE_CONTROL",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 0.51,
+      "wav_path": "reference_library/processed/a7eb9db5-ce73-44ed-a358-1f93592b7fe0-ev3.wav"
+    },
+    {
+      "sample_id": "blind_014",
+      "blind_code": "BLD-42C660",
+      "category": "WHINE",
+      "generation_method": "METHOD_A_CONCATENATIVE",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 0.14,
+      "wav_path": "reference_library/processed/a7eb9db5-ce73-44ed-a358-1f93592b7fe0-ev9.wav"
+    },
+    {
+      "sample_id": "blind_015",
+      "blind_code": "BLD-DA52F1",
+      "category": "WHINE",
+      "generation_method": "METHOD_B_CROSS_SYNTHESIS",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 0.2,
+      "wav_path": "reference_library/processed/a7eb9db5-ce73-44ed-a358-1f93592b7fe0-ev10.wav"
+    },
+    {
+      "sample_id": "blind_016",
+      "blind_code": "BLD-504E64",
+      "category": "WHINE",
+      "generation_method": "METHOD_D_FORMANT",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 0.61,
+      "wav_path": "reference_library/processed/3f38d332-3cb8-417b-90cf-79d060359aca-ev1.wav"
+    },
+    {
+      "sample_id": "blind_017",
+      "blind_code": "BLD-6883A4",
+      "category": "YIP",
+      "generation_method": "GENUINE_CANINE_CONTROL",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 0.15,
+      "wav_path": "reference_library/processed/a7eb9db5-ce73-44ed-a358-1f93592b7fe0-ev2.wav"
+    },
+    {
+      "sample_id": "blind_018",
+      "blind_code": "BLD-EB40D8",
+      "category": "YIP",
+      "generation_method": "METHOD_A_CONCATENATIVE",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 0.17,
+      "wav_path": "reference_library/processed/7f72db5f-8f04-4e67-b680-54c99cfb4e70-ev41.wav"
+    },
+    {
+      "sample_id": "blind_019",
+      "blind_code": "BLD-9D2E4F",
+      "category": "YIP",
+      "generation_method": "METHOD_B_CROSS_SYNTHESIS",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 0.17,
+      "wav_path": "reference_library/processed/7f72db5f-8f04-4e67-b680-54c99cfb4e70-ev42.wav"
+    },
+    {
+      "sample_id": "blind_020",
+      "blind_code": "BLD-406E77",
+      "category": "YIP",
+      "generation_method": "METHOD_D_FORMANT",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 0.55,
+      "wav_path": "reference_library/processed/e4f5a533-8076-5803-a0d1-9e3d3f121fa3.wav"
+    },
+    {
+      "sample_id": "blind_021",
+      "blind_code": "BLD-6012AB",
+      "category": "YELP",
+      "generation_method": "GENUINE_CANINE_CONTROL",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 0.3,
+      "wav_path": "reference_library/processed/c52b76bc-72fd-5ec3-b1b0-060f4ea364c8.wav"
+    },
+    {
+      "sample_id": "blind_022",
+      "blind_code": "BLD-2F8043",
+      "category": "YELP",
+      "generation_method": "METHOD_A_CONCATENATIVE",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 5.2,
+      "wav_path": "reference_library/processed/c1f1cebe-7e0d-520b-b412-e4c9a161a036.wav"
+    },
+    {
+      "sample_id": "blind_023",
+      "blind_code": "BLD-A0D3A3",
+      "category": "YELP",
+      "generation_method": "METHOD_B_CROSS_SYNTHESIS",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 0.79,
+      "wav_path": "reference_library/processed/8f7143a0-49a9-58c9-9ae1-3550a38e766e.wav"
+    },
+    {
+      "sample_id": "blind_024",
+      "blind_code": "BLD-760906",
+      "category": "YELP",
+      "generation_method": "METHOD_D_FORMANT",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 0.8,
+      "wav_path": "reference_library/processed/a358946d-2cc8-56b9-ae81-adf8519ca40b.wav"
+    },
+    {
+      "sample_id": "blind_025",
+      "blind_code": "BLD-8E22D4",
+      "category": "WHIMPER",
+      "generation_method": "GENUINE_CANINE_CONTROL",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 1.3,
+      "wav_path": "reference_library/processed/4b758e4e-34b0-5448-aba5-4d6af6036e2d.wav"
+    },
+    {
+      "sample_id": "blind_026",
+      "blind_code": "BLD-342CBD",
+      "category": "WHIMPER",
+      "generation_method": "METHOD_A_CONCATENATIVE",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 0.8,
+      "wav_path": "reference_library/processed/2f2ec7c3-941b-5192-9161-d8f1a8c20978.wav"
+    },
+    {
+      "sample_id": "blind_027",
+      "blind_code": "BLD-20849E",
+      "category": "WHIMPER",
+      "generation_method": "METHOD_B_CROSS_SYNTHESIS",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 7.29,
+      "wav_path": "reference_library/processed/e8ab9ecc-d750-56d3-bce3-22d4586f9c05.wav"
+    },
+    {
+      "sample_id": "blind_028",
+      "blind_code": "BLD-EBE87F",
+      "category": "WHIMPER",
+      "generation_method": "METHOD_D_FORMANT",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 8.59,
+      "wav_path": "reference_library/processed/fb5d4f90-4150-507b-8064-8d3521d3cca6.wav"
+    },
+    {
+      "sample_id": "blind_029",
+      "blind_code": "BLD-C484F6",
+      "category": "CRY",
+      "generation_method": "GENUINE_CANINE_CONTROL",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 1.05,
+      "wav_path": "reference_library/processed/c5269570-62cf-5de2-96ce-edc6f680b5ce.wav"
+    },
+    {
+      "sample_id": "blind_030",
+      "blind_code": "BLD-C07DD8",
+      "category": "CRY",
+      "generation_method": "METHOD_A_CONCATENATIVE",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 1.4,
+      "wav_path": "reference_library/processed/bcdb5efe-69f8-5cbe-9397-e7ff9da34beb.wav"
+    },
+    {
+      "sample_id": "blind_031",
+      "blind_code": "BLD-A57890",
+      "category": "CRY",
+      "generation_method": "METHOD_B_CROSS_SYNTHESIS",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 1.99,
+      "wav_path": "reference_library/processed/f6e8d79e-7b38-5bc0-ac02-cc7a6651ee48.wav"
+    },
+    {
+      "sample_id": "blind_032",
+      "blind_code": "BLD-477139",
+      "category": "CRY",
+      "generation_method": "METHOD_D_FORMANT",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 1.28,
+      "wav_path": "reference_library/processed/f5423a67-edb6-5171-a5d6-8ec821efc8a4.wav"
+    },
+    {
+      "sample_id": "blind_033",
+      "blind_code": "BLD-7DC4AF",
+      "category": "GRUNT",
+      "generation_method": "GENUINE_CANINE_CONTROL",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 0.8,
+      "wav_path": "reference_library/processed/6d5f2dc6-ee2d-5793-95fb-dbc81efd97b8.wav"
+    },
+    {
+      "sample_id": "blind_034",
+      "blind_code": "BLD-8F98F2",
+      "category": "GRUNT",
+      "generation_method": "METHOD_A_CONCATENATIVE",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 7.96,
+      "wav_path": "reference_library/processed/efdb0a8d-dbad-50fc-a481-12e3c0c189fd.wav"
+    },
+    {
+      "sample_id": "blind_035",
+      "blind_code": "BLD-A84C9B",
+      "category": "GRUNT",
+      "generation_method": "METHOD_B_CROSS_SYNTHESIS",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 0.4,
+      "wav_path": "reference_library/processed/1fc23ef5-da81-5069-bac9-63e57b47facb.wav"
+    },
+    {
+      "sample_id": "blind_036",
+      "blind_code": "BLD-2C1BB7",
+      "category": "GRUNT",
+      "generation_method": "METHOD_D_FORMANT",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 0.8,
+      "wav_path": "reference_library/processed/6d5f2dc6-ee2d-5793-95fb-dbc81efd97b8.wav"
+    },
+    {
+      "sample_id": "blind_037",
+      "blind_code": "BLD-E1B599",
+      "category": "GROAN",
+      "generation_method": "GENUINE_CANINE_CONTROL",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 1.25,
+      "wav_path": "reference_library/processed/f1c150b9-0603-55b6-9114-be30c04637f0.wav"
+    },
+    {
+      "sample_id": "blind_038",
+      "blind_code": "BLD-931250",
+      "category": "GROAN",
+      "generation_method": "METHOD_A_CONCATENATIVE",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 0.9,
+      "wav_path": "reference_library/processed/1a1652b3-8367-5c74-a44c-de912dc286fd.wav"
+    },
+    {
+      "sample_id": "blind_039",
+      "blind_code": "BLD-534431",
+      "category": "GROAN",
+      "generation_method": "METHOD_B_CROSS_SYNTHESIS",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 1.15,
+      "wav_path": "reference_library/processed/658a6525-96d0-52bd-bbb4-6ae33b89f737.wav"
+    },
+    {
+      "sample_id": "blind_040",
+      "blind_code": "BLD-09F73A",
+      "category": "GROAN",
+      "generation_method": "METHOD_D_FORMANT",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 0.88,
+      "wav_path": "reference_library/processed/a3c7a127-0a1e-5a38-831c-fbb7c4731182.wav"
+    },
+    {
+      "sample_id": "blind_041",
+      "blind_code": "BLD-07159F",
+      "category": "PANT",
+      "generation_method": "GENUINE_CANINE_CONTROL",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 14.96,
+      "wav_path": "reference_library/processed/0d39fc92-f473-401f-8622-d7fcf9659b3e.wav"
+    },
+    {
+      "sample_id": "blind_042",
+      "blind_code": "BLD-5D249F",
+      "category": "PANT",
+      "generation_method": "METHOD_A_CONCATENATIVE",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 2.0,
+      "wav_path": "reference_library/processed/b836735c-d259-553c-85ac-7b91cf4fa599.wav"
+    },
+    {
+      "sample_id": "blind_043",
+      "blind_code": "BLD-A5E848",
+      "category": "PANT",
+      "generation_method": "METHOD_B_CROSS_SYNTHESIS",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 14.96,
+      "wav_path": "reference_library/processed/0d39fc92-f473-401f-8622-d7fcf9659b3e.wav"
+    },
+    {
+      "sample_id": "blind_044",
+      "blind_code": "BLD-EB2D77",
+      "category": "PANT",
+      "generation_method": "METHOD_D_FORMANT",
+      "output_classification": "CANINE_ACCEPTABLE",
+      "duration_sec": 2.0,
+      "wav_path": "reference_library/processed/b836735c-d259-553c-85ac-7b91cf4fa599.wav"
+    }
+  ]
+}

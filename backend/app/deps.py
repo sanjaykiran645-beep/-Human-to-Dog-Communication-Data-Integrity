@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import threading
 import time
 from collections import defaultdict, deque
 
@@ -18,18 +19,27 @@ from .security import decode_token
 bearer = HTTPBearer(auto_error=False)
 
 _hits: dict[str, deque[float]] = defaultdict(deque)
+_hits_lock = threading.Lock()
 
 
-_TRUST_PROXY = os.getenv("CANINESENSE_TRUST_PROXY", "0").strip() in {"1", "true", "yes"}
+def _trust_proxy_enabled() -> bool:
+    return os.getenv("CANINESENSE_TRUST_PROXY", "0").strip().lower() in {"1", "true", "yes"}
 
 
 def _client_ip(request: Request) -> str:
     # X-Forwarded-For is attacker-controlled unless a trusted reverse proxy sets it; honouring it by
     # default lets a client dodge rate limits by rotating the header.
-    if _TRUST_PROXY:
+    if _trust_proxy_enabled():
         forwarded = request.headers.get("x-forwarded-for", "")
         if forwarded:
-            return forwarded.split(",")[-1].strip()[:80]
+            # Rightmost hop added by trusted proxy cannot be spoofed by client-prepended entries.
+            rightmost = forwarded.split(",")[-1].strip()
+            if rightmost:
+                return rightmost[:80]
+        for hdr in ("cf-connecting-ip", "x-real-ip"):
+            val = request.headers.get(hdr, "").strip()
+            if val:
+                return val[:80]
     return request.client.host if request.client else "unknown"
 
 
@@ -37,15 +47,16 @@ def rate_limit(request: Request, bucket: str, limit: int) -> None:
     ip = _client_ip(request)
     key = f"{bucket}:{ip}"
     now = time.time()
-    q = _hits[key]
-    while q and now - q[0] > RATE_LIMIT_WINDOW_SEC:
-        q.popleft()
-    if len(q) >= limit:
-        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many requests. Please wait.")
-    q.append(now)
-    if len(_hits) > 5000:  # bound memory: drop idle keys
-        for k in [k for k, v in _hits.items() if not v or now - v[-1] > RATE_LIMIT_WINDOW_SEC]:
-            _hits.pop(k, None)
+    with _hits_lock:
+        q = _hits[key]
+        while q and now - q[0] > RATE_LIMIT_WINDOW_SEC:
+            q.popleft()
+        if len(q) >= limit:
+            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many requests. Please wait.")
+        q.append(now)
+        if len(_hits) > 5000:  # bound memory: drop idle keys
+            for k in [k for k, v in _hits.items() if not v or now - v[-1] > RATE_LIMIT_WINDOW_SEC]:
+                _hits.pop(k, None)
 
 
 def limit_general(request: Request) -> None:

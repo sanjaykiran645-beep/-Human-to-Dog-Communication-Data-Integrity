@@ -15,7 +15,7 @@ from typing import Any
 
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -127,6 +127,12 @@ class ReviewerInvitationIn(BaseModel):
     permission_scope: str = Field(default="blind_video_review", pattern="^(blind_video_review|unblinded_audit)$")
     is_blind: bool = True
     expires_in_hours: int = Field(default=168, ge=1, le=720)
+
+    @model_validator(mode="after")
+    def validate_scope_blinding(self) -> "ReviewerInvitationIn":
+        if self.permission_scope == "blind_video_review" and not self.is_blind:
+            raise ValueError("permission_scope='blind_video_review' strictly requires is_blind=True.")
+        return self
 
 
 class InvitationRespondIn(BaseModel):
@@ -446,9 +452,9 @@ def log_behavioural_trial(
             detail=f"Measured sound level {payload.measured_spl_dba} dBA exceeds 75.0 dBA veterinary animal welfare hard cap.",
         )
 
-    # Valid outcome category check
+    # Valid outcome category & freezing/abort welfare integrity check
     outcome = payload.outcome_category
-    if payload.abort_triggered:
+    if payload.abort_triggered or payload.freezing_observed:
         outcome = "welfare_terminated"
     elif outcome not in OUTCOME_CATEGORIES:
         raise HTTPException(
@@ -574,6 +580,11 @@ def correct_trial_record(
     if payload.outcome_category is not None:
         if payload.outcome_category not in OUTCOME_CATEGORIES:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid outcome category")
+        if (trial.freezing_observed or trial.abort_triggered) and payload.outcome_category != "welfare_terminated":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Trials with freezing_observed or abort_triggered must remain welfare_terminated.",
+            )
         diff["changes"]["outcome_category"] = {"old": trial.outcome_category, "new": payload.outcome_category}
         trial.outcome_category = payload.outcome_category
 
@@ -843,6 +854,11 @@ def submit_independent_review(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Explicit accepted reviewer invitation required to review this trial.",
+        )
+    if inv.permission_scope != "blind_video_review" or not inv.is_blind:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only active blinded (blind_video_review) invitations may submit independent outcome reviews.",
         )
 
     if payload.scored_outcome_category not in OUTCOME_CATEGORIES:

@@ -182,6 +182,11 @@ def _analyze_impl(upload: UploadFile, dog_id: str | None, source: str, user: mod
             status_code=413,
             detail=f"File exceeds {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit",
         )
+    if not _validate_audio_magic_bytes(data):
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported or unrecognized binary payload; upload a valid WAV, MP3, M4A, OGG, FLAC, or WEBM file.",
+        )
     storage.enforce_user_quota(user.id, len(data))
 
     rec_id = str(uuid.uuid4())
@@ -643,25 +648,29 @@ def _jsonable(obj):
 
 
 def _validate_audio_magic_bytes(data: bytes) -> bool:
-    """Security guard: verifies genuine audio container headers to block disguised executables."""
+    """Strict allowlist: accepts only recognized audio container headers and rejects arbitrary binaries."""
     if len(data) < 12:
         return False
-    # Explicitly reject executables, scripts, markup
-    if data.startswith(b"MZ") or data.startswith(b"#!/") or data.startswith(b"\x7fELF"):
+    # Reject executables, scripts, markup, archives, PDFs
+    if data.startswith((b"MZ", b"#!/", b"\x7fELF", b"%PDF-", b"PK\x03\x04")):
         return False
     lower_head = data[:512].lower()
-    if b"<script" in lower_head or b"<!doctype" in lower_head or b"<html" in lower_head:
+    if b"<script" in lower_head or b"<!doctype" in lower_head or b"<html" in lower_head or b"<?php" in lower_head:
         return False
     h = data[:16]
-    if h.startswith(b"RIFF") and b"WAVE" in h:
+    # RIFF/WAVE
+    if h.startswith(b"RIFF") and h[8:12] == b"WAVE":
         return True
-    if h.startswith(b"ID3") or h[:2] in {b"\xff\xfb", b"\xff\xf3", b"\xff\xf2", b"\xff\xe3"}:
+    # MP3 with ID3 tag or MPEG-1/2 Layer III frame sync
+    if h.startswith(b"ID3") or (h[0] == 0xFF and (h[1] & 0xE0) == 0xE0):
         return True
-    if h.startswith(b"OggS") or h.startswith(b"fLaC") or h.startswith(b"\x1aE\xdf\xa3"):
+    # Ogg, FLAC, WebM/EBML
+    if h.startswith((b"OggS", b"fLaC", b"\x1a\x45\xdf\xa3")):
         return True
-    if b"ftyp" in h or b"moov" in h or b"mdat" in h:
+    # ISO BMFF (M4A / MP4 audio)
+    if h[4:8] == b"ftyp":
         return True
-    return True  # Allow raw PCM streams while stripping non-audio scripts
+    return False
 
 
 def _compute_real_snr_and_hnr(arr, sr: int) -> tuple[float, float, float]:

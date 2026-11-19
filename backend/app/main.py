@@ -41,7 +41,6 @@ FRAME_ANCESTORS = "'self' " + os.getenv("CANINESENSE_FRAME_ANCESTORS", "").strip
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
-    allow_origin_regex=r"https://.*\.github\.io",
     allow_credentials=False,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "Range", "Accept"],

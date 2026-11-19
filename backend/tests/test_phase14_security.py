@@ -208,3 +208,119 @@ def test_phase14_account_deletion_erasure_token_revocation_and_upload_safety(cli
         assert session.query(models.TrialPreregistration).filter(models.TrialPreregistration.user_id == uid).count() == 0
         assert session.query(models.TrialAdverseEvent).filter(models.TrialAdverseEvent.user_id == uid).count() == 0
         assert session.query(models.AuditEvent).filter(models.AuditEvent.user_id == uid).count() == 0
+
+
+def test_batch2_cors_magic_bytes_durable_revocation_proxy_and_blinding(client, user_a, user_b, tmp_path: Path, monkeypatch):
+    import io
+    from app import deps, security
+
+    hdr_a = auth_header(user_a["token"])
+    hdr_b = auth_header(user_b["token"])
+
+    # 1. Strict CORS: arbitrary github.io subdomain rejected; owner's origin allowed
+    bad_cors = client.options(
+        "/api/health",
+        headers={"Origin": "https://attacker-phish.github.io", "Access-Control-Request-Method": "GET"},
+    )
+    assert "access-control-allow-origin" not in {k.lower(): v for k, v in bad_cors.headers.items()}
+
+    ok_cors = client.options(
+        "/api/health",
+        headers={"Origin": "https://sanjaykiran645-beep.github.io", "Access-Control-Request-Method": "GET"},
+    )
+    assert ok_cors.headers.get("access-control-allow-origin") == "https://sanjaykiran645-beep.github.io"
+
+    # 2. Strict fail-closed magic bytes: arbitrary binary/PDF/ZIP rejected on /api/recordings/analyze
+    for fname, payload in (
+        ("doc.wav", b"%PDF-1.7\n1 0 obj\n<<>>\nendobj"),
+        ("zip.wav", b"PK\x03\x04\x14\x00\x00\x00\x08\x00\x00\x00"),
+        ("raw_garbage.wav", b"NOTAUDIO_RANDOM_HEADER_BYTES_1234"),
+    ):
+        res = client.post(
+            "/api/recordings/analyze",
+            headers=hdr_a,
+            files={"file": (fname, io.BytesIO(payload), "audio/wav")},
+        )
+        assert res.status_code == 400, f"{fname} unexpectedly accepted: {res.status_code}"
+
+    # 3. Durable DB token revocation survives clearing in-memory TOKEN_DENYLIST
+    login = client.post("/api/auth/register", json={"email": "rev-dur@example.com", "password": "correcthorse", "name": "Rev"})
+    assert login.status_code == 200
+    tok = login.json()["access_token"]
+    assert client.post("/api/auth/logout", headers=auth_header(tok)).status_code == 200
+    security.TOKEN_DENYLIST.clear()  # Simulate worker restart / process hop
+    assert client.get("/api/auth/me", headers=auth_header(tok)).status_code == 401
+
+    # 4. Proxy-aware IP extraction when CANINESENSE_TRUST_PROXY=1 prevents global proxy bucket collapse
+    monkeypatch.setenv("CANINESENSE_TRUST_PROXY", "1")
+    deps._hits.clear()
+    try:
+        for _ in range(deps.RATE_LIMIT_AUTH):
+            client.post("/api/auth/login", headers={"X-Forwarded-For": "203.0.113.10"}, json={"email": "x@y.com", "password": "wrongpassword"})
+        assert (
+            client.post("/api/auth/login", headers={"X-Forwarded-For": "203.0.113.10"}, json={"email": "x@y.com", "password": "wrongpassword"}).status_code
+            == 429
+        )
+        # Distinct client behind same reverse proxy still gets its own rate-limit bucket
+        assert (
+            client.post("/api/auth/login", headers={"X-Forwarded-For": "203.0.113.99"}, json={"email": "x@y.com", "password": "wrongpassword"}).status_code
+            == 401
+        )
+    finally:
+        deps._hits.clear()
+
+    # 5. Blinding & freezing outcome integrity enforcement
+    part = client.post(
+        "/api/experiments/participants",
+        headers=hdr_a,
+        json={"pseudonym": "BLD-INT-01", "owner_consent_confirmed": True, "welfare_review_confirmed": True},
+    )
+    p_id = part.json()["id"]
+    tr = client.post(
+        "/api/experiments/trials",
+        headers=hdr_a,
+        json={
+            "participant_id": p_id,
+            "session_id": "sess-bld-int",
+            "trial_order_in_session": 1,
+            "experimental_condition": "target_engine_b_cue",
+            "measured_spl_dba": 62.0,
+            "outcome_category": "correct_target_action",
+            "freezing_observed": True,
+        },
+    )
+    assert tr.status_code == 201
+    assert tr.json()["outcome_category"] == "welfare_terminated"
+    tr_id = tr.json()["id"]
+
+    # Cannot patch freezing trial back to non-terminated outcome
+    patch_res = client.patch(
+        f"/api/experiments/trials/{tr_id}",
+        headers=hdr_a,
+        json={"outcome_category": "correct_target_action", "correction_note": "attempting override"},
+    )
+    assert patch_res.status_code == 400
+
+    # Conflicting scope/is_blind rejected
+    bad_inv = client.post(
+        f"/api/experiments/trials/{tr_id}/invitations",
+        headers=hdr_a,
+        json={"reviewer_email": user_b["email"], "permission_scope": "blind_video_review", "is_blind": False},
+    )
+    assert bad_inv.status_code == 422
+
+    # Unblinded audit invitation cannot submit scored blind review
+    unblind_inv = client.post(
+        f"/api/experiments/trials/{tr_id}/invitations",
+        headers=hdr_a,
+        json={"reviewer_email": user_b["email"], "permission_scope": "unblinded_audit", "is_blind": False},
+    )
+    assert unblind_inv.status_code == 201
+    inv_id = unblind_inv.json()["id"]
+    assert client.post(f"/api/experiments/invitations/{inv_id}/respond", headers=hdr_b, json={"decision": "accept"}).status_code == 200
+    rev_block = client.post(
+        f"/api/experiments/trials/{tr_id}/reviews",
+        headers=hdr_b,
+        json={"reviewer_name": "Auditor", "scored_outcome_category": "attention_only"},
+    )
+    assert rev_block.status_code == 403

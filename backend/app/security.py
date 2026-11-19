@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import logging
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
@@ -10,8 +12,30 @@ from fastapi import HTTPException, status
 
 from .config import ACCESS_TOKEN_MINUTES, SECRET_KEY
 
+log = logging.getLogger("caninesense.security")
+
 ALGORITHM = "HS256"
 TOKEN_DENYLIST: dict[str, float] = {}
+
+
+def _token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _is_token_revoked(token: str) -> bool:
+    if token in TOKEN_DENYLIST:
+        return True
+    tok_hash = _token_hash(token)
+    try:
+        from . import models
+        from .db import SessionLocal
+
+        with SessionLocal() as session:
+            row = session.get(models.RevokedToken, tok_hash)
+            return row is not None
+    except Exception:
+        log.warning("Failed checking durable revoked_tokens table", exc_info=True)
+        return False
 
 
 def hash_password(password: str) -> str:
@@ -37,7 +61,7 @@ def create_access_token(user_id: str, email: str) -> str:
 
 
 def decode_token(token: str) -> dict:
-    if token in TOKEN_DENYLIST:
+    if _is_token_revoked(token):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired")
     try:
         return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -60,3 +84,14 @@ def revoke_token(token: str) -> None:
         expired = [t for t, ex in list(TOKEN_DENYLIST.items()) if ex < now]
         for t in expired:
             TOKEN_DENYLIST.pop(t, None)
+    tok_hash = _token_hash(token)
+    try:
+        from . import models
+        from .db import SessionLocal
+
+        with SessionLocal() as session:
+            session.merge(models.RevokedToken(token_hash=tok_hash, expires_at=exp))
+            session.query(models.RevokedToken).filter(models.RevokedToken.expires_at < now).delete()
+            session.commit()
+    except Exception:
+        log.exception("Failed persisting revoked JWT to database")

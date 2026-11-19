@@ -13,7 +13,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
 
-from ..config import MAX_UPLOAD_BYTES, STORAGE_DIR, STORAGE_PROVIDER, USER_STORAGE_QUOTA_BYTES
+from ..config import (
+    MAX_UPLOAD_BYTES,
+    STORAGE_BUCKET,
+    STORAGE_DIR,
+    STORAGE_ENDPOINT,
+    STORAGE_PREFIX,
+    STORAGE_PROVIDER,
+    STORAGE_REGION,
+    USER_STORAGE_QUOTA_BYTES,
+)
 
 _SAFE = re.compile(r"[^a-zA-Z0-9._-]+")
 
@@ -434,14 +443,196 @@ class LocalObjectStorageAdapter:
         return hashlib.sha256(data).hexdigest() == expected_sha256
 
 
+class S3CompatibleObjectStorageAdapter:
+    """Production-ready S3 / Cloudflare R2 object-storage adapter powered by boto3."""
+
+    provider_name = "s3"
+
+    def __init__(
+        self,
+        bucket: str | None = None,
+        endpoint_url: str | None = None,
+        region_name: str | None = None,
+        prefix: str | None = None,
+        client: Any | None = None,
+    ) -> None:
+        self.bucket = (bucket if bucket is not None else STORAGE_BUCKET).strip()
+        self.endpoint_url = (endpoint_url if endpoint_url is not None else STORAGE_ENDPOINT).strip() or None
+        self.region_name = (region_name if region_name is not None else STORAGE_REGION).strip() or "auto"
+        raw_pref = (prefix if prefix is not None else STORAGE_PREFIX).strip().lstrip("/")
+        self.prefix = f"{raw_pref.rstrip('/')}/" if raw_pref else ""
+        self._client = client
+
+    def _get_client(self) -> Any:
+        if self._client is not None:
+            return self._client
+        if not self.bucket:
+            raise StorageUnavailableError("CANINESENSE_STORAGE_BUCKET is not configured for S3/R2 storage.")
+        try:
+            import boto3  # type: ignore[import-untyped]
+        except ImportError as exc:
+            raise StorageUnavailableError("boto3 is not installed; S3/R2 storage unavailable.") from exc
+        kwargs: dict[str, Any] = {"region_name": self.region_name}
+        if self.endpoint_url:
+            kwargs["endpoint_url"] = self.endpoint_url
+        self._client = boto3.client("s3", **kwargs)
+        return self._client
+
+    def _s3_key(self, clean_key: str) -> str:
+        return f"{self.prefix}{clean_key}"
+
+    def _strip_prefix(self, full_key: str) -> str:
+        if self.prefix and full_key.startswith(self.prefix):
+            return full_key[len(self.prefix) :]
+        return full_key
+
+    def _user_usage_bytes(self, owner_id: str) -> int:
+        client = self._get_client()
+        s3_pref = self._s3_key(f"{owner_id}/")
+        total = 0
+        token: str | None = None
+        while True:
+            params: dict[str, Any] = {"Bucket": self.bucket, "Prefix": s3_pref}
+            if token:
+                params["ContinuationToken"] = token
+            resp = client.list_objects_v2(**params)
+            for obj in resp.get("Contents", []) or []:
+                total += int(obj.get("Size", 0))
+            if not resp.get("IsTruncated"):
+                break
+            token = resp.get("NextContinuationToken")
+        return total
+
+    def put_object(
+        self,
+        object_key: str,
+        data: bytes,
+        *,
+        owner_id: str,
+        content_type: str = "application/octet-stream",
+        metadata: dict[str, Any] | None = None,
+    ) -> ObjectMetadata:
+        clean = LocalObjectStorageAdapter._clean_key(object_key)
+        LocalObjectStorageAdapter._assert_owner(clean, owner_id)
+        ct_norm = (content_type or "application/octet-stream").split(";")[0].strip().lower()
+        if ct_norm not in ALLOWED_OBJECT_MIME_TYPES:
+            raise ValueError(f"Unsupported MIME type: {ct_norm}")
+        if len(data) > MAX_UPLOAD_BYTES:
+            raise ValueError(f"Object exceeds max upload limit ({MAX_UPLOAD_BYTES} bytes)")
+        if self._user_usage_bytes(owner_id) + len(data) > USER_STORAGE_QUOTA_BYTES:
+            mb_limit = USER_STORAGE_QUOTA_BYTES // (1024 * 1024)
+            raise StorageQuotaExceededError(f"User storage quota exceeded ({mb_limit} MB limit).")
+
+        digest = hashlib.sha256(data).hexdigest()
+        now_utc = datetime.now(timezone.utc).isoformat()
+        meta_str = {str(k): str(v) for k, v in (metadata or {}).items()}
+        meta_str.update({"owner_id": owner_id, "sha256": digest, "created_at_utc": now_utc})
+        client = self._get_client()
+        try:
+            client.put_object(
+                Bucket=self.bucket,
+                Key=self._s3_key(clean),
+                Body=data,
+                ContentType=ct_norm,
+                Metadata=meta_str,
+            )
+        except StorageQuotaExceededError:
+            raise
+        except Exception as exc:
+            raise StorageUnavailableError(f"S3/R2 put_object failed: {exc}") from exc
+        return ObjectMetadata(
+            object_key=clean,
+            owner_id=owner_id,
+            content_type=ct_norm,
+            size_bytes=len(data),
+            sha256=digest,
+            created_at_utc=now_utc,
+            metadata=dict(metadata or {}),
+        )
+
+    def head_object(self, object_key: str, *, expected_owner_id: str | None = None) -> ObjectMetadata | None:
+        clean = LocalObjectStorageAdapter._clean_key(object_key)
+        LocalObjectStorageAdapter._assert_owner(clean, expected_owner_id)
+        client = self._get_client()
+        try:
+            resp = client.head_object(Bucket=self.bucket, Key=self._s3_key(clean))
+        except Exception as exc:
+            err_code = getattr(exc, "response", {}).get("Error", {}).get("Code", "")
+            if str(err_code) in {"404", "NoSuchKey", "NotFound"}:
+                return None
+            raise StorageUnavailableError(f"S3/R2 head_object failed: {exc}") from exc
+        raw_meta = dict(resp.get("Metadata") or {})
+        meta_owner = raw_meta.get("owner_id")
+        LocalObjectStorageAdapter._assert_owner(clean, expected_owner_id, meta_owner)
+        return ObjectMetadata(
+            object_key=clean,
+            owner_id=meta_owner or clean.split("/", 1)[0],
+            content_type=resp.get("ContentType", "application/octet-stream"),
+            size_bytes=int(resp.get("ContentLength", 0)),
+            sha256=str(raw_meta.get("sha256", "")),
+            created_at_utc=str(raw_meta.get("created_at_utc", "")),
+            metadata=raw_meta,
+        )
+
+    def get_object(self, object_key: str, *, expected_owner_id: str | None = None) -> bytes:
+        meta = self.head_object(object_key, expected_owner_id=expected_owner_id)
+        if meta is None:
+            raise FileNotFoundError(object_key)
+        client = self._get_client()
+        try:
+            resp = client.get_object(Bucket=self.bucket, Key=self._s3_key(meta.object_key))
+            return resp["Body"].read()
+        except Exception as exc:
+            raise StorageUnavailableError(f"S3/R2 get_object failed: {exc}") from exc
+
+    def delete_object(self, object_key: str, *, expected_owner_id: str | None = None) -> bool:
+        clean = LocalObjectStorageAdapter._clean_key(object_key)
+        LocalObjectStorageAdapter._assert_owner(clean, expected_owner_id)
+        if self.head_object(clean, expected_owner_id=expected_owner_id) is None:
+            return False
+        client = self._get_client()
+        try:
+            client.delete_object(Bucket=self.bucket, Key=self._s3_key(clean))
+            return True
+        except Exception as exc:
+            raise StorageUnavailableError(f"S3/R2 delete_object failed: {exc}") from exc
+
+    def list_objects(self, prefix: str, *, expected_owner_id: str | None = None) -> list[ObjectMetadata]:
+        clean_prefix = prefix.replace("\\", "/").lstrip("/")
+        LocalObjectStorageAdapter._assert_owner(clean_prefix, expected_owner_id)
+        client = self._get_client()
+        out: list[ObjectMetadata] = []
+        token: str | None = None
+        while True:
+            params: dict[str, Any] = {"Bucket": self.bucket, "Prefix": self._s3_key(clean_prefix)}
+            if token:
+                params["ContinuationToken"] = token
+            resp = client.list_objects_v2(**params)
+            for obj in resp.get("Contents", []) or []:
+                rel_key = self._strip_prefix(str(obj.get("Key", "")))
+                if not rel_key:
+                    continue
+                meta = self.head_object(rel_key, expected_owner_id=expected_owner_id)
+                if meta is not None:
+                    out.append(meta)
+            if not resp.get("IsTruncated"):
+                break
+            token = resp.get("NextContinuationToken")
+        return out
+
+    def verify_object_sha256(self, object_key: str, expected_sha256: str, *, expected_owner_id: str | None = None) -> bool:
+        data = self.get_object(object_key, expected_owner_id=expected_owner_id)
+        return hashlib.sha256(data).hexdigest() == expected_sha256
+
+
 class S3CompatibleObjectStorageStub:
-    """Fail-closed placeholder for future owner-approved S3/R2 object storage without billing."""
+    """Fail-closed placeholder when external object storage is intentionally disabled."""
 
     provider_name = "s3_compatible_unconfigured"
 
     def _fail(self) -> Any:
         raise StorageUnavailableError(
-            "External object storage is not activated. Zero-cost policy prohibits connecting paid/billing storage without owner approval."
+            "External object storage is not activated. Configure CANINESENSE_STORAGE_PROVIDER=s3 and bucket credentials before switching."
         )
 
     def put_object(self, *_args: Any, **_kwargs: Any) -> ObjectMetadata:
@@ -466,4 +657,6 @@ class S3CompatibleObjectStorageStub:
 def get_object_storage_adapter(root_dir: Path | None = None) -> ObjectStorageAdapter:
     if STORAGE_PROVIDER == "local":
         return LocalObjectStorageAdapter(root_dir=root_dir)
+    if STORAGE_PROVIDER in {"s3", "r2"}:
+        return S3CompatibleObjectStorageAdapter()
     return S3CompatibleObjectStorageStub()

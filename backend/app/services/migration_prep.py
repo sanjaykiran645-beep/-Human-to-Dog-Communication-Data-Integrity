@@ -113,6 +113,8 @@ def generate_database_inventory(db: Session) -> dict[str, int]:
         ("trial_reviewer_invitations", models.TrialReviewerInvitation),
         ("trial_preregistrations", models.TrialPreregistration),
         ("trial_adverse_events", models.TrialAdverseEvent),
+        ("blind_listening_submissions", models.BlindListeningSubmission),
+        ("revoked_tokens", models.RevokedToken),
         ("schema_migrations", models.SchemaMigration),
     )
     return {name: int(db.scalar(select(func.count()).select_from(mdl)) or 0) for name, mdl in entity_models}

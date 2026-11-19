@@ -304,6 +304,38 @@ def get_reference_spectrogram_data(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+def _relative_eval_wav_path(raw_path: str | Path) -> str:
+    """Normalize a manifest WAV path to a portable path relative to REPO_DATA_DIR."""
+    s = str(raw_path or "").replace("\\", "/").strip()
+    if not s:
+        return ""
+    marker = "reference_library/"
+    if marker in s:
+        return marker + s.split(marker, 1)[1].lstrip("/")
+    try:
+        p = Path(s).resolve()
+        if p.is_relative_to(REPO_DATA_DIR.resolve()):
+            return p.relative_to(REPO_DATA_DIR.resolve()).as_posix()
+    except Exception:
+        pass
+    return f"reference_library/processed/{PureWindowsPath(s).name}"
+
+
+def _resolve_blind_wav_path(stored_path: str) -> Path:
+    """Resolve a portable relative or legacy manifest WAV path against active data/reference dirs."""
+    rel_norm = _relative_eval_wav_path(stored_path)
+    filename = Path(rel_norm).name if rel_norm else ""
+    candidates: list[Path] = []
+    if rel_norm:
+        candidates.append((REPO_DATA_DIR / rel_norm).resolve())
+    if filename:
+        candidates.append((REF_PROC_DIR / filename).resolve())
+    for cand in candidates:
+        if cand.exists() and cand.is_file():
+            return cand
+    return candidates[0] if candidates else Path(stored_path)
+
+
 def ensure_blind_manifest() -> dict:
     eval_dir = REPO_DATA_DIR / "evaluation_samples"
     manifest_path = eval_dir / "blind_listening_manifest.json"
@@ -347,7 +379,7 @@ def ensure_blind_manifest() -> dict:
 
         for m_idx, method in enumerate(methods):
             asset = cat_assets[m_idx % len(cat_assets)] if cat_assets else None
-            wav_path = str(asset["processed_path"]) if asset else ""
+            wav_path = _relative_eval_wav_path(asset["processed_path"]) if asset else ""
             duration = float(asset.get("duration_sec", 1.2)) if asset else 1.2
             sample_id = f"blind_{idx:03d}"
             code_hash = hashlib.sha256(f"{cat}_{method}_{idx}".encode("utf-8")).hexdigest()[:6].upper()
@@ -372,21 +404,38 @@ def ensure_blind_manifest() -> dict:
     return manifest_data
 
 
+def _serialize_blind_submission(row: models.BlindListeningSubmission) -> dict:
+    return {
+        "submission_id": row.id,
+        "sample_id": row.sample_id,
+        "blind_code": row.blind_code,
+        "reviewer_id": row.reviewer_id,
+        "sounds_like_genuine_dog": row.sounds_like_genuine_dog,
+        "perceived_category": row.perceived_category,
+        "naturalness_score": row.naturalness_score,
+        "artifact_severity_score": row.artifact_severity_score,
+        "notes": row.notes or "",
+        "revealed_ground_truth": {
+            "intended_category": row.intended_category,
+            "generation_method": row.generation_method,
+            "output_classification": row.output_classification,
+            "category_matched": row.category_matched,
+        },
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+    }
+
+
 @router.get("/blind-test")
 def get_blind_listening_protocol(
     user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> dict:
     """
     Section 5 — Independent Blind Listening Evaluation Protocol.
-    Returns randomized, method-blinded audio samples across categories (including
-    genuine dog control recordings, Method A, Method B, and Method D) without exposing
-    the generation method or filename until after reviewer submission.
+    Returns randomized, method-blinded audio samples across categories without exposing
+    the generation method or filename until after reviewer submission, and scopes
+    persisted submissions strictly to the authenticated user.
     """
-    _ = user
-    eval_dir = REPO_DATA_DIR / "evaluation_samples"
-    manifest_path = eval_dir / "blind_listening_manifest.json"
-    submissions_path = eval_dir / "blind_listening_submissions.json"
-
     raw_manifest = ensure_blind_manifest()
     samples = []
     for item in raw_manifest.get("blind_samples", []):
@@ -399,14 +448,15 @@ def get_blind_listening_protocol(
             }
         )
 
-    submissions = []
-    if submissions_path.exists():
-        try:
-            submissions = json.loads(submissions_path.read_text(encoding="utf-8"))
-        except Exception:
-            submissions = []
-
-    unique_reviewers = {s.get("reviewer_id") for s in submissions if s.get("reviewer_id")}
+    rows = list(
+        db.scalars(
+            select(models.BlindListeningSubmission)
+            .where(models.BlindListeningSubmission.user_id == user.id)
+            .order_by(models.BlindListeningSubmission.created_at.desc())
+        )
+    )
+    submissions = [_serialize_blind_submission(r) for r in rows]
+    unique_reviewers = {r.reviewer_id for r in rows if r.reviewer_id}
     eval_status = "PASS" if len(unique_reviewers) >= 3 and len(submissions) >= 12 else "PENDING"
 
     return {
@@ -435,7 +485,7 @@ def get_blind_sample_audio(
     match = next((s for s in raw_manifest.get("blind_samples", []) if s["sample_id"] == sample_id), None)
     if not match:
         raise HTTPException(status_code=404, detail="Blind sample not found")
-    wav_path = Path(match["wav_path"])
+    wav_path = _resolve_blind_wav_path(match.get("wav_path", ""))
     if not wav_path.exists():
         raise HTTPException(status_code=404, detail="Blind sample WAV not found on disk")
     return FileResponse(
@@ -449,42 +499,35 @@ def get_blind_sample_audio(
 def submit_blind_listening_rating(
     payload: schemas.BlindListeningSubmissionIn,
     user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> dict:
-    eval_dir = REPO_DATA_DIR / "evaluation_samples"
-    submissions_path = eval_dir / "blind_listening_submissions.json"
     raw_manifest = ensure_blind_manifest()
     match = next((s for s in raw_manifest.get("blind_samples", []) if s["sample_id"] == payload.sample_id), None)
     if not match:
         raise HTTPException(status_code=404, detail="Blind sample not found")
 
-    submissions = []
-    if submissions_path.exists():
-        try:
-            submissions = json.loads(submissions_path.read_text(encoding="utf-8"))
-        except Exception:
-            submissions = []
-
     perceived = payload.perceived_category.strip().upper()
-    entry = {
-        "submission_id": str(uuid.uuid4()),
-        "sample_id": payload.sample_id,
-        "blind_code": match["blind_code"],
-        "reviewer_id": payload.reviewer_id.strip() or user.email,
-        "sounds_like_genuine_dog": payload.sounds_like_genuine_dog,
-        "perceived_category": perceived,
-        "naturalness_score": payload.naturalness_score,
-        "artifact_severity_score": payload.artifact_severity_score,
-        "notes": payload.notes,
-        "revealed_ground_truth": {
-            "intended_category": match["category"],
-            "generation_method": match["generation_method"],
-            "output_classification": match["output_classification"],
-            "category_matched": perceived == match["category"],
-        },
-    }
-    submissions.append(entry)
-    submissions_path.write_text(json.dumps(submissions, indent=2), encoding="utf-8")
-    return entry
+    row = models.BlindListeningSubmission(
+        id=str(uuid.uuid4()),
+        user_id=user.id,
+        sample_id=payload.sample_id,
+        blind_code=match["blind_code"],
+        reviewer_id=payload.reviewer_id.strip() or user.email,
+        sounds_like_genuine_dog=payload.sounds_like_genuine_dog,
+        perceived_category=perceived,
+        naturalness_score=payload.naturalness_score,
+        artifact_severity_score=payload.artifact_severity_score,
+        notes=payload.notes,
+        intended_category=match["category"],
+        generation_method=match["generation_method"],
+        output_classification=match["output_classification"],
+        category_matched=(perceived == match["category"]),
+    )
+    db.add(row)
+    db.flush()
+    audit.log(db, action="communicate.blind_submit", entity="blind_listening_submission", user_id=user.id, entity_id=row.id)
+    db.commit()
+    return _serialize_blind_submission(row)
 
 
 @router.post("/intent")

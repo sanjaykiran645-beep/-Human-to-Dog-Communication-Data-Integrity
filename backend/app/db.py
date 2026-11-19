@@ -50,6 +50,7 @@ _MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("003_phase13_durability_and_governance", "Schema migrations, reviewer invitations, trial preregistrations, adverse events"),
     ("004_phase14_persistence_and_dr", "Provider-independent DATABASE_URL engine abstraction, backup retention, DR verification"),
     ("005_phase15_migration_readiness", "Object-storage adapter interface, PostgreSQL DDL compatibility verification, Phase 15 health telemetry"),
+    ("006_remediation_schema_and_fk_integrity", "Relational blind listening submissions, durable JWT revocation table, and FK constraints on observer/adjudicator user IDs"),
 )
 
 LATEST_MIGRATION_VERSION = _MIGRATIONS[-1][0]
@@ -76,6 +77,40 @@ def apply_migrations() -> None:
         session.commit()
 
 
+def _ensure_sqlite_remediation_fks() -> None:
+    """Upgrade existing SQLite tables to include observer/adjudicator user FKs when absent."""
+    if not _IS_SQLITE:
+        return
+    with engine.begin() as conn:
+        for tbl, fk_col in (
+            ("behavioural_trials", "observer_user_id"),
+            ("trial_independent_reviews", "adjudicator_user_id"),
+        ):
+            cols = conn.execute(text(f"PRAGMA table_info({tbl})")).fetchall()
+            if not cols:
+                continue
+            fks = conn.execute(text(f"PRAGMA foreign_key_list({tbl})")).fetchall()
+            if any(row[3] == fk_col for row in fks):
+                continue
+            # Rebuild table cleanly using current SQLAlchemy definition while preserving existing rows
+            col_names = [row[1] for row in cols]
+            col_list = ", ".join(col_names)
+            tmp_tbl = f"_tmp_legacy_{tbl}"
+            conn.execute(text("PRAGMA foreign_keys=OFF"))
+            conn.execute(text(f"ALTER TABLE {tbl} RENAME TO {tmp_tbl}"))
+            table_obj = Base.metadata.tables[tbl]
+            table_obj.create(bind=conn)
+            null_expr = ", ".join(
+                f"CASE WHEN {c} IS NOT NULL AND EXISTS (SELECT 1 FROM users WHERE users.id = {tmp_tbl}.{c}) THEN {c} ELSE NULL END"
+                if c == fk_col
+                else c
+                for c in col_names
+            )
+            conn.execute(text(f"INSERT INTO {tbl} ({col_list}) SELECT {null_expr} FROM {tmp_tbl}"))
+            conn.execute(text(f"DROP TABLE {tmp_tbl}"))
+            conn.execute(text("PRAGMA foreign_keys=ON"))
+
+
 def init_db() -> None:
     from . import models  # noqa: F401
 
@@ -87,6 +122,7 @@ def init_db() -> None:
         # Handle concurrent worker startup on SQLite where table is created in parallel
         if "already exists" not in str(e).lower():
             raise
+    _ensure_sqlite_remediation_fks()
     if _IS_SQLITE:
         with engine.connect() as conn:
             conn.execute(text("PRAGMA foreign_keys=ON"))

@@ -277,6 +277,16 @@ def test_batch5_quarantined_candidate_gate_and_apk_disabled(client, tmp_path: Pa
     monkeypatch.setattr(inf_mod, "DATA_DIR", tmp_path)
     assert HeuristicModel()._load_promoted_supervised() is None
 
-    # 3. Stale APK is no longer served as active release when unbuilt
-    apk_res = client.get("/api/download/apk")
-    assert apk_res.status_code == 503
+    # 3. /api/download/apk returns 503 when APK is absent, and 200 when signed APK exists
+    import app.main as main_mod
+
+    missing_apk = tmp_path / "missing.apk"
+    monkeypatch.setattr(main_mod, "APK_RELEASE_PATH", missing_apk)
+    assert client.get("/api/download/apk").status_code == 503
+
+    signed_apk = tmp_path / "CanineSense_AI_latest.apk"
+    signed_apk.write_bytes(b"PK\x03\x04signed-apk-payload")
+    monkeypatch.setattr(main_mod, "APK_RELEASE_PATH", signed_apk)
+    ok_apk = client.get("/api/download/apk")
+    assert ok_apk.status_code == 200
+    assert ok_apk.headers["content-type"] == "application/vnd.android.package-archive"

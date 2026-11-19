@@ -150,7 +150,7 @@ def startup() -> None:
 
 
 FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
-APK_RELEASE_PATH = Path(__file__).resolve().parents[2] / "data" / "releases" / "CanineSense_AI_v1.0.0.apk"
+APK_RELEASE_PATH = Path(__file__).resolve().parents[2] / "data" / "releases" / "CanineSense_AI_latest.apk"
 
 
 @app.get("/api/download/apk")
@@ -165,7 +165,7 @@ def download_apk():
     return FileResponse(
         APK_RELEASE_PATH,
         media_type="application/vnd.android.package-archive",
-        filename="CanineSense_AI_v1.0.0.apk",
+        filename="CanineSense_AI_latest.apk",
     )
 
 

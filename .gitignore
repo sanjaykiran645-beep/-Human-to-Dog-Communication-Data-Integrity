@@ -47,9 +47,17 @@ logs/
 # Mobile & Android artifacts
 *.apk
 *.aab
+*.keystore
+*.jks
+keystore.properties
+local.properties
 android/.gradle/
 android/app/build/
 mobile-android/app/build/
+frontend/android/.gradle/
+frontend/android/build/
+frontend/android/app/build/
+frontend/android/app/release/
 
 # IDE, Editor & OS metadata
 .DS_Store

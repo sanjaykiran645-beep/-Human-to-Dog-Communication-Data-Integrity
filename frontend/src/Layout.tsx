@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import Logo from "./Logo";
 import ComplianceModal from "./components/ComplianceModal";
-import { api, clearSession, getBackendUrl, getUser, isDemoSession } from "./api";
+import { api, clearSession, getUser, isDemoSession } from "./api";
 
 const links = [
   { to: "/app", label: "Dashboard", icon: IconHome, end: true, group: "core" },
@@ -270,13 +270,15 @@ export default function Layout() {
               />
             </form>
 
-            {import.meta.env.VITE_ANDROID_APK_AVAILABLE === "true" && (
+            {import.meta.env.VITE_ANDROID_APK_AVAILABLE !== "false" && (
               <a
-                href={`${getBackendUrl()}/api/download/apk`}
-                download="CanineSense_AI_v1.0.0.apk"
+                href="https://github.com/sanjaykiran645-beep/-Human-to-Dog-Communication-Data-Integrity/releases/latest/download/CanineSense_AI_latest.apk"
+                target="_blank"
+                rel="noopener noreferrer"
+                download="CanineSense_AI_latest.apk"
                 className="btn ghost"
                 style={{ padding: "6px 12px", fontSize: "0.78rem", whiteSpace: "nowrap" }}
-                title="Download CanineSense AI Android APK package"
+                title="Download signed CanineSense AI Android APK (v1.1.0)"
               >
                 Download APK
               </a>

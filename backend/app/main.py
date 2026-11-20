@@ -8,7 +8,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
 from . import SYNTH_MODEL_VERSION, BEHAVIOR_MODEL_VERSION, MODEL_VERSION, __version__
 from .config import BACKUP_DIR, BACKUP_MAX_AGE_HOURS, DB_BACKEND, IS_EPHEMERAL_STORAGE, STORAGE_PROVIDER
@@ -151,21 +151,27 @@ def startup() -> None:
 
 FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 APK_RELEASE_PATH = Path(__file__).resolve().parents[2] / "data" / "releases" / "CanineSense_AI_latest.apk"
+APK_RELEASE_URL = os.getenv(
+    "CANINESENSE_APK_RELEASE_URL",
+    "https://github.com/sanjaykiran645-beep/-Human-to-Dog-Communication-Data-Integrity/releases/latest/download/CanineSense_AI_latest.apk",
+).strip()
 
 
 @app.get("/api/download/apk")
 @app.get("/caninesense-ai.apk")
 def download_apk():
-    """Serve the packaged CanineSense AI Android APK bundle when an up-to-date signed release exists."""
-    if not APK_RELEASE_PATH.exists():
-        raise HTTPException(
-            status_code=503,
-            detail="Signed Android APK release is unavailable until JDK 17+ / Android SDK 34 build toolchain is provisioned.",
+    """Serve the packaged CanineSense AI Android APK bundle or redirect to the signed GitHub Release asset."""
+    if APK_RELEASE_PATH.exists():
+        return FileResponse(
+            APK_RELEASE_PATH,
+            media_type="application/vnd.android.package-archive",
+            filename="CanineSense_AI_latest.apk",
         )
-    return FileResponse(
-        APK_RELEASE_PATH,
-        media_type="application/vnd.android.package-archive",
-        filename="CanineSense_AI_latest.apk",
+    if APK_RELEASE_URL:
+        return RedirectResponse(url=APK_RELEASE_URL, status_code=302)
+    raise HTTPException(
+        status_code=503,
+        detail="Signed Android APK release is unavailable until JDK 17+ / Android SDK 34 build toolchain is provisioned.",
     )
 
 

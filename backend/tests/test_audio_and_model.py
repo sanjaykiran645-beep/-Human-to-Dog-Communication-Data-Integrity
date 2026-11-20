@@ -277,12 +277,22 @@ def test_batch5_quarantined_candidate_gate_and_apk_disabled(client, tmp_path: Pa
     monkeypatch.setattr(inf_mod, "DATA_DIR", tmp_path)
     assert HeuristicModel()._load_promoted_supervised() is None
 
-    # 3. /api/download/apk returns 503 when APK is absent, and 200 when signed APK exists
+    # 3. /api/download/apk returns 503 when both local APK and release URL are absent, 302 when release URL is set, and 200 when signed APK exists locally
     import app.main as main_mod
 
     missing_apk = tmp_path / "missing.apk"
     monkeypatch.setattr(main_mod, "APK_RELEASE_PATH", missing_apk)
-    assert client.get("/api/download/apk").status_code == 503
+    monkeypatch.setattr(main_mod, "APK_RELEASE_URL", "")
+    assert client.get("/api/download/apk", follow_redirects=False).status_code == 503
+
+    monkeypatch.setattr(
+        main_mod,
+        "APK_RELEASE_URL",
+        "https://github.com/sanjaykiran645-beep/-Human-to-Dog-Communication-Data-Integrity/releases/latest/download/CanineSense_AI_latest.apk",
+    )
+    redir_apk = client.get("/api/download/apk", follow_redirects=False)
+    assert redir_apk.status_code == 302
+    assert redir_apk.headers["location"].endswith("/CanineSense_AI_latest.apk")
 
     signed_apk = tmp_path / "CanineSense_AI_latest.apk"
     signed_apk.write_bytes(b"PK\x03\x04signed-apk-payload")

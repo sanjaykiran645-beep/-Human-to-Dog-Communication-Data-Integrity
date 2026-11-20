@@ -210,3 +210,115 @@ def test_s3_account_delete_remote_failure_is_surfaced_and_retryable(client, user
     s3.fail_lists = False
     assert client.delete("/api/account", headers=hdr).status_code == 200
     assert not [k for k in _keys(s3) if k.startswith(f"{uid}/")]
+
+
+def _wipe_private_references_locally(uid: str) -> None:
+    """Simulate a fresh container: the bundled library is intact but this user's private uploads are gone."""
+    from app.services import reference_library as rl
+
+    with rl._MANIFEST_WRITE_LOCK:
+        lib = rl.build_or_load_reference_library()
+        assets = lib["assets"]
+        for a in [a for a in assets if a.get("owner_user_id") == uid]:
+            aid = a["asset_id"]
+            (rl.REF_PROC_DIR / f"{aid}.wav").unlink(missing_ok=True)
+            for p in rl.REF_RAW_DIR.glob(f"{aid}.*"):
+                p.unlink(missing_ok=True)
+            for p in rl.REF_PLOTS_DIR.glob(f"{aid}*"):
+                p.unlink(missing_ok=True)
+        rl._MANIFEST_CACHE = rl._finalize_and_save_manifest([a for a in assets if a.get("owner_user_id") != uid])
+    assert not any(a.get("owner_user_id") == uid for a in rl.build_or_load_reference_library()["assets"])
+
+
+def test_s3_private_reference_uploads_survive_disk_wipe_and_are_purged_on_account_delete(
+    client, user_a, user_b, s3, monkeypatch, tmp_path: Path
+):
+    from app.services import reference_library as rl
+
+    uid = user_a["user"]["id"]
+    hdr = auth_header(user_a["token"])
+    shared_before = {a["asset_id"] for a in rl.build_or_load_reference_library()["assets"] if a.get("owner_user_id") is None}
+    assert shared_before, "bundled shared references must exist"
+
+    # 1. Private upload is mirrored under {user}/references/{asset}/...
+    wav = write_bursts(tmp_path / "private_ref.wav")
+    with wav.open("rb") as fh:
+        up = client.post(
+            "/api/communicate/references/upload",
+            headers=hdr,
+            data={"confirmed_category": "BARK"},
+            files={"file": ("private_ref.wav", fh, "audio/wav")},
+        )
+    assert up.status_code == 200, up.text
+    aid = up.json()["asset_id"]
+    names = {k.rsplit("/", 1)[1] for k in _keys(s3) if k.startswith(f"{uid}/references/{aid}/")}
+    assert {"asset.json", "processed.wav"} <= names and any(n.startswith("raw") for n in names)
+    assert all(k.startswith(f"{uid}/") for k in _keys(s3)), "no shared/bundled asset may be mirrored"
+
+    # 2. Container restart: local private files + manifest rows are gone, the bundled library is untouched.
+    _wipe_private_references_locally(uid)
+    _simulate_container_restart(s3, monkeypatch, uid)
+    assert shared_before <= {a["asset_id"] for a in rl.build_or_load_reference_library()["assets"]}
+
+    listing = client.get("/api/communicate/references", headers=hdr)
+    assert listing.status_code == 200, listing.text
+    mine = [a for a in listing.json()["assets"] if a["asset_id"] == aid]
+    assert len(mine) == 1 and mine[0]["owner_user_id"] == uid
+
+    # 3. Reads hydrate from the bucket after a wipe (audio, spectrogram data, plots).
+    _wipe_private_references_locally(uid)
+    _simulate_container_restart(s3, monkeypatch, uid)
+    audio = client.get(f"/api/communicate/references/{aid}/audio", headers=hdr)
+    assert audio.status_code == 200, audio.text
+    assert audio.content[:4] == b"RIFF"
+    _wipe_private_references_locally(uid)
+    _simulate_container_restart(s3, monkeypatch, uid)
+    assert client.get(f"/api/communicate/references/{aid}/spectrogram-data", headers=hdr).status_code == 200
+    _wipe_private_references_locally(uid)
+    _simulate_container_restart(s3, monkeypatch, uid)
+    assert client.get(f"/api/communicate/references/{aid}/media/waveform", headers=hdr).status_code == 200
+
+    # 4. Annotation edits are persisted too, and Engine B can select the private reference after a wipe.
+    patched = client.patch(f"/api/communicate/references/{aid}", headers=hdr, json={"confirmed_category": "GROWL"})
+    assert patched.status_code == 200, patched.text
+    _wipe_private_references_locally(uid)
+    _simulate_container_restart(s3, monkeypatch, uid)
+    detail = client.get(f"/api/communicate/references/{aid}", headers=hdr)
+    assert detail.status_code == 200 and detail.json()["effective_category"] == "GROWL"
+    _wipe_private_references_locally(uid)
+    _simulate_container_restart(s3, monkeypatch, uid)
+    gen = client.post(
+        "/api/communicate/generate", headers=hdr, json={"text": "come here", "reference_asset_id": aid}
+    )
+    assert gen.status_code == 200, gen.text
+    assert gen.json()["generated"]["primary_reference_asset"]["asset_id"] == aid
+
+    # 5. Per-user isolation: another user can neither see nor hydrate it.
+    assert client.get(f"/api/communicate/references/{aid}", headers=auth_header(user_b["token"])).status_code == 404
+    assert client.get(f"/api/communicate/references/{aid}/audio", headers=auth_header(user_b["token"])).status_code == 404
+
+    # 6. DELETE /api/account after a wipe (nothing hydrated locally) still purges every remote object.
+    _wipe_private_references_locally(uid)
+    _simulate_container_restart(s3, monkeypatch, uid)
+    assert client.delete("/api/account", headers=hdr).status_code == 200
+    assert not [k for k in _keys(s3) if k.startswith(f"{uid}/")], "private reference objects must be purged"
+    assert not any(a.get("owner_user_id") == uid for a in rl.build_or_load_reference_library()["assets"])
+    assert not (rl.REF_PROC_DIR / f"{aid}.wav").exists()
+    assert shared_before <= {a["asset_id"] for a in rl.build_or_load_reference_library()["assets"]}
+
+
+def test_s3_private_reference_mirror_failure_leaves_no_local_or_remote_state(client, user_a, s3, tmp_path: Path):
+    from app.services import reference_library as rl
+
+    uid = user_a["user"]["id"]
+    s3.fail_puts = True
+    wav = write_bursts(tmp_path / "fail_ref.wav")
+    with wav.open("rb") as fh:
+        up = client.post(
+            "/api/communicate/references/upload",
+            headers=auth_header(user_a["token"]),
+            files={"file": ("fail_ref.wav", fh, "audio/wav")},
+        )
+    assert up.status_code == 503, up.text
+    assert not s3.objects
+    assert not any(a.get("owner_user_id") == uid for a in rl.build_or_load_reference_library()["assets"])

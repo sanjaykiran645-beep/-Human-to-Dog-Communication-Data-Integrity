@@ -786,6 +786,7 @@ class S3WriteThroughBackend:
         self.adapter = adapter
         self._local = LocalStorageBackend(root_dir=root_dir)
         self._mirrored: dict[str, tuple[int, int]] = {}
+        self.hydrated_reference_users: set[str] = set()
 
     @property
     def root(self) -> Path:
@@ -855,8 +856,8 @@ class S3WriteThroughBackend:
         self.put_bytes(key, path.read_bytes(), owner_id=parts[0], content_type=self._content_type(path))
         self._mirrored[key] = sig
 
-    def hydrate(self, key: str, *, owner_id: str) -> Path | None:
-        """Fetch ``key`` into the local cache. Returns the local path, or None when it is not in the bucket."""
+    def hydrate(self, key: str, *, owner_id: str, dest: Path | None = None) -> Path | None:
+        """Fetch ``key`` into the local cache (or ``dest``). Returns the local path, or None when not in the bucket."""
         key = Path(key).as_posix()
         meta = self.adapter.head_object(key, expected_owner_id=owner_id)
         if meta is None:
@@ -864,11 +865,12 @@ class S3WriteThroughBackend:
         data = self.adapter.get_object(key, expected_owner_id=owner_id)
         if meta.sha256 and hashlib.sha256(data).hexdigest() != meta.sha256:
             raise StorageUnavailableError(f"Remote object failed SHA-256 verification: {key}")
-        dest = self._local._safe_rel_path(key)
-        self._local.write_bytes_atomic(dest, data)
-        st = dest.stat()
-        self._mirrored[key] = (st.st_size, st.st_mtime_ns)
-        return dest
+        target = dest if dest is not None else self._local._safe_rel_path(key)
+        self._local.write_bytes_atomic(target, data)
+        if dest is None:
+            st = target.stat()
+            self._mirrored[key] = (st.st_size, st.st_mtime_ns)
+        return target
 
     def purge_prefix(self, prefix: str, *, owner_id: str) -> int:
         return self.adapter.purge_prefix(prefix, expected_owner_id=owner_id)

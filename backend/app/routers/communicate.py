@@ -36,6 +36,7 @@ from ..services.reference_library import (
     SUPPORTED_REFERENCE_CATEGORIES,
     build_or_load_reference_library,
     get_reference_asset,
+    hydrate_user_references,
     ingest_user_reference_file,
     is_reference_accessible,
     normalize_category,
@@ -62,6 +63,7 @@ def list_reference_library(
     include_rejected: bool = Query(default=False),
     user: models.User = Depends(get_current_user),
 ) -> dict:
+    hydrate_user_references(user.id)
     lib = build_or_load_reference_library()
     all_assets = lib.get("assets", [])
     filtered = []

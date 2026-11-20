@@ -27,6 +27,8 @@ from .reference_library import (
     build_or_load_reference_library,
     category_to_legacy_profile,
     compute_reference_acoustic_profile,
+    ensure_private_reference_audio,
+    hydrate_user_references,
     is_reference_accessible,
     normalize_category,
 )
@@ -115,13 +117,14 @@ def search_reference_candidates(
     and pitch proximity. Enforces per-user ownership isolation on uploaded references.
     """
     req_cat = normalize_category(category)
+    hydrate_user_references(user_id)
     lib = build_or_load_reference_library()
     valid_assets = [
         a
         for a in lib.get("assets", [])
         if a.get("technical_validation_status") == "valid_canine_reference"
         and is_reference_accessible(a, user_id)
-        and Path(a.get("processed_path", "")).exists()
+        and Path(ensure_private_reference_audio(a).get("processed_path", "")).exists()
     ]
 
     if preferred_asset_id:

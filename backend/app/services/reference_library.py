@@ -11,7 +11,9 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import logging
 import os
+import re
 import threading
 import uuid
 import zipfile
@@ -24,6 +26,7 @@ import numpy as np
 import soundfile as sf
 
 from ..config import ROOT, TARGET_SR
+from . import storage as _storage
 from .audio import _decode_any, preprocess, sniff_format
 
 REPO_DATA_DIR = ROOT / "data"
@@ -1078,6 +1081,105 @@ def _finalize_and_save_manifest(assets: list[dict[str, Any]]) -> dict[str, Any]:
     return manifest_data
 
 
+_PRIVATE_ASSET_STRIP_KEYS = ("processed_path", "spectrogram_path", "waveform_path", "raw_path")
+_ASSET_ID_RE = re.compile(r"^[A-Za-z0-9-]{8,64}$")
+
+
+def _private_ref_prefix(owner_id: str, asset_id: str) -> str:
+    return f"{owner_id}/references/{asset_id}/"
+
+
+def mirror_private_reference(
+    asset: dict[str, Any],
+    *,
+    processed_wav: Path | None = None,
+    raw_bytes: bytes | None = None,
+    raw_ext: str = ".wav",
+) -> None:
+    """Mirror a private (user-owned) reference asset to the durable backend (no-op for local storage).
+
+    Remote layout (inside the owner's tree, so quota, isolation and ``DELETE /api/account`` apply):
+    ``{user}/references/{asset}/asset.json | processed.wav | raw{ext}``. Shared bundled assets are never mirrored.
+    """
+    owner = asset.get("owner_user_id")
+    remote = _storage._remote_backend()
+    if remote is None or not owner:
+        return
+    prefix = _private_ref_prefix(owner, asset["asset_id"])
+    if processed_wav is not None and processed_wav.is_file():
+        remote.put_bytes(f"{prefix}processed.wav", processed_wav.read_bytes(), owner_id=owner, content_type="audio/wav")
+    if raw_bytes is not None:
+        remote.put_bytes(f"{prefix}raw{raw_ext}", raw_bytes, owner_id=owner)
+    meta = {k: v for k, v in asset.items() if k not in _PRIVATE_ASSET_STRIP_KEYS}
+    remote.put_bytes(f"{prefix}asset.json", json.dumps(meta, indent=2).encode("utf-8"), owner_id=owner)
+
+
+def purge_remote_private_reference(owner_id: str, asset_id: str) -> None:
+    """Best-effort (logged) removal of a partially mirrored private reference after a failed ingest."""
+    remote = _storage._remote_backend()
+    if remote is None or not owner_id:
+        return
+    try:
+        remote.purge_prefix(_private_ref_prefix(owner_id, asset_id), owner_id=owner_id)
+    except (_storage.StorageUnavailableError, PermissionError):
+        logging.getLogger(__name__).warning("Remote cleanup failed for private reference %s", asset_id, exc_info=True)
+
+
+def hydrate_user_references(user_id: str | None) -> int:
+    """Restore a user's private reference rows into the local manifest from the durable backend.
+
+    Runs once per user per process (after a container wipe the local manifest only holds bundled assets).
+    Every restored row is validated against the owner and asset id encoded in its object key.
+    """
+    global _MANIFEST_CACHE
+    remote = _storage._remote_backend()
+    if remote is None or not user_id or user_id in remote.hydrated_reference_users:
+        return 0
+    restored = 0
+    with _MANIFEST_WRITE_LOCK:
+        keys = remote.adapter.list_keys(f"{user_id}/references/", expected_owner_id=user_id)
+        lib = build_or_load_reference_library()
+        assets = lib.get("assets", [])
+        known = {a["asset_id"] for a in assets}
+        for key, _size in keys:
+            parts = key.split("/")
+            if len(parts) != 4 or parts[3] != "asset.json":
+                continue
+            asset_id = parts[2]
+            if asset_id in known or not _ASSET_ID_RE.match(asset_id):
+                continue
+            row = json.loads(remote.adapter.get_object(key, expected_owner_id=user_id).decode("utf-8"))
+            if row.get("owner_user_id") != user_id or row.get("asset_id") != asset_id:
+                logging.getLogger(__name__).warning("Skipping inconsistent mirrored reference %s", key)
+                continue
+            row["processed_path"] = str(REF_PROC_DIR / f"{asset_id}.wav")
+            assets.insert(0, row)
+            known.add(asset_id)
+            restored += 1
+        if restored:
+            _MANIFEST_CACHE = _finalize_and_save_manifest(assets)
+    remote.hydrated_reference_users.add(user_id)
+    return restored
+
+
+def ensure_private_reference_audio(asset: dict[str, Any]) -> dict[str, Any]:
+    """Hydrate a private asset's processed WAV from the durable backend when absent locally (no-op otherwise)."""
+    owner = asset.get("owner_user_id")
+    if not owner:
+        return asset
+    dest = REF_PROC_DIR / f"{asset['asset_id']}.wav"
+    if dest.is_file():
+        asset["processed_path"] = str(dest)
+        return asset
+    remote = _storage._remote_backend()
+    if remote is None:
+        return asset
+    key = f"{_private_ref_prefix(owner, asset['asset_id'])}processed.wav"
+    if remote.hydrate(key, owner_id=owner, dest=dest) is not None:
+        asset["processed_path"] = str(dest)
+    return asset
+
+
 def purge_user_references(user_id: str) -> int:
     """
     Delete every private reference upload owned by `user_id` (raw, processed, plots and manifest rows).
@@ -1116,12 +1218,13 @@ def is_reference_accessible(asset: dict[str, Any], user_id: str | None = None) -
 
 
 def get_reference_asset(asset_id: str, user_id: str | None = None) -> dict[str, Any] | None:
+    hydrate_user_references(user_id)
     lib = build_or_load_reference_library()
     for a in lib.get("assets", []):
         if a["asset_id"] == asset_id:
             if not is_reference_accessible(a, user_id):
                 return None
-            return _normalize_asset_paths(a)
+            return ensure_private_reference_audio(_normalize_asset_paths(a))
     return None
 
 
@@ -1134,6 +1237,7 @@ def update_reference_asset_annotation(
 ) -> dict[str, Any]:
     """Allow the user to review and correct vocalization category labels without altering raw audio."""
     global _MANIFEST_CACHE
+    hydrate_user_references(user_id)
     lib = build_or_load_reference_library()
     assets = lib.get("assets", [])
     target = None
@@ -1167,6 +1271,7 @@ def update_reference_asset_annotation(
     if notes is not None:
         target["notes"] = notes.strip()[:500]
 
+    mirror_private_reference(target)  # persist the updated label/notes row (no-op for local storage)
     _MANIFEST_CACHE = _finalize_and_save_manifest(assets)
     return target
 
@@ -1186,6 +1291,7 @@ def ingest_user_reference_file(
 
     fmt = sniff_format(data[:64], filename)
     sha = hashlib.sha256(data).hexdigest()
+    hydrate_user_references(owner_user_id)
     lib = build_or_load_reference_library()
     assets = lib.get("assets", [])
 
@@ -1271,5 +1377,14 @@ def ingest_user_reference_file(
         "acoustic_profile": profile,
     }
     assets.insert(0, new_asset)
+    try:
+        # Durable backends: mirror raw + processed + metadata before the manifest row becomes visible.
+        mirror_private_reference(new_asset, processed_wav=proc_dest, raw_bytes=data, raw_ext=ext)
+    except Exception:
+        assets.remove(new_asset)
+        raw_dest.unlink(missing_ok=True)
+        proc_dest.unlink(missing_ok=True)
+        purge_remote_private_reference(owner_user_id or "", asset_id)
+        raise
     _MANIFEST_CACHE = _finalize_and_save_manifest(assets)
     return new_asset

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, historyCacheKey } from "../api";
+import AudioPlayer from "../components/AudioPlayer";
+import SpectrogramViewer from "../components/SpectrogramViewer";
 
 export default function History() {
   const [items, setItems] = useState<any[]>([]);
@@ -8,6 +10,7 @@ export default function History() {
   const [err, setErr] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [reloadTick, setReloadTick] = useState(0);
+  const [expandedSpecs, setExpandedSpecs] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -64,11 +67,25 @@ export default function History() {
   });
 
   return (
-    <div className="stack-lg" style={{ maxWidth: 1020, margin: "0 auto" }}>
-      <div className="card stack" style={{ padding: 28, borderRadius: 20 }}>
+    <div
+      className="stack-lg"
+      style={{ width: "100%", maxWidth: 1020, minWidth: 0, margin: "0 auto", overflowX: "hidden", boxSizing: "border-box" }}
+    >
+      <div
+        className="card stack"
+        style={{
+          padding: "clamp(14px, 4vw, 28px)",
+          borderRadius: 20,
+          width: "100%",
+          maxWidth: "100%",
+          minWidth: 0,
+          overflowX: "hidden",
+          boxSizing: "border-box",
+        }}
+      >
         {err && (
-          <div className="alert alert-error row" style={{ justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-            <span>{err}</span>
+          <div className="alert alert-error row" style={{ justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", minWidth: 0 }}>
+            <span style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{err}</span>
             <button
               type="button"
               className="btn ghost"
@@ -83,21 +100,23 @@ export default function History() {
           </div>
         )}
 
-        <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 24 }}>Saved Vocalization History ({filtered.length})</h2>
-            <p className="muted" style={{ margin: "4px 0 0 0", fontSize: 14 }}>
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, minWidth: 0, maxWidth: "100%" }}>
+          <div style={{ minWidth: 0, maxWidth: "100%" }}>
+            <h2 style={{ margin: 0, fontSize: "clamp(19px, 5vw, 24px)", overflowWrap: "anywhere" }}>
+              Saved Vocalization History ({filtered.length})
+            </h2>
+            <p className="muted" style={{ margin: "4px 0 0 0", fontSize: 14, overflowWrap: "anywhere" }}>
               Every analyzed dog recording and translation is permanently saved here.
             </p>
           </div>
-          <div className="row" style={{ gap: 10 }}>
+          <div className="row" style={{ gap: 10, flexWrap: "wrap", minWidth: 0, maxWidth: "100%", flex: "1 1 240px", justifyContent: "flex-end" }}>
             <input
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Search bark, whine, meaning..."
-              style={{ padding: "8px 14px", borderRadius: 999, minWidth: 220 }}
+              style={{ padding: "8px 14px", borderRadius: 999, flex: "1 1 160px", minWidth: 0, maxWidth: "100%", boxSizing: "border-box" }}
             />
-            <Link to="/app/analyze" className="btn btn-primary btn-sm" style={{ borderRadius: 999, padding: "8px 16px" }}>
+            <Link to="/app/analyze" className="btn btn-primary btn-sm" style={{ borderRadius: 999, padding: "8px 16px", whiteSpace: "nowrap" }}>
               + New Analysis
             </Link>
           </div>
@@ -106,7 +125,7 @@ export default function History() {
         {loading ? (
           <p className="muted">Loading saved history...</p>
         ) : filtered.length === 0 ? (
-          <div style={{ padding: 32, textAlign: "center", borderRadius: 14, border: "1px dashed rgba(0,0,0,0.15)" }}>
+          <div style={{ padding: 24, textAlign: "center", borderRadius: 14, border: "1px dashed rgba(0,0,0,0.15)" }}>
             <div style={{ fontWeight: 700, fontSize: 16 }}>No saved recordings yet</div>
             <p className="muted" style={{ fontSize: 13, margin: "6px 0 16px 0" }}>
               Analyze a live microphone recording or upload an audio clip to save it to your permanent history.
@@ -114,8 +133,8 @@ export default function History() {
             <Link to="/app/analyze" className="btn btn-primary btn-sm">Go to Analyzer</Link>
           </div>
         ) : (
-          <div className="stack" style={{ gap: 12 }}>
-            {filtered.map((r) => {
+          <div className="stack" style={{ gap: 12, minWidth: 0, maxWidth: "100%" }}>
+            {filtered.map((r, idx) => {
               const a = r.analysis || {};
               const vocal = (a.vocalization || "bark").toUpperCase();
               const conf = Math.round(Number(a.confidence || 0.94) * 100);
@@ -130,25 +149,87 @@ export default function History() {
                 a.behavior?.scenario?.why_purpose ||
                 "Matched against breed and gender bioacoustic profile.";
               const f0 = Math.round(Number(a.features?.f0_mean || 320));
+              const hasServerMedia = Boolean(r.id && !r.unsynced_local_fallback);
+              const processedPath = r.media_urls?.processed || (hasServerMedia ? `/api/recordings/${r.id}/media/processed` : null);
+              const specDataPath = r.media_urls?.spectrogram_data || (hasServerMedia ? `/api/recordings/${r.id}/spectrogram-data` : null);
+              const specImgPath = r.media_urls?.spectrogram || (hasServerMedia ? `/api/recordings/${r.id}/media/spectrogram` : null);
+              const wavePath = r.media_urls?.waveform || (hasServerMedia ? `/api/recordings/${r.id}/media/waveform` : null);
+              const showSpec = expandedSpecs[r.id] !== undefined ? expandedSpecs[r.id] : idx === 0;
 
               return (
-                <div key={r.id} className="card" style={{ padding: 20, borderRadius: 16, border: "1px solid rgba(0,0,0,0.1)" }}>
-                  <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
-                    <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                      <span style={{ padding: "4px 12px", borderRadius: 999, background: "#059669", color: "#fff", fontSize: 12, fontWeight: 700 }}>
+                <div
+                  key={r.id}
+                  className="card"
+                  style={{
+                    padding: "clamp(14px, 3.5vw, 20px)",
+                    borderRadius: 16,
+                    border: "1px solid rgba(0,0,0,0.1)",
+                    width: "100%",
+                    maxWidth: "100%",
+                    minWidth: 0,
+                    overflowX: "hidden",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, minWidth: 0, maxWidth: "100%" }}>
+                    <div className="row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap", minWidth: 0, maxWidth: "100%" }}>
+                      <span
+                        style={{
+                          padding: "4px 12px",
+                          borderRadius: 999,
+                          background: "#059669",
+                          color: "#fff",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          whiteSpace: "normal",
+                          overflowWrap: "anywhere",
+                          maxWidth: "100%",
+                        }}
+                      >
                         {vocal} · HEURISTIC RULE MATCH: {conf}%{r.unsynced_local_fallback ? " · UNSYNCED LOCAL FALLBACK" : ""}
                       </span>
                       <span className="badge" style={{ fontSize: 12 }}>Pitch: {f0} Hz</span>
                     </div>
-                    <div className="row" style={{ gap: 10, alignItems: "center" }}>
-                      <span className="muted" style={{ fontSize: 12 }}>
+                    <div className="row" style={{ gap: 10, alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>
+                      <span className="muted" style={{ fontSize: 12, overflowWrap: "anywhere" }}>
                         {r.created_at ? new Date(r.created_at).toLocaleString() : "Saved Session"}
                       </span>
-                      <button className="btn btn-danger btn-sm" onClick={() => removeItem(r.id)}>Delete</button>
+                      {hasServerMedia && (
+                        <button
+                          type="button"
+                          className="btn ghost btn-sm"
+                          onClick={() => setExpandedSpecs((prev) => ({ ...prev, [r.id]: !showSpec }))}
+                        >
+                          {showSpec ? "Hide Spectrogram" : "Show Spectrogram"}
+                        </button>
+                      )}
+                      <button type="button" className="btn btn-danger btn-sm" onClick={() => removeItem(r.id)}>Delete</button>
                     </div>
                   </div>
-                  <div style={{ fontWeight: 700, fontSize: 17, marginTop: 10 }}>{spoken}</div>
-                  <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{why}</div>
+                  <div style={{ fontWeight: 700, fontSize: 17, marginTop: 10, overflowWrap: "anywhere", wordBreak: "break-word" }}>{spoken}</div>
+                  <div className="muted" style={{ fontSize: 13, marginTop: 4, overflowWrap: "anywhere", wordBreak: "break-word" }}>{why}</div>
+
+                  {processedPath && (
+                    <div style={{ marginTop: 12, minWidth: 0, maxWidth: "100%", overflowX: "hidden" }}>
+                      <AudioPlayer
+                        mediaPath={processedPath}
+                        title={r.original_filename || "Processed canine audio"}
+                        downloadFilename={`caninesense-${r.id}.wav`}
+                      />
+                    </div>
+                  )}
+
+                  {hasServerMedia && showSpec && (
+                    <div style={{ marginTop: 10, minWidth: 0, maxWidth: "100%", overflowX: "hidden" }}>
+                      <SpectrogramViewer
+                        spectrogramDataPath={specDataPath}
+                        spectrogramImagePath={specImgPath}
+                        waveformPath={wavePath}
+                        title="Saved Recording STFT Spectrogram"
+                        compact
+                      />
+                    </div>
+                  )}
                 </div>
               );
             })}

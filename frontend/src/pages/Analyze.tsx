@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import type { Dog } from "../api";
+import SpectrogramViewer from "../components/SpectrogramViewer";
 
 function extensionForMime(mimeType: string): string {
   const m = (mimeType || "").toLowerCase();
@@ -56,7 +57,7 @@ export default function Analyze() {
       setLocalAudioUrl(URL.createObjectURL(file));
 
       const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 30000);
+      const timeoutId = window.setTimeout(() => controller.abort(), 180000);
       try {
         const fd = new FormData();
         const fallbackName =
@@ -175,6 +176,11 @@ export default function Analyze() {
         </div>
 
         {err && <div className="alert alert-error">{err}</div>}
+        {(processingMic || uploadingFile) && (
+          <div className="alert" style={{ background: "rgba(124, 45, 18, 0.08)", border: "1px solid rgba(124, 45, 18, 0.25)", fontSize: 13 }}>
+            Analyzing audio on server (first request after idle may take up to 60–90s)...
+          </div>
+        )}
 
         <div className="grid-2" style={{ gap: 18, marginTop: 8 }}>
           <div
@@ -361,6 +367,18 @@ export default function Analyze() {
                 Playback Analyzed Audio Clip ({(recResult.duration_sec || 0).toFixed(1)}s)
               </div>
               <audio controls src={localAudioUrl} style={{ width: "100%", height: 38 }} />
+            </div>
+          )}
+
+          {recResult.id && (
+            <div style={{ minWidth: 0, maxWidth: "100%", overflowX: "hidden" }}>
+              <SpectrogramViewer
+                spectrogramDataPath={recResult.media_urls?.spectrogram_data || `/api/recordings/${recResult.id}/spectrogram-data`}
+                spectrogramImagePath={recResult.media_urls?.spectrogram || `/api/recordings/${recResult.id}/media/spectrogram`}
+                waveformPath={recResult.media_urls?.waveform || `/api/recordings/${recResult.id}/media/waveform`}
+                title="Analyzed Recording STFT Spectrogram"
+                compact
+              />
             </div>
           )}
         </div>

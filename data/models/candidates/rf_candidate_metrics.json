@@ -1,0 +1,244 @@
+{
+  "model_architecture": "SoftVoting_YAMNetBalancedEnsemble",
+  "embedding_backbone": "YAMNet_ONNX_AudioSet_521_ActiveBout",
+  "ensemble_params": {
+    "weights": [
+      0.15,
+      0.6,
+      0.05,
+      0.1,
+      0.1
+    ],
+    "prior_alpha": 0.7,
+    "temperature": 0.9
+  },
+  "feature_dim": 307,
+  "feature_schema_version": "v3_307d_yamnet",
+  "status": "promoted",
+  "promotion_status": "PROMOTED",
+  "promoted": true,
+  "leakage_issues": [],
+  "dog_independent_verified": true,
+  "n_distinct_dogs": 418,
+  "metrics": {
+    "n": 740,
+    "accuracy": 0.9135,
+    "balanced_accuracy": 0.9226,
+    "macro_precision": 0.8891,
+    "macro_recall": 0.9226,
+    "macro_f1": 0.904,
+    "per_class": {
+      "bark": {
+        "precision": 0.9697,
+        "recall": 0.8914,
+        "support": 359,
+        "f1": 0.9289
+      },
+      "growl": {
+        "precision": 0.8947,
+        "recall": 0.8644,
+        "support": 59,
+        "f1": 0.8793
+      },
+      "whine": {
+        "precision": 0.8659,
+        "recall": 0.9595,
+        "support": 74,
+        "f1": 0.9103
+      },
+      "howl": {
+        "precision": 0.9123,
+        "recall": 0.9123,
+        "support": 57,
+        "f1": 0.9123
+      },
+      "yip": {
+        "precision": 0.8235,
+        "recall": 0.9589,
+        "support": 73,
+        "f1": 0.8861
+      },
+      "unknown": {
+        "precision": 0.8682,
+        "recall": 0.9492,
+        "support": 118,
+        "f1": 0.9069
+      }
+    },
+    "confusion_matrix": {
+      "labels": [
+        "bark",
+        "growl",
+        "whine",
+        "howl",
+        "yip",
+        "unknown"
+      ],
+      "matrix": [
+        [
+          320,
+          4,
+          4,
+          3,
+          12,
+          16
+        ],
+        [
+          4,
+          51,
+          3,
+          0,
+          0,
+          1
+        ],
+        [
+          2,
+          0,
+          71,
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          1,
+          1,
+          52,
+          3,
+          0
+        ],
+        [
+          2,
+          0,
+          1,
+          0,
+          70,
+          0
+        ],
+        [
+          2,
+          1,
+          2,
+          1,
+          0,
+          112
+        ]
+      ]
+    },
+    "ece": 0.0983,
+    "brier_score": 0.0719,
+    "reliability_diagram": [
+      {
+        "bin_range": [
+          0.0,
+          0.2
+        ],
+        "count": 0,
+        "mean_confidence": 0.0,
+        "empirical_accuracy": 0.0,
+        "calibration_gap": 0.0
+      },
+      {
+        "bin_range": [
+          0.2,
+          0.4
+        ],
+        "count": 15,
+        "mean_confidence": 0.3696,
+        "empirical_accuracy": 0.4,
+        "calibration_gap": 0.0304
+      },
+      {
+        "bin_range": [
+          0.4,
+          0.6
+        ],
+        "count": 74,
+        "mean_confidence": 0.514,
+        "empirical_accuracy": 0.6081,
+        "calibration_gap": 0.0941
+      },
+      {
+        "bin_range": [
+          0.6,
+          0.8
+        ],
+        "count": 154,
+        "mean_confidence": 0.7218,
+        "empirical_accuracy": 0.8766,
+        "calibration_gap": 0.1548
+      },
+      {
+        "bin_range": [
+          0.8,
+          1.0
+        ],
+        "count": 497,
+        "mean_confidence": 0.9025,
+        "empirical_accuracy": 0.9859,
+        "calibration_gap": 0.0834
+      }
+    ],
+    "min_class_recall": 0.8644
+  },
+  "benchmarks": {
+    "ExtraTrees_YAMNetFused": {
+      "balanced_accuracy": 0.7364,
+      "accuracy": 0.7959,
+      "macro_f1": 0.7479,
+      "min_class_recall": 0.4459,
+      "ece": 0.1781
+    },
+    "HistGradientBoosting_YAMNetFused": {
+      "balanced_accuracy": 0.9161,
+      "accuracy": 0.9351,
+      "macro_f1": 0.9181,
+      "min_class_recall": 0.8305,
+      "ece": 0.0182
+    },
+    "CalibratedRBFSVC_YAMNetFused": {
+      "balanced_accuracy": 0.6768,
+      "accuracy": 0.7716,
+      "macro_f1": 0.7022,
+      "min_class_recall": 0.3649,
+      "ece": 0.1271
+    },
+    "CalibratedLinearSVC_YAMNetFused": {
+      "balanced_accuracy": 0.6359,
+      "accuracy": 0.7635,
+      "macro_f1": 0.683,
+      "min_class_recall": 0.4189,
+      "ece": 0.1101
+    },
+    "LogisticRegression_YAMNetFused": {
+      "balanced_accuracy": 0.7288,
+      "accuracy": 0.7811,
+      "macro_f1": 0.7254,
+      "min_class_recall": 0.527,
+      "ece": 0.0908
+    },
+    "MLPClassifier_YAMNetFused": {
+      "balanced_accuracy": 0.6612,
+      "accuracy": 0.7635,
+      "macro_f1": 0.6867,
+      "min_class_recall": 0.473,
+      "ece": 0.0275
+    },
+    "RandomForest_YAMNetFused": {
+      "balanced_accuracy": 0.7802,
+      "accuracy": 0.827,
+      "macro_f1": 0.7986,
+      "min_class_recall": 0.527,
+      "ece": 0.1722
+    },
+    "SoftVoting_YAMNetBalancedEnsemble": {
+      "balanced_accuracy": 0.9226,
+      "accuracy": 0.9135,
+      "macro_f1": 0.904,
+      "min_class_recall": 0.8644,
+      "ece": 0.0983
+    }
+  },
+  "gate_reasons": [],
+  "note": "Promoted hybrid member (>=0.90 balanced accuracy, >=0.70 per-class recall)."
+}

@@ -68,17 +68,17 @@ def _internal_train_label(raw_label: str) -> str:
 
 class BalancedEnsembleClassifier(BaseEstimator, ClassifierMixin):
     """
-    Soft-voting ensemble of diverse class-balanced estimators (ExtraTrees,
-    HistGradientBoosting, Calibrated RBF-SVC, LogisticRegression, RandomForest)
-    over fused YAMNet ONNX + active-bout acoustic features with training-fold
-    Bayes prior adjustment and temperature scaling.
+    Soft-voting ensemble of diverse class-balanced estimators (multi-regime
+    HistGradientBoosting, ExtraTrees, Calibrated RBF-SVC, LogisticRegression,
+    RandomForest) over fused YAMNet ONNX + active-bout acoustic features with
+    training-fold Bayes prior adjustment and temperature scaling.
     """
 
     def __init__(
         self,
-        weights: tuple[float, float, float, float, float] = (0.30, 0.25, 0.20, 0.15, 0.10),
-        prior_alpha: float = 0.60,
-        temperature: float = 0.90,
+        weights: tuple[float, float, float, float, float] = (0.10, 0.70, 0.05, 0.05, 0.10),
+        prior_alpha: float = 0.45,
+        temperature: float = 0.95,
         random_state: int = 42,
     ) -> None:
         self.weights = weights
@@ -101,12 +101,21 @@ class BalancedEnsembleClassifier(BaseEstimator, ClassifierMixin):
             n_jobs=-1,
         )
         self.hgb_ = HistGradientBoostingClassifier(
-            max_iter=250,
+            max_iter=280,
             max_depth=8,
             learning_rate=0.05,
             min_samples_leaf=8,
             l2_regularization=1.5,
             random_state=self.random_state,
+        )
+        self.hgb2_ = HistGradientBoostingClassifier(
+            max_iter=320,
+            max_depth=6,
+            learning_rate=0.04,
+            min_samples_leaf=6,
+            l2_regularization=2.5,
+            max_bins=128,
+            random_state=self.random_state + 59,
         )
         min_class_count = int(np.min(counts)) if counts.size else 2
         cv_folds = max(2, min(3, min_class_count))
@@ -143,6 +152,7 @@ class BalancedEnsembleClassifier(BaseEstimator, ClassifierMixin):
 
         self.et_.fit(X, y)
         self.hgb_.fit(X, y, sample_weight=sw)
+        self.hgb2_.fit(X, y, sample_weight=sw)
         self.svc_.fit(X, y)
         self.lr_.fit(X, y)
         self.rf_.fit(X, y)
@@ -150,9 +160,10 @@ class BalancedEnsembleClassifier(BaseEstimator, ClassifierMixin):
 
     def _raw_ensemble_proba(self, X: np.ndarray) -> np.ndarray:
         w_et, w_hgb, w_svc, w_lr, w_rf = self.weights
+        p_hgb_blend = 0.55 * self.hgb_.predict_proba(X) + 0.45 * self.hgb2_.predict_proba(X)
         probs = (
             w_et * self.et_.predict_proba(X)
-            + w_hgb * self.hgb_.predict_proba(X)
+            + w_hgb * p_hgb_blend
             + w_svc * self.svc_.predict_proba(X)
             + w_lr * self.lr_.predict_proba(X)
             + w_rf * self.rf_.predict_proba(X)
@@ -215,75 +226,53 @@ def _compute_ece_and_brier(y_true: list[str], y_pred: list[str], confs: list[flo
 
 
 def _extract_all_features(rows: list[dict[str, str]], cache_path: Path) -> tuple[np.ndarray, list[str], list[str]]:
-    """Extract or load cached 307-d (acoustic + active-bout YAMNet ONNX) feature vectors."""
-    manifest_sig = hashlib.sha256(
-        "\n".join(f"{r['path']}|{r.get('dog_id')}|{_row_label(r)}" for r in rows).encode("utf-8")
-    ).hexdigest()[:16]
-
+    """Extract or load cached 307-d (acoustic + active-bout YAMNet ONNX) feature vectors with per-file mtime caching."""
+    by_path_cache: dict[str, tuple[int, np.ndarray]] = {}
     if cache_path.exists():
         try:
             cached = joblib.load(cache_path)
-            if (
-                isinstance(cached, dict)
-                and cached.get("schema") == FEATURE_SCHEMA_VERSION
-                and cached.get("sig") == manifest_sig
-                and cached.get("X") is not None
-            ):
-                return cached["X"], cached["y"], cached["dogs"]
+            if isinstance(cached, dict) and cached.get("schema") == FEATURE_SCHEMA_VERSION:
+                if isinstance(cached.get("by_path"), dict):
+                    by_path_cache = cached["by_path"]
         except Exception:
             pass
 
-    # Fast-path upgrade if v2_219d + yamnet_cache_v1 exist in the same folder
-    v2_cache = cache_path.parent / "features_cache_v2_219d.joblib"
-    yam_cache = cache_path.parent / "yamnet_cache_v1.joblib"
-    if v2_cache.exists() and yam_cache.exists():
-        try:
-            v2 = joblib.load(v2_cache)
-            yc = joblib.load(yam_cache)
-            if v2.get("sig") == manifest_sig and v2["X"].shape[0] == yc["sc_wm"].shape[0]:
-                sc_wm = yc["sc_wm"]
-                sc_mx = yc["sc_mx"]
-                sub_wm = sc_wm[:, _YAMNET_SUBSET_IDX]
-                sub_mx = sc_mx[:, _YAMNET_SUBSET_IDX]
-                c_wm = sc_wm[:, _CANINE_NORM_COLS]
-                c_mx = sc_mx[:, _CANINE_NORM_COLS]
-                c_norm_wm = c_wm / (np.sum(c_wm, axis=1, keepdims=True) + 1e-6)
-                c_norm_mx = c_mx / (np.sum(c_mx, axis=1, keepdims=True) + 1e-6)
-                X_yam = np.hstack([sub_wm, sub_mx, c_norm_wm, c_norm_mx]).astype(np.float32)
-                X = np.hstack([v2["X"], X_yam]).astype(np.float32)
-                X = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
-                joblib.dump(
-                    {"schema": FEATURE_SCHEMA_VERSION, "sig": manifest_sig, "X": X, "y": v2["y"], "dogs": v2["dogs"]},
-                    cache_path,
-                )
-                return X, v2["y"], v2["dogs"]
-        except Exception:
-            pass
-
-    def _one(row: dict[str, str]) -> tuple[np.ndarray | None, str, str]:
-        path = Path(row["path"])
+    def _one(row: dict[str, str]) -> tuple[str, int, np.ndarray | None, str, str]:
+        p_str = str(row.get("path") or "")
+        path = Path(p_str)
         if not path.exists():
-            return None, "", ""
+            return p_str, 0, None, "", ""
+        mtime_ns = path.stat().st_mtime_ns
+        lbl = _internal_train_label(_row_label(row))
+        dog_id = str(row.get("dog_id") or "").strip()
+        prev = by_path_cache.get(p_str)
+        if prev is not None and prev[0] == mtime_ns and prev[1] is not None:
+            return p_str, mtime_ns, prev[1], lbl, dog_id
         y_audio, sr = load_processed(path)
         y_audio, meta = preprocess(y_audio, sr)
         feats = extract_features(y_audio, meta["target_sr"])
         vec = feature_vector(feats)
-        return vec, _internal_train_label(_row_label(row)), str(row.get("dog_id") or "").strip()
+        return p_str, mtime_ns, vec, lbl, dog_id
 
     xs: list[np.ndarray] = []
     ys: list[str] = []
     dogs: list[str] = []
+    new_by_path: dict[str, tuple[int, np.ndarray]] = dict(by_path_cache)
 
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        for vec, lbl, dog_id in pool.map(_one, rows):
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for p_str, mtime_ns, vec, lbl, dog_id in pool.map(_one, rows):
             if vec is not None and lbl and dog_id:
+                new_by_path[p_str] = (mtime_ns, vec)
                 xs.append(vec)
                 ys.append(lbl)
                 dogs.append(dog_id)
 
     X = np.vstack(xs) if xs else np.zeros((0, 1), dtype=np.float32)
     cache_path.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump({"schema": FEATURE_SCHEMA_VERSION, "sig": manifest_sig, "X": X, "y": ys, "dogs": dogs}, cache_path)
+    joblib.dump(
+        {"schema": FEATURE_SCHEMA_VERSION, "by_path": new_by_path, "X": X, "y": ys, "dogs": dogs},
+        cache_path,
+    )
     return X, ys, dogs
 
 
@@ -383,7 +372,10 @@ def main() -> None:
             n_estimators=500, max_depth=18, min_samples_leaf=2, class_weight="balanced", random_state=42, n_jobs=-1
         )
         hgb = HistGradientBoostingClassifier(
-            max_iter=250, max_depth=8, learning_rate=0.05, min_samples_leaf=8, l2_regularization=1.5, random_state=42
+            max_iter=280, max_depth=8, learning_rate=0.05, min_samples_leaf=8, l2_regularization=1.5, random_state=42
+        )
+        hgb2 = HistGradientBoostingClassifier(
+            max_iter=320, max_depth=6, learning_rate=0.04, min_samples_leaf=6, l2_regularization=2.5, max_bins=128, random_state=101
         )
         rf = RandomForestClassifier(
             n_estimators=400, max_depth=16, min_samples_leaf=2, class_weight="balanced_subsample", random_state=42, n_jobs=-1
@@ -408,6 +400,7 @@ def main() -> None:
 
         et.fit(X_tr, y_tr)
         hgb.fit(X_tr, y_tr, sample_weight=sw_tr)
+        hgb2.fit(X_tr, y_tr, sample_weight=sw_tr)
         rf.fit(X_tr, y_tr)
         svc.fit(X_tr_s, y_tr)
         lsvc.fit(X_tr_s, y_tr)
@@ -415,7 +408,7 @@ def main() -> None:
         mlp.fit(X_tr_s, y_tr)
 
         oof_et[va_idx] = et.predict_proba(X_va)
-        oof_hgb[va_idx] = hgb.predict_proba(X_va)
+        oof_hgb[va_idx] = 0.55 * hgb.predict_proba(X_va) + 0.45 * hgb2.predict_proba(X_va)
         oof_rf[va_idx] = rf.predict_proba(X_va)
         oof_svc[va_idx] = svc.predict_proba(X_va_s)
         oof_lsvc[va_idx] = lsvc.predict_proba(X_va_s)
@@ -435,13 +428,16 @@ def main() -> None:
         benchmarks[name] = _evaluate_oof_predictions(y_str, probs, classes_internal)
 
     best_ens_report: dict[str, Any] | None = None
-    best_ens_params = {"weights": (0.30, 0.25, 0.20, 0.15, 0.10), "prior_alpha": 0.60, "temperature": 0.90}
+    best_ens_params = {"weights": (0.10, 0.70, 0.05, 0.05, 0.10), "prior_alpha": 0.45, "temperature": 0.95}
     weight_candidates = [
-        (0.30, 0.20, 0.25, 0.10, 0.15),
+        (0.00, 0.85, 0.00, 0.05, 0.10),
+        (0.05, 0.80, 0.00, 0.05, 0.10),
+        (0.05, 0.75, 0.05, 0.05, 0.10),
+        (0.10, 0.70, 0.05, 0.05, 0.10),
+        (0.10, 0.65, 0.05, 0.05, 0.15),
+        (0.15, 0.60, 0.05, 0.10, 0.10),
+        (0.25, 0.35, 0.15, 0.10, 0.15),
         (0.30, 0.25, 0.20, 0.15, 0.10),
-        (0.25, 0.25, 0.25, 0.15, 0.10),
-        (0.35, 0.25, 0.20, 0.10, 0.10),
-        (0.20, 0.30, 0.25, 0.15, 0.10),
     ]
     for w in weight_candidates:
         raw_ens = w[0] * oof_et + w[1] * oof_hgb + w[2] * oof_svc + w[3] * oof_lr + w[4] * oof_rf
@@ -493,7 +489,9 @@ def main() -> None:
         key=lambda kv: (kv[1]["balanced_accuracy"], kv[1]["min_class_recall"], -kv[1]["ece"]),
     )
 
-    final_clf: Any = BalancedEnsembleClassifier(
+    from app.ml.train import BalancedEnsembleClassifier as CanonicalBalancedEnsembleClassifier
+
+    final_clf: Any = CanonicalBalancedEnsembleClassifier(
         weights=best_ens_params["weights"],
         prior_alpha=best_ens_params["prior_alpha"],
         temperature=best_ens_params["temperature"],
@@ -563,7 +561,7 @@ def main() -> None:
 
     out_joblib = target_dir / "rf_candidate.joblib"
     out_metrics = target_dir / "rf_candidate_metrics.json"
-    joblib.dump(artifact, out_joblib)
+    joblib.dump(artifact, out_joblib, compress=3)
     summary_payload = {k: v for k, v in artifact.items() if k not in {"model", "label_encoder"}}
     out_metrics.write_text(json.dumps(summary_payload, indent=2), encoding="utf-8")
 

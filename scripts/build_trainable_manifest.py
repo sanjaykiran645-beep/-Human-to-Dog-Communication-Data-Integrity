@@ -5,11 +5,15 @@ Sources (all publicly accessible, no-auth-required, open/CC-licensed for ML trai
   1. FSD50K (Zenodo 10.5281/zenodo.4060432 metadata + HF philgzl/fsd50k Parquet shards)
      Licenses: Per-clip verified CC0-1.0, CC-BY-3.0, or CC-BY-NC-3.0 (Sampling+ excluded).
      dog_id: fsd50k_u_<uploader> (strict uploader-level grouping).
-  2. ESC-50 (GitHub karolpiczak/ESC-50)
+  2. agkphysics/AudioSet (Google AudioSet balanced train/eval Parquet shards on HF Hub)
+     License: CC-BY-4.0.
+     dog_id: audioset_yt_<video_id> (strict YouTube source video/dog grouping).
+     Targeted expansion for minority classes whine ('Whimper (dog)') and yip ('Yip').
+  3. ESC-50 (GitHub karolpiczak/ESC-50)
      License: CC-BY-NC-3.0.
      dog_id: esc50_src_<src_file> (strict Freesound source recording grouping,
      deduplicated against all FSD50K Freesound clip IDs to prevent cross-dataset leakage).
-  3. cgeorgiaw/animal-sounds (HF dogs Parquet shards)
+  4. cgeorgiaw/animal-sounds (HF dogs Parquet shards)
      License: CC-BY-4.0.
      dog_id: animalsounds_dog_<dog_name> (explicit individual named dogs).
 
@@ -30,6 +34,7 @@ from __future__ import annotations
 import argparse
 import bisect
 import csv
+import hashlib
 import io
 import json
 import re
@@ -52,7 +57,7 @@ import soundfile as sf
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "backend"))
 
-from app.config import TARGET_SR
+from app.config import DATA_DIR, TARGET_SR
 from app.services.audio import find_ffmpeg
 from app.services.classifier import CLASSES
 
@@ -76,6 +81,9 @@ MAX_CLIPS_PER_DOG_BY_CLASS = {
     "howl": 6,
     "bark": 2,
 }
+AUDIOSET_TARGET_WHINE = 36
+AUDIOSET_TARGET_YIP = 36
+
 ESC50_OTHER_CATEGORIES = (
     "cat",
     "chirping_birds",
@@ -103,9 +111,9 @@ ALLOWED_FSD50K_LICENSES = {
 NON_DOG_TERMS = {
     "cat", "kitten", "meow", "purr", "tiger", "lion", "bear", "panther", "leopard", "cheetah",
     "monster", "zombie", "dragon", "demon", "orc", "dinosaur", "alien", "human", "man", "woman",
-    "pig", "boar", "horse", "cow", "sheep", "goat", "frog", "bird", "crow", "duck", "chicken",
-    "wolf", "coyote", "fox", "hyena", "seal", "whale", "dolphin", "monkey", "ape", "gorilla",
-    "reversed",
+    "baby", "child", "pig", "boar", "horse", "cow", "sheep", "goat", "frog", "bird", "crow",
+    "duck", "chicken", "wolf", "coyote", "fox", "hyena", "seal", "whale", "dolphin", "monkey",
+    "ape", "gorilla", "reversed", "toy",
 }
 
 DOG_TERMS = {
@@ -114,6 +122,27 @@ DOG_TERMS = {
     "spaniel", "mastiff", "collie", "pitbull", "boxer", "corgi", "doberman", "mutt", "doggy", "doggie",
     "bark", "barking", "woof", "chien", "hund", "perro", "koira",
 }
+
+_YAMNET_ORT: Any = False
+
+
+def _get_yamnet_localizer() -> Any:
+    global _YAMNET_ORT
+    if _YAMNET_ORT is not False:
+        return _YAMNET_ORT
+    onnx_path = DATA_DIR / "models" / "pretrained" / "yamnet.onnx"
+    if not onnx_path.exists():
+        _YAMNET_ORT = None
+        return None
+    try:
+        import onnxruntime as ort
+
+        opts = ort.SessionOptions()
+        opts.intra_op_num_threads = 2
+        _YAMNET_ORT = ort.InferenceSession(str(onnx_path), sess_options=opts, providers=["CPUExecutionProvider"])
+    except Exception:
+        _YAMNET_ORT = None
+    return _YAMNET_ORT
 
 
 def _tokens(text: str) -> set[str]:
@@ -129,7 +158,7 @@ def _http_get_with_retry(
     url: str,
     session: requests.Session | None = None,
     headers: dict[str, str] | None = None,
-    timeout: int = 45,
+    timeout: int = 60,
     retries: int = 5,
 ) -> requests.Response:
     sess = session or requests.Session()
@@ -206,7 +235,7 @@ class HTTPRangeFile(io.RawIOBase):
             self.final_url,
             session=self.session,
             headers={"Range": f"bytes={self.pos}-{end}"},
-            timeout=60,
+            timeout=90,
         )
         data = r.content
         self.pos += len(data)
@@ -220,12 +249,12 @@ class HTTPRangeFile(io.RawIOBase):
 
 
 # ---------------------------------------------------------------------------
-# Audio decoding, validation, and normalization
+# Audio decoding, event localization, validation, and normalization
 # ---------------------------------------------------------------------------
 
 def _processed_path(cand: dict[str, Any]) -> Path:
     src_slug = _slug(cand["source"])
-    clip_key = cand.get("fid") or cand.get("filename") or str(cand.get("row_idx"))
+    clip_key = cand.get("fid") or cand.get("video_id") or cand.get("filename") or str(cand.get("row_idx"))
     clip_slug = _slug(Path(str(clip_key)).stem)
     return PROCESSED_DIR / cand["label"] / f"{src_slug}_{cand['dog_id']}_{clip_slug}.wav"
 
@@ -240,10 +269,112 @@ def _is_valid_processed_wav(dest_wav: Path) -> bool:
         return False
 
 
-def decode_and_normalize(src_path: Path, dest_wav: Path) -> tuple[bool, str]:
+def localize_vocalization_window(y: np.ndarray, sr: int, label: str) -> np.ndarray:
     """
-    Decode raw audio, validate duration/silence/finiteness, and write 22,050 Hz mono PCM_16 WAV.
-    Returns (ok, reason).
+    For multi-second weakly-labeled recordings (whine, yip, growl, howl from AudioSet/FSD50K),
+    use pretrained YAMNet ONNX frame scores + RMS energy envelope to crop the recording to the
+    primary active vocalization bout, stripping human speech, barks, and background noise.
+    """
+    dur = float(y.size / sr) if sr else 0.0
+    if label not in {"whine", "yip", "growl", "howl"} or dur <= 1.25:
+        return y
+
+    sess = _get_yamnet_localizer()
+    win_map = {"whine": 1.65, "yip": 0.62, "growl": 2.15, "howl": 2.65}
+    target_win_sec = win_map.get(label, 1.80)
+    target_samples = int(target_win_sec * sr)
+
+    if sess is not None and dur >= 1.25:
+        try:
+            y16 = librosa.resample(y, orig_sr=sr, target_sr=16000).astype(np.float32)
+            if y16.size >= 16000:
+                scores, _, _ = sess.run(None, {"waveform": y16})
+                if label == "whine":
+                    # 75:Whimper(dog), 21:Whimper, 22:Crying, 355:Squeak, 69:Dog vs 70:Bark, 0:Speech
+                    f_scores = (
+                        3.2 * scores[:, 75]
+                        + 2.6 * scores[:, 21]
+                        + 1.4 * scores[:, 22]
+                        + 0.9 * scores[:, 355]
+                        + 0.6 * scores[:, 69]
+                        - 0.5 * scores[:, 70]
+                        - 0.9 * scores[:, 0]
+                    )
+                elif label == "yip":
+                    # 71:Yip, 355:Squeak, 70:Bark, 73:Bow-wow, 69:Dog vs 74:Growling, 72:Howl, 0:Speech
+                    f_scores = (
+                        3.5 * scores[:, 71]
+                        + 1.6 * scores[:, 355]
+                        + 0.9 * scores[:, 70]
+                        + 0.8 * scores[:, 73]
+                        + 0.6 * scores[:, 69]
+                        - 0.8 * scores[:, 74]
+                        - 0.8 * scores[:, 72]
+                        - 0.9 * scores[:, 0]
+                    )
+                elif label == "growl":
+                    # 74:Growling, 34:Grunt, 35:Groan, 104:Roaring, 69:Dog vs 70:Bark, 71:Yip, 0:Speech
+                    f_scores = (
+                        3.8 * scores[:, 74]
+                        + 1.2 * scores[:, 34]
+                        + 1.0 * scores[:, 35]
+                        + 0.8 * scores[:, 104]
+                        + 0.6 * scores[:, 69]
+                        - 0.8 * scores[:, 70]
+                        - 0.8 * scores[:, 71]
+                        - 0.9 * scores[:, 0]
+                    )
+                else:
+                    # howl: 72:Howl, 117:Canidae, 69:Dog vs 70:Bark, 71:Yip, 0:Speech
+                    f_scores = (
+                        3.8 * scores[:, 72]
+                        + 1.2 * scores[:, 117]
+                        + 0.6 * scores[:, 69]
+                        - 0.7 * scores[:, 70]
+                        - 0.7 * scores[:, 71]
+                        - 0.9 * scores[:, 0]
+                    )
+                best_t = int(np.argmax(f_scores))
+                center_sec = best_t * 0.48 + 0.48
+                half_span = max(0.85, target_win_sec * 0.65)
+                search_s = max(0, int((center_sec - half_span) * sr))
+                search_e = min(y.size, int((center_sec + half_span) * sr))
+                region = y[search_s:search_e]
+                if region.size > target_samples:
+                    hop = max(1, int(0.03 * sr))
+                    best_off = 0
+                    best_rms = -1.0
+                    for off in range(0, region.size - target_samples + 1, hop):
+                        r_val = float(np.mean(region[off : off + target_samples] ** 2))
+                        if r_val > best_rms:
+                            best_rms = r_val
+                            best_off = off
+                    cropped = region[best_off : best_off + target_samples]
+                    if float(np.sqrt(np.mean(cropped ** 2))) >= MIN_RMS:
+                        return cropped
+                elif region.size >= int(0.30 * sr):
+                    if float(np.sqrt(np.mean(region ** 2))) >= MIN_RMS:
+                        return region
+        except Exception:
+            pass
+
+    if y.size > target_samples:
+        hop = max(1, int(0.04 * sr))
+        best_s = 0
+        best_e_val = -1.0
+        for s in range(0, y.size - target_samples + 1, hop):
+            e_val = float(np.mean(y[s : s + target_samples] ** 2))
+            if e_val > best_e_val:
+                best_e_val = e_val
+                best_s = s
+        return y[best_s : best_s + target_samples]
+    return y
+
+
+def decode_and_normalize(src_path: Path, dest_wav: Path, label: str = "") -> tuple[bool, str]:
+    """
+    Decode raw audio, localize active vocalization window for minority classes,
+    validate duration/silence/finiteness, and write 22,050 Hz mono PCM_16 WAV.
     """
     if _is_valid_processed_wav(dest_wav):
         return True, "cached"
@@ -251,7 +382,6 @@ def decode_and_normalize(src_path: Path, dest_wav: Path) -> tuple[bool, str]:
     y: np.ndarray | None = None
     sr: int | None = None
 
-    # 1. Try soundfile directly
     try:
         y_raw, sr_raw = sf.read(str(src_path), dtype="float32", always_2d=False)
         y = np.asarray(y_raw, dtype=np.float32)
@@ -259,7 +389,6 @@ def decode_and_normalize(src_path: Path, dest_wav: Path) -> tuple[bool, str]:
     except Exception:
         y = None
 
-    # 2. Fallback to ffmpeg
     if y is None:
         exe = find_ffmpeg()
         if exe:
@@ -279,7 +408,6 @@ def decode_and_normalize(src_path: Path, dest_wav: Path) -> tuple[bool, str]:
             finally:
                 tmp_path.unlink(missing_ok=True)
 
-    # 3. Fallback to librosa
     if y is None:
         try:
             y_raw, sr_raw = librosa.load(str(src_path), sr=TARGET_SR, mono=True)
@@ -296,11 +424,13 @@ def decode_and_normalize(src_path: Path, dest_wav: Path) -> tuple[bool, str]:
     if not np.isfinite(y).all():
         return False, "non_finite"
 
-    # DC removal + resample to 22,050 Hz
     y = y - float(np.mean(y))
     if sr != TARGET_SR:
         y = librosa.resample(y, orig_sr=sr, target_sr=TARGET_SR)
         sr = TARGET_SR
+
+    if label in {"whine", "yip", "growl", "howl"}:
+        y = localize_vocalization_window(y, sr, label)
 
     duration = float(y.size / sr)
     if duration < MIN_DURATION_SEC:
@@ -384,12 +514,15 @@ def select_fsd50k_candidates(gt_zip: Path, meta_zip: Path) -> tuple[list[dict[st
                 lic_short = ALLOWED_FSD50K_LICENSES[lic_url]
                 title = m.get("title", "")
                 tags_str = " ".join(m.get("tags", []))
+                desc_str = m.get("description", "")
                 title_toks = _tokens(title)
-                all_toks = _tokens(title + " " + tags_str)
+                tag_toks = _tokens(tags_str)
+                desc_toks = _tokens(desc_str)
+                all_toks = title_toks | tag_toks
 
-                if "reversed" in title_toks:
+                if "reversed" in all_toks:
                     continue
-                has_dog_context = bool(labs & {"Dog", "Bark", "Whimper_(dog)"}) or bool(all_toks & DOG_TERMS)
+                has_dog_context = bool(labs & {"Dog", "Bark", "Whimper_(dog)", "Yip"}) or bool(all_toks & DOG_TERMS)
                 has_non_dog_title = bool(title_toks & NON_DOG_TERMS) and not bool(title_toks & DOG_TERMS)
                 if has_non_dog_title:
                     continue
@@ -398,10 +531,12 @@ def select_fsd50k_candidates(gt_zip: Path, meta_zip: Path) -> tuple[list[dict[st
                 dog_id = f"fsd50k_u_{_slug(uploader)}"
                 label: str | None = None
 
-                if "Whimper_(dog)" in labs:
+                # Expanded whine & yip mapping using human-verified FSD50K labels + title/tags/description
+                if "Whimper_(dog)" in labs or ("Whimper" in labs and has_dog_context):
                     label = "whine"
-                elif has_dog_context and not (labs & {"Bark", "Growling", "Howl"}) and bool(
-                    title_toks & {"whine", "whining", "whines", "whimper", "whimpering", "cry", "crying"}
+                elif has_dog_context and not (labs & {"Growling", "Howl"}) and bool(
+                    (title_toks | tag_toks | desc_toks)
+                    & {"whine", "whining", "whines", "whimper", "whimpering", "whimpers", "cry", "crying", "plaintive"}
                 ):
                     label = "whine"
                 elif has_dog_context and not (labs & {"Bark", "Growling", "Howl", "Whimper_(dog)"}) and (
@@ -411,8 +546,9 @@ def select_fsd50k_candidates(gt_zip: Path, meta_zip: Path) -> tuple[list[dict[st
                     label = "grunt"
                 elif "Yip" in labs and has_dog_context and "howl" not in title_toks:
                     label = "yip"
-                elif has_dog_context and not (labs & {"Growling", "Howl"}) and bool(
-                    title_toks & {"yip", "yips", "yipping", "yelp", "yelping", "yelps"}
+                elif has_dog_context and not (labs & {"Growling", "Howl", "Whimper_(dog)"}) and (
+                    bool((title_toks | tag_toks | desc_toks) & {"yip", "yips", "yipping", "yelp", "yelping", "yelps", "yap", "yapping", "yaps"})
+                    or bool((title_toks | tag_toks) & {"puppy", "puppies", "chihuahua"})
                 ):
                     label = "yip"
                 elif "Growling" in labs and has_dog_context and not (
@@ -459,7 +595,6 @@ def select_fsd50k_candidates(gt_zip: Path, meta_zip: Path) -> tuple[list[dict[st
 
 
 def _get_fsd50k_shard_index(workers: int = 2) -> dict[str, dict[str, Any]]:
-    """Map philgzl/fsd50k (dev/eval) Parquet shards and cache exact row counts per shard."""
     cache_file = RAW_DIR / "fsd50k_meta" / "parquet_shard_index.json"
     if cache_file.exists():
         try:
@@ -500,7 +635,6 @@ def _get_fsd50k_shard_index(workers: int = 2) -> dict[str, dict[str, Any]]:
 
 
 def download_fsd50k_via_parquet(cands: list[dict[str, Any]], workers: int = 2) -> list[tuple[dict[str, Any], Path]]:
-    """Download FSD50K clips directly from HuggingFace Hub Parquet shards with resume support."""
     fsd_dir = RAW_DIR / "fsd50k"
     fsd_dir.mkdir(parents=True, exist_ok=True)
 
@@ -510,10 +644,10 @@ def download_fsd50k_via_parquet(cands: list[dict[str, Any]], workers: int = 2) -
     for c in cands:
         raw_dest = fsd_dir / f"{c['split']}_{c['fid']}.wav"
         proc_dest = _processed_path(c)
-        if _is_valid_processed_wav(proc_dest):
-            ready.append((c, proc_dest))
-        elif raw_dest.exists() and raw_dest.stat().st_size > 500:
+        if raw_dest.exists() and raw_dest.stat().st_size > 500:
             ready.append((c, raw_dest))
+        elif _is_valid_processed_wav(proc_dest):
+            ready.append((c, proc_dest))
         else:
             to_fetch.append(c)
 
@@ -550,7 +684,7 @@ def download_fsd50k_via_parquet(cands: list[dict[str, Any]], workers: int = 2) -
             out.append((cand, raw_dest))
         return out
 
-    with ThreadPoolExecutor(max_workers=max(1, min(workers, 2))) as pool:
+    with ThreadPoolExecutor(max_workers=max(1, min(workers, 4))) as pool:
         futs = [pool.submit(_download_shard_group, item) for item in by_shard.items()]
         for fut in as_completed(futs):
             ready.extend(fut.result())
@@ -560,7 +694,170 @@ def download_fsd50k_via_parquet(cands: list[dict[str, Any]], workers: int = 2) -
 
 
 # ---------------------------------------------------------------------------
-# Source 2: ESC-50 (GitHub karolpiczak/ESC-50)
+# Source 2: agkphysics/AudioSet (Google AudioSet balanced Parquet shards on HF Hub)
+# ---------------------------------------------------------------------------
+
+def ensure_audioset_canine_index(workers: int = 4) -> list[dict[str, Any]]:
+    meta_dir = RAW_DIR / "audioset_meta"
+    meta_dir.mkdir(parents=True, exist_ok=True)
+    index_path = meta_dir / "canine_index.json"
+    if index_path.exists():
+        try:
+            return json.loads(index_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    print("[AudioSet] Scanning agkphysics/AudioSet balanced Parquet shards for Whimper (dog) and Yip...")
+    sess = requests.Session()
+    splits = _http_get_with_retry("https://huggingface.co/api/datasets/agkphysics/AudioSet/parquet/balanced", session=sess, timeout=30).json()
+    tasks = [(sp, s_idx, url) for sp in ("test", "train") for s_idx, url in enumerate(splits.get(sp, []))]
+
+    def _scan(item: tuple[str, int, str]) -> list[dict[str, Any]]:
+        sp, s_idx, url = item
+        local_sess = requests.Session()
+        rf = HTTPRangeFile(url, local_sess)
+        pf = pq.ParquetFile(io.BufferedReader(rf, buffer_size=131072))
+        hits = []
+        for rg_idx in range(pf.metadata.num_row_groups):
+            tbl = pf.read_row_group(rg_idx, columns=["video_id", "human_labels"])
+            for local_i, (vid, hl) in enumerate(zip(tbl["video_id"].to_pylist(), tbl["human_labels"].to_pylist())):
+                hset = set(hl or [])
+                if "Whimper (dog)" in hset or "Yip" in hset or ("Dog" in hset and "Whimper" in hset):
+                    hits.append({
+                        "split": sp,
+                        "shard_idx": s_idx,
+                        "shard_url": url,
+                        "rg_idx": rg_idx,
+                        "local_idx": local_i,
+                        "video_id": vid,
+                        "human_labels": sorted(hset),
+                    })
+        return hits
+
+    all_hits: list[dict[str, Any]] = []
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        for res in pool.map(_scan, tasks):
+            all_hits.extend(res)
+    index_path.write_text(json.dumps(all_hits, indent=2), encoding="utf-8")
+    return all_hits
+
+
+def download_audioset_whine_yip(workers: int = 4) -> list[tuple[dict[str, Any], Path]]:
+    """
+    Select and stream pure Whimper (dog) ('whine') and Yip ('yip') clips from
+    agkphysics/AudioSet balanced Parquet shards (CC-BY-4.0), packing multi-hit
+    row groups first and caching raw FLAC/WAV clips in data/ml_corpus/raw/audioset/.
+    """
+    hits = ensure_audioset_canine_index(workers=workers)
+    as_dir = RAW_DIR / "audioset"
+    as_dir.mkdir(parents=True, exist_ok=True)
+
+    by_rg: dict[tuple[str, int, int], list[dict[str, Any]]] = defaultdict(list)
+    for h in hits:
+        hset = set(h["human_labels"])
+        label: str | None = None
+        if ("Whimper (dog)" in hset or ("Dog" in hset and "Whimper" in hset)) and not (
+            hset & {"Bark", "Growling", "Howl"}
+        ):
+            label = "whine"
+        elif "Yip" in hset and not (hset & {"Growling", "Howl", "Whimper (dog)"}):
+            label = "yip"
+        if label is None:
+            continue
+
+        vid = h["video_id"]
+        cand = {
+            "split": h["split"],
+            "shard_idx": h["shard_idx"],
+            "shard_url": h["shard_url"],
+            "rg_idx": h["rg_idx"],
+            "local_idx": h["local_idx"],
+            "video_id": vid,
+            "dog_id": f"audioset_yt_{_slug(vid)}",
+            "label": label,
+            "source": "AudioSet",
+            "license": "CC-BY-4.0",
+        }
+        by_rg[(h["split"], h["shard_idx"], h["rg_idx"])].append(cand)
+
+    # Prioritize row groups that already have cached files or pack multiple whine/yip hits
+    def _rg_priority(kv: tuple[tuple[str, int, int], list[dict[str, Any]]]) -> tuple[int, int, tuple[str, int, int]]:
+        rg_key, items = kv
+        cached_cnt = sum(1 for c in items if (as_dir / f"{c['split']}_{c['video_id']}.flac").exists())
+        return (-cached_cnt, -len(items), rg_key)
+
+    sorted_rgs = sorted(by_rg.items(), key=_rg_priority)
+
+    selected_rgs: list[tuple[tuple[str, int, int], list[dict[str, Any]]]] = []
+    w_vids: set[str] = set()
+    y_vids: set[str] = set()
+
+    for rg_key, items in sorted_rgs:
+        keep_items = []
+        for it in items:
+            if it["label"] == "whine" and len(w_vids) < AUDIOSET_TARGET_WHINE and it["video_id"] not in w_vids:
+                w_vids.add(it["video_id"])
+                keep_items.append(it)
+            elif it["label"] == "yip" and len(y_vids) < AUDIOSET_TARGET_YIP and it["video_id"] not in y_vids:
+                y_vids.add(it["video_id"])
+                keep_items.append(it)
+        if keep_items:
+            selected_rgs.append((rg_key, keep_items))
+        if len(w_vids) >= AUDIOSET_TARGET_WHINE and len(y_vids) >= AUDIOSET_TARGET_YIP:
+            break
+
+    ready: list[tuple[dict[str, Any], Path]] = []
+    rgs_to_fetch: list[tuple[tuple[str, int, int], list[dict[str, Any]]]] = []
+
+    for rg_key, items in selected_rgs:
+        missing = []
+        for c in items:
+            raw_dest = as_dir / f"{c['split']}_{c['video_id']}.flac"
+            if raw_dest.exists() and raw_dest.stat().st_size > 500:
+                ready.append((c, raw_dest))
+            else:
+                missing.append(c)
+        if missing:
+            rgs_to_fetch.append((rg_key, missing))
+
+    if not rgs_to_fetch:
+        print(f"[AudioSet] All {len(ready)} selected whine/yip clips already cached.")
+        return ready
+
+    print(
+        f"[AudioSet] Streaming {sum(len(m) for _, m in rgs_to_fetch)} new whine/yip clips "
+        f"across {len(rgs_to_fetch)} row groups (cached={len(ready)})..."
+    )
+
+    def _fetch_rg(item: tuple[tuple[str, int, int], list[dict[str, Any]]]) -> list[tuple[dict[str, Any], Path]]:
+        (sp, s_idx, rg_idx), cands_in_rg = item
+        shard_url = cands_in_rg[0]["shard_url"]
+        local_sess = requests.Session()
+        rf = HTTPRangeFile(shard_url, local_sess)
+        # Use 32 MB buffer so the row group streams in 4 fast chunks instead of 34 small round-trips
+        pf = pq.ParquetFile(io.BufferedReader(rf, buffer_size=33554432))
+        tbl = pf.read_row_group(rg_idx, columns=["audio"])
+        audio_col = tbl["audio"]
+        out: list[tuple[dict[str, Any], Path]] = []
+        for cand in cands_in_rg:
+            raw_dest = as_dir / f"{cand['split']}_{cand['video_id']}.flac"
+            audio_val = audio_col[int(cand["local_idx"])].as_py()
+            raw_bytes = audio_val["bytes"] if isinstance(audio_val, dict) else audio_val
+            raw_dest.write_bytes(raw_bytes)
+            out.append((cand, raw_dest))
+        return out
+
+    with ThreadPoolExecutor(max_workers=max(1, min(workers * 3, 8))) as pool:
+        futs = [pool.submit(_fetch_rg, item) for item in rgs_to_fetch]
+        for fut in as_completed(futs):
+            ready.extend(fut.result())
+
+    print(f"[AudioSet] Ready whine/yip clips: {len(ready)} (0 rate-limit skips)")
+    return ready
+
+
+# ---------------------------------------------------------------------------
+# Source 3: ESC-50 (GitHub karolpiczak/ESC-50)
 # ---------------------------------------------------------------------------
 
 def collect_esc50_candidates(fsd50k_all_fids: set[str]) -> list[dict[str, Any]]:
@@ -630,21 +927,18 @@ def download_esc50_clips(cands: list[dict[str, Any]], workers: int = 2) -> list[
 
 
 # ---------------------------------------------------------------------------
-# Source 3: cgeorgiaw/animal-sounds (HF dogs Parquet shards)
+# Source 4: cgeorgiaw/animal-sounds (HF dogs Parquet shards)
 # ---------------------------------------------------------------------------
 
 def download_animal_sounds_via_parquet(workers: int = 2) -> list[tuple[dict[str, Any], Path]]:
-    """Load named-dog bark clips from cgeorgiaw/animal-sounds via cached raw files or direct Parquet streaming."""
     audio_dir = RAW_DIR / "animal_sounds" / "audio"
     audio_dir.mkdir(parents=True, exist_ok=True)
 
-    # First check already cached raw files on disk
     existing_files = sorted(audio_dir.glob("animalsounds_dog_*.wav"))
     if len(existing_files) >= 120:
         ready_cached: list[tuple[dict[str, Any], Path]] = []
         per_dog: Counter[str] = Counter()
         for fpath in existing_files:
-            # Filename pattern: animalsounds_dog_<name>_<row_idx>.wav
             m = re.match(r"^(animalsounds_dog_[a-z0-9]+)_(\d+)\.wav$", fpath.name)
             if not m:
                 continue
@@ -698,7 +992,6 @@ def download_animal_sounds_via_parquet(workers: int = 2) -> list[tuple[dict[str,
             if not needed_local_indices:
                 continue
 
-            # Check if any need bytes fetched from this row group
             uncached_locals = [
                 (li, r_idx, d_id)
                 for li, r_idx, d_id in needed_local_indices
@@ -738,7 +1031,14 @@ def main() -> None:
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
-    # 1. Select & stream candidates across all 3 open-licensed sources
+    # Clear cached processed growl/howl files so YAMNet active-event localization is applied cleanly (whine/yip already localized)
+    for sub in ("growl", "howl"):
+        sub_dir = PROCESSED_DIR / sub
+        if sub_dir.exists():
+            for old_wav in sub_dir.glob("*.wav"):
+                old_wav.unlink(missing_ok=True)
+
+    # 1. Select & stream candidates across all 4 open-licensed sources
     gt_zip, meta_zip = ensure_fsd50k_metadata()
     fsd_cands, fsd_all_fids = select_fsd50k_candidates(gt_zip, meta_zip)
     print(f"[FSD50K] Selected {len(fsd_cands)} open-licensed canine candidates.")
@@ -748,19 +1048,21 @@ def main() -> None:
 
     downloaded: list[tuple[dict[str, Any], Path]] = []
     downloaded.extend(download_fsd50k_via_parquet(fsd_cands, workers=args.workers))
+    downloaded.extend(download_audioset_whine_yip(workers=args.workers))
     downloaded.extend(download_esc50_clips(esc_cands, workers=args.workers))
     downloaded.extend(download_animal_sounds_via_parquet(workers=args.workers))
 
     # 2. Convert/normalize to 22,050 Hz mono PCM_16 WAV & filter corrupt/silent/<0.25s
-    manifest_rows: list[dict[str, Any]] = []
+    raw_manifest_rows: list[dict[str, Any]] = []
     filter_reasons: Counter[str] = Counter()
 
     def _process_one(item: tuple[dict[str, Any], Path]) -> tuple[dict[str, Any] | None, str]:
         cand, raw_path = item
         dest_wav = _processed_path(cand)
-        ok, reason = decode_and_normalize(raw_path, dest_wav)
+        ok, reason = decode_and_normalize(raw_path, dest_wav, label=cand["label"])
         if not ok:
             return None, reason.split(" ")[0]
+        audio_sha256 = hashlib.sha256(dest_wav.read_bytes()).hexdigest()
         return {
             "path": str(dest_wav.resolve()),
             "dog_id": cand["dog_id"],
@@ -768,23 +1070,34 @@ def main() -> None:
             "is_fixture": "False",
             "source": cand["source"],
             "license": cand["license"],
+            "_sha256": audio_sha256,
         }, "ok"
 
-    print(f"\nNormalizing {len(downloaded)} clips to {TARGET_SR} Hz mono WAV (with resume support)...")
+    print(f"\nNormalizing {len(downloaded)} clips to {TARGET_SR} Hz mono WAV (with YAMNet localization & resume)...")
     with ThreadPoolExecutor(max_workers=max(1, args.workers * 2)) as pool:
         futs = [pool.submit(_process_one, item) for item in downloaded]
         for fut in as_completed(futs):
             row, reason = fut.result()
             if row is not None:
-                manifest_rows.append(row)
+                raw_manifest_rows.append(row)
             else:
                 filter_reasons[reason] += 1
 
-    manifest_rows.sort(key=lambda r: (r["label"], r["dog_id"], r["path"]))
+    raw_manifest_rows.sort(key=lambda r: (r["label"], r["dog_id"], r["path"]))
 
-    for r in manifest_rows:
+    # Deduplicate by audio SHA-256 hash
+    seen_hashes: set[str] = set()
+    manifest_rows: list[dict[str, Any]] = []
+    dup_cnt = 0
+    for r in raw_manifest_rows:
+        h = r.pop("_sha256")
+        if h in seen_hashes:
+            dup_cnt += 1
+            continue
+        seen_hashes.add(h)
         assert "reference_library" not in r["path"].lower(), f"Forbidden path: {r['path']}"
         assert r["label"] in CLASSES, f"Invalid label: {r['label']}"
+        manifest_rows.append(r)
 
     MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = ["path", "dog_id", "label", "is_fixture", "source", "license"]
@@ -793,7 +1106,7 @@ def main() -> None:
         writer.writeheader()
         writer.writerows(manifest_rows)
 
-    print(f"\nWrote {len(manifest_rows)} rows to {MANIFEST_PATH}")
+    print(f"\nWrote {len(manifest_rows)} deduplicated rows to {MANIFEST_PATH} (duplicates_removed={dup_cnt})")
     if filter_reasons:
         print(f"Filtered out clips: {dict(filter_reasons)}")
 

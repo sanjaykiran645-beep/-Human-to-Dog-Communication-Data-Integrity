@@ -20,6 +20,7 @@ from ..ml.evaluate import CANONICAL_6_CLASSES, evaluate_dog_independent_generali
 from ..security import revoke_token
 from ..services import storage
 from ..services.breed_intelligence import resolve_breed_intelligence
+from ..services.inference import is_accuracy_target_met
 
 router = APIRouter(prefix="/api", tags=["analytics"])
 
@@ -87,7 +88,7 @@ def summary(user: models.User = Depends(get_current_user), db: Session = Depends
             "vocalization": MODEL_VERSION,
             "behavior": BEHAVIOR_MODEL_VERSION,
             "synth": SYNTH_MODEL_VERSION,
-            "accuracy_target_met": False,
+            "accuracy_target_met": is_accuracy_target_met(),
         },
     }
 

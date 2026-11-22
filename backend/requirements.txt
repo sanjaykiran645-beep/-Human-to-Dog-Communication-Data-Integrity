@@ -15,3 +15,4 @@ librosa>=0.10.2
 soundfile>=0.12.1
 matplotlib>=3.9.0
 joblib>=1.4.0
+onnxruntime>=1.19.0

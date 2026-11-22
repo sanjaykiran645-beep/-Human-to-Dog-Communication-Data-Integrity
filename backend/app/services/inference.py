@@ -111,5 +111,11 @@ class HeuristicModel:
 PRODUCTION: VocalizationModel = HeuristicModel()
 
 
+def is_accuracy_target_met() -> bool:
+    if isinstance(PRODUCTION, HeuristicModel):
+        return PRODUCTION._load_promoted_supervised() is not None
+    return False
+
+
 def predict_vocalization(features: dict[str, Any], quality: dict[str, Any] | None = None) -> dict[str, Any]:
     return PRODUCTION.predict(features, quality)

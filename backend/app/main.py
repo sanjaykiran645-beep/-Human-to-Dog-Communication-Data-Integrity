@@ -16,6 +16,7 @@ from .db import LATEST_MIGRATION_VERSION, get_applied_migrations, init_db
 from .routers import analytics, auth, communicate, dogs, experiments, recordings
 from .services.audio import decoder_status, find_ffmpeg
 from .services.durability import check_backup_health
+from .services.inference import is_accuracy_target_met
 from .services.storage import StorageQuotaExceededError, StorageUnavailableError
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -108,7 +109,7 @@ def health() -> dict:
         "vocalization_model": MODEL_VERSION,
         "behavior_model": BEHAVIOR_MODEL_VERSION,
         "synth_model": SYNTH_MODEL_VERSION,
-        "accuracy_target_met": False,
+        "accuracy_target_met": is_accuracy_target_met(),
         "decoder": dec,
         "persistence": {
             "provider": STORAGE_PROVIDER,

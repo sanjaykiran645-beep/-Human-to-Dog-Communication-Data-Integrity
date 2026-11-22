@@ -21,6 +21,12 @@ data/*
 !data/evaluation_samples/
 !data/evaluation_samples/blind_listening_manifest.json
 !data/reference_library/
+!data/models/
+data/models/*
+!data/models/candidates/
+data/models/candidates/*
+!data/models/candidates/rf_candidate.joblib
+!data/models/candidates/rf_candidate_metrics.json
 *.sqlite3
 *.sqlite3-shm
 *.sqlite3-wal

@@ -147,7 +147,17 @@ def startup() -> None:
         log.warning(
             "FFmpeg not found. WAV/FLAC still decode. WEBM/MP3/M4A/OGG will fail until FFmpeg is installed."
         )
-    log.info("CanineSense AI %s ready (model %s)", __version__, MODEL_VERSION)
+    try:
+        import numpy as np
+        from .services.features import extract_features
+        from .services.inference import predict_vocalization
+
+        y_warm = (0.25 * np.sin(2.0 * np.pi * 440.0 * np.linspace(0.0, 0.6, 13230))).astype(np.float32)
+        f_warm = extract_features(y_warm, 22050)
+        predict_vocalization(f_warm, {"status": "ok"})
+    except Exception:
+        log.warning("Startup DSP/ML warmup skipped", exc_info=True)
+    log.info("CanineSense AI %s ready (model %s, target_met=%s)", __version__, MODEL_VERSION, is_accuracy_target_met())
 
 
 FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"

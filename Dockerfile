@@ -22,6 +22,11 @@ FROM --platform=linux/amd64 python:3.12-slim-bookworm AS production
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
+    NUMBA_CACHE_DIR=/app/.numba_cache \
+    MPLCONFIGDIR=/app/.mpl_cache \
+    OMP_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
     CANINESENSE_ENV=production \
     CANINESENSE_DATA_DIR=/app/data \
     PORT=8000
@@ -52,9 +57,10 @@ COPY data/reference_library /app/data/reference_library
 COPY data/evaluation_samples /app/data/evaluation_samples
 COPY data/models/candidates /app/data/models/candidates
 
-# Prepare runtime data directories and fetch pretrained YAMNet ONNX backbone
-RUN mkdir -p /app/data/storage /app/data/scratch /app/data/models/candidates /app/data/models/pretrained /app/data/releases && \
-    curl -fsSL https://huggingface.co/jafet21/yamnetonnx/resolve/main/yamnet.onnx -o /app/data/models/pretrained/yamnet.onnx
+# Prepare runtime data directories, fetch pretrained YAMNet ONNX backbone, and pre-compile Numba DSP/JIT + Matplotlib cache at build time
+RUN mkdir -p /app/.numba_cache /app/.mpl_cache /app/data/storage /app/data/scratch /app/data/models/candidates /app/data/models/pretrained /app/data/releases && \
+    curl -fsSL https://huggingface.co/jafet21/yamnetonnx/resolve/main/yamnet.onnx -o /app/data/models/pretrained/yamnet.onnx && \
+    python -c "import sys, tempfile, pathlib, numpy as np; sys.path.insert(0, '/app/backend'); from app.services.features import extract_features; from app.services.inference import predict_vocalization, is_accuracy_target_met; from app.services.viz import write_plots; y = (0.3 * np.sin(2 * np.pi * 440.0 * np.linspace(0, 1.2, 26460))).astype(np.float32); f = extract_features(y, 22050); p = predict_vocalization(f, {'status': 'ok'}); td = pathlib.Path(tempfile.mkdtemp()); write_plots(y, 22050, td / 'w.png', td / 's.png'); print('Build warmup OK, accuracy_target_met=', is_accuracy_target_met(), 'pred=', p.get('vocalization'))"
 
 EXPOSE 8000
 

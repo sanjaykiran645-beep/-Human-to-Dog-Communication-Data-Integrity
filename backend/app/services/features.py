@@ -32,7 +32,10 @@ def _get_yamnet_session() -> Any:
         import onnxruntime as ort
 
         opts = ort.SessionOptions()
-        opts.intra_op_num_threads = 2
+        opts.intra_op_num_threads = 1
+        opts.inter_op_num_threads = 1
+        opts.enable_cpu_mem_arena = False
+        opts.enable_mem_pattern = False
         _YAMNET_SESSION = ort.InferenceSession(
             str(onnx_path),
             sess_options=opts,

@@ -93,12 +93,12 @@ class BalancedEnsembleClassifier(BaseEstimator, ClassifierMixin):
         sw = compute_sample_weight("balanced", y)
 
         self.et_ = ExtraTreesClassifier(
-            n_estimators=500,
-            max_depth=18,
+            n_estimators=80,
+            max_depth=12,
             min_samples_leaf=2,
             class_weight="balanced",
             random_state=self.random_state,
-            n_jobs=-1,
+            n_jobs=1,
         )
         self.hgb_ = HistGradientBoostingClassifier(
             max_iter=280,
@@ -142,12 +142,12 @@ class BalancedEnsembleClassifier(BaseEstimator, ClassifierMixin):
             ]
         )
         self.rf_ = RandomForestClassifier(
-            n_estimators=400,
-            max_depth=16,
+            n_estimators=80,
+            max_depth=12,
             min_samples_leaf=2,
             class_weight="balanced_subsample",
             random_state=self.random_state,
-            n_jobs=-1,
+            n_jobs=1,
         )
 
         self.et_.fit(X, y)
@@ -369,7 +369,7 @@ def main() -> None:
         cv_k = max(2, min(3, min_c))
 
         et = ExtraTreesClassifier(
-            n_estimators=500, max_depth=18, min_samples_leaf=2, class_weight="balanced", random_state=42, n_jobs=-1
+            n_estimators=80, max_depth=12, min_samples_leaf=2, class_weight="balanced", random_state=42, n_jobs=1
         )
         hgb = HistGradientBoostingClassifier(
             max_iter=280, max_depth=8, learning_rate=0.05, min_samples_leaf=8, l2_regularization=1.5, random_state=42
@@ -378,7 +378,7 @@ def main() -> None:
             max_iter=320, max_depth=6, learning_rate=0.04, min_samples_leaf=6, l2_regularization=2.5, max_bins=128, random_state=101
         )
         rf = RandomForestClassifier(
-            n_estimators=400, max_depth=16, min_samples_leaf=2, class_weight="balanced_subsample", random_state=42, n_jobs=-1
+            n_estimators=80, max_depth=12, min_samples_leaf=2, class_weight="balanced_subsample", random_state=42, n_jobs=1
         )
 
         scaler = StandardScaler()
